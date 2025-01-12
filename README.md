@@ -77,7 +77,7 @@ If you encounter freezes or crashes when using the app, you can reset Syncudio b
 - Alternatively, go to the Syncudio folder directory
   - Windows: `%AppData%\Syncudio`
   - OSX: `~/Library/Application Support/Syncudio`
-  - Linux: `~/.config/syncudio/` or `$XDG_CONFIG_HOME/Syncudio`
+  - Linux: `~/.config/Syncudio/` or `$XDG_CONFIG_HOME/Syncudio`
 - Delete everything there
 - Restart Syncudio
 
