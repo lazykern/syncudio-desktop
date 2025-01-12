@@ -128,9 +128,9 @@ async function checkForUpdate(
 
     let message: string | undefined;
     if (newRelease) {
-      message = `Syncudio ${newRelease.tag_name} is available, check https://syncudio.io!`;
+      message = `Museeks ${newRelease.tag_name} is available, check https://museeks.io!`;
     } else if (!options.silentFail) {
-      message = `Syncudio ${currentVersion} is the latest version available.`;
+      message = `Museeks ${currentVersion} is the latest version available.`;
     }
 
     if (message) {
