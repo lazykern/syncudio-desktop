@@ -45,6 +45,7 @@ fn main() {
         .plugin(plugins::debug::init())
         .plugin(plugins::default_view::init())
         .plugin(plugins::sleepblocker::init())
+        .plugin(plugins::cloud::init())
         // Tauri integrations with the Operating System
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())

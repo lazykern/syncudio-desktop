@@ -20,6 +20,11 @@ pub mod config;
 pub mod db;
 
 /**
+ * Cloud sync
+ */
+pub mod cloud;
+
+/**
  * Settings-related plugins
  */
 pub mod default_view;

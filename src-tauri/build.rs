@@ -44,6 +44,15 @@ fn main() {
             .plugin(
                 "sleepblocker",
                 tauri_build::InlinedPlugin::new().commands(&["enable", "disable"]),
+            )
+            .plugin(
+                "cloud",
+                tauri_build::InlinedPlugin::new().commands(&[
+                    "dropbox_start_auth",
+                    "dropbox_complete_auth",
+                    "dropbox_is_authorized",
+                    "dropbox_unauthorize",
+                ]),
             ),
     )
     .expect("Failed to run tauri-build");

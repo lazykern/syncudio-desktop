@@ -1145,6 +1145,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "dropbox-sdk"
+version = "0.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6cd199527e5c0b77f9292ea1fb275ca35b5ffad8f8d7f8cd317c37514efc9d5"
+dependencies = [
+ "async-lock",
+ "base64 0.22.1",
+ "bytes",
+ "futures",
+ "log",
+ "ring",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.9",
+ "ureq",
+ "url 2.5.4",
+]
+
+[[package]]
 name = "dtoa"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4178,6 +4197,7 @@ version = "0.23.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5065c3f250cbd332cd894be57c40fa52387247659b14a2d6041d121547903b1b"
 dependencies = [
+ "log",
  "once_cell",
  "ring",
  "rustls-pki-types",
@@ -5020,6 +5040,7 @@ dependencies = [
  "anyhow",
  "base64 0.22.1",
  "dirs 5.0.1",
+ "dropbox-sdk",
  "futures",
  "home-config",
  "itertools 0.14.0",
@@ -6044,6 +6065,21 @@ name = "untrusted"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
+
+[[package]]
+name = "ureq"
+version = "2.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02d1a66277ed75f640d608235660df48c8e3c19f3b4edb6a263315626cc3c01d"
+dependencies = [
+ "base64 0.22.1",
+ "log",
+ "once_cell",
+ "rustls",
+ "rustls-pki-types",
+ "url 2.5.4",
+ "webpki-roots",
+]
 
 [[package]]
 name = "url"

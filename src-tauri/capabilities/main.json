@@ -2,7 +2,9 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main-capability",
   "description": "Capability for the main window",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:app:default",
     "core:event:default",
@@ -44,7 +46,15 @@
     "database:allow-reset",
     "default-view:allow-set",
     "sleepblocker:allow-enable",
-    "sleepblocker:allow-disable"
+    "sleepblocker:allow-disable",
+    "cloud:allow-dropbox-start-auth",
+    "cloud:allow-dropbox-complete-auth",
+    "cloud:allow-dropbox-is-authorized",
+    "cloud:allow-dropbox-unauthorize"
   ],
-  "platforms": ["linux", "macOS", "windows"]
+  "platforms": [
+    "linux",
+    "macOS",
+    "windows"
+  ]
 }

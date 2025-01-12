@@ -70,6 +70,18 @@ export default function Footer() {
             <Icon name="star" fixedWidth />
           </NavLink>
           <NavLink
+            to="/cloud"
+            className={({ isActive }) =>
+              `${styles.footerNavigationLink} ${
+                isActive && styles.footerNavigationLinkIsActive
+              }`
+            }
+            title="Cloud"
+            draggable={false}
+          >
+            <Icon name="cloud" fixedWidth />
+          </NavLink>
+          <NavLink
             to="/settings"
             className={({ isActive }) =>
               `${styles.footerNavigationLink} ${

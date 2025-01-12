@@ -11,6 +11,11 @@ pub mod playlist;
 pub mod track;
 
 /**
+ * Cloud sync
+ */
+pub mod cloud;
+
+/**
  * Tests
  */
 #[cfg(test)]
