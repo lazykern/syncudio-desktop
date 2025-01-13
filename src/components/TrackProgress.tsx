@@ -17,50 +17,59 @@ export default function TrackProgress(props: Props) {
 
   const elapsed = usePlayingTrackCurrentTime();
   const playerAPI = usePlayerAPI();
+  const [tempPosition, setTempPosition] = useState<number | null>(null);
+  const [tooltipTargetTime, setTooltipTargetTime] = useState<null | number>(null);
+  const [tooltipX, setTooltipX] = useState<null | number>(null);
 
   const jumpAudioTo = useCallback(
     (values: number[]) => {
       const [to] = values;
-
       playerAPI.jumpTo(to);
+      setTempPosition(null);
     },
     [playerAPI],
   );
 
-  const [tooltipTargetTime, setTooltipTargetTime] = useState<null | number>(
-    null,
-  );
-  const [tooltipX, setTooltipX] = useState<null | number>(null);
+  const handleSliderChange = useCallback((values: number[]) => {
+    const [to] = values;
+    setTempPosition(to);
+    setTooltipTargetTime(to);
+    const percent = (to / trackPlaying.duration) * 100;
+    setTooltipX(percent);
+  }, [trackPlaying.duration]);
 
   const showTooltip = useCallback(
     (e: React.MouseEvent<HTMLElement>) => {
+      if (tempPosition !== null) return; // Don't update tooltip if dragging
+      
       const { offsetX } = e.nativeEvent;
       const barWidth = e.currentTarget.offsetWidth;
-
       const percent = (offsetX / barWidth) * 100;
-
       const time = (percent * trackPlaying.duration) / 100;
 
       setTooltipTargetTime(time);
       setTooltipX(percent);
     },
-    [trackPlaying],
+    [trackPlaying.duration, tempPosition],
   );
 
   const hideTooltip = useCallback(() => {
+    if (tempPosition !== null) return; // Don't hide tooltip if dragging
     setTooltipTargetTime(null);
     setTooltipX(null);
-  }, []);
+  }, [tempPosition]);
 
   const tooltipContent = useFormattedDuration(tooltipTargetTime);
+  const currentPosition = tempPosition ?? elapsed;
 
   return (
     <Slider.Root
       min={0}
       max={trackPlaying.duration}
       step={1}
-      value={[elapsed]}
-      onValueChange={jumpAudioTo}
+      value={[currentPosition]}
+      onValueChange={handleSliderChange}
+      onValueCommit={jumpAudioTo}
       className={styles.trackRoot}
       onMouseMoveCapture={showTooltip}
       onMouseLeave={hideTooltip}
