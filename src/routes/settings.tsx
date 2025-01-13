@@ -17,9 +17,9 @@ export default function ViewSettingsView() {
       <div className={styles.settingsNav}>
         <SettingNav.Wrap vertical>
           <SettingNav.Link to="/settings/library">Library</SettingNav.Link>
+          <SettingNav.Link to="/settings/cloud">Cloud</SettingNav.Link>
           <SettingNav.Link to="/settings/audio">Audio</SettingNav.Link>
           <SettingNav.Link to="/settings/interface">Interface</SettingNav.Link>
-          <SettingNav.Link to="/settings/cloud">Cloud</SettingNav.Link>
           <SettingNav.Link to="/settings/about">About</SettingNav.Link>
         </SettingNav.Wrap>
       </div>
