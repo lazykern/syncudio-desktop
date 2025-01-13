@@ -19,6 +19,10 @@ pub const SUPPORTED_TRACKS_EXTENSIONS: [&str; 9] = [
 
 pub const SUPPORTED_PLAYLISTS_EXTENSIONS: [&str; 1] = ["m3u"];
 
+// Cloud provider types
+pub const CLOUD_PROVIDER_DROPBOX: &str = "dropbox";
+pub const CLOUD_PROVIDER_GDRIVE: &str = "gdrive";
+
 /** ----------------------------------------------------------------------------
  * Databases
  * exposes databases for tracks and playlists
@@ -53,8 +57,74 @@ impl DB {
         .execute(&mut self.connection)
         .await?;
 
+        // Cloud provider table
+        ormlite::query(
+            "CREATE TABLE IF NOT EXISTS cloud_providers (
+                id TEXT PRIMARY KEY NOT NULL,
+                provider_type TEXT NOT NULL, -- 'dropbox' or 'gdrive'
+                access_token TEXT NOT NULL,
+                refresh_token TEXT,
+                auth_data TEXT,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );",
+        )
+        .execute(&mut self.connection)
+        .await?;
+
+        // Cloud folder mappings
+        ormlite::query(
+            "CREATE TABLE IF NOT EXISTS cloud_folders (
+                id TEXT PRIMARY KEY NOT NULL,
+                provider_id TEXT NOT NULL,
+                cloud_folder_id TEXT NOT NULL,
+                cloud_folder_name TEXT NOT NULL,
+                local_folder_path TEXT NOT NULL UNIQUE,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                FOREIGN KEY(provider_id) REFERENCES cloud_providers(id)
+            );",
+        )
+        .execute(&mut self.connection)
+        .await?;
+
+        // Cloud sync status for tracks and playlists
+        ormlite::query(
+            "CREATE TABLE IF NOT EXISTS cloud_syncs (
+                id TEXT PRIMARY KEY NOT NULL,
+                provider_id TEXT NOT NULL,
+                folder_id TEXT NOT NULL,
+                item_id TEXT NOT NULL, -- track_id or playlist_id
+                item_type TEXT NOT NULL, -- 'track' or 'playlist'
+                cloud_file_id TEXT NOT NULL,
+                cloud_file_name TEXT NOT NULL,
+                local_path TEXT NOT NULL,
+                last_synced INTEGER,
+                sync_status TEXT NOT NULL, -- 'synced', 'pending_upload', 'pending_download', 'conflict'
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                FOREIGN KEY(provider_id) REFERENCES cloud_providers(id),
+                FOREIGN KEY(folder_id) REFERENCES cloud_folders(id)
+            );",
+        )
+        .execute(&mut self.connection)
+        .await?;
+
         // Index for the path column in Track
         ormlite::query("CREATE INDEX IF NOT EXISTS index_track_path ON tracks (path);")
+            .execute(&mut self.connection)
+            .await?;
+
+        // New indices for cloud tables
+        ormlite::query("CREATE INDEX IF NOT EXISTS index_cloud_folder_paths ON cloud_folders (cloud_folder_path, local_folder_path);")
+            .execute(&mut self.connection)
+            .await?;
+
+        ormlite::query("CREATE INDEX IF NOT EXISTS index_cloud_syncs_item ON cloud_syncs (item_id, item_type);")
+            .execute(&mut self.connection)
+            .await?;
+
+        ormlite::query("CREATE INDEX IF NOT EXISTS index_cloud_syncs_status ON cloud_syncs (sync_status);")
             .execute(&mut self.connection)
             .await?;
 

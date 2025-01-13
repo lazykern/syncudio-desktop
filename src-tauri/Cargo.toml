@@ -30,9 +30,11 @@ tauri-plugin-window-state = "2.2.0"
 
 # non-Tauri dependencies
 anyhow = "1.0.95"
+async-trait = "0.1.77"
 base64 = "0.22.1"
+chrono = "0.4.31"
 dirs = "5.0.1"
-dropbox-sdk = { version = "0.19", features = ["default_client", "dbx_files"] }
+dropbox-sdk = { version = "0.19.1", features = ["default_client", "dbx_files"] }
 futures = "0.3.31"
 home-config = { version = "0.6.0", features = ["toml"] }
 itertools = "0.14.0"

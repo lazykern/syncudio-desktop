@@ -1,119 +1,213 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useLoaderData } from 'react-router';
-import { open } from '@tauri-apps/plugin-shell';
+import { useEffect, useState } from 'react';
+import { invoke } from '@tauri-apps/api/tauri';
+import { open } from '@tauri-apps/api/dialog';
+import styles from './settings.module.css';
 
-import * as Setting from '../components/Setting';
-import type { SettingsLoaderData } from './settings';
-import Flexbox from '../elements/Flexbox';
-import Button from '../elements/Button';
-import { cloud } from '../lib/cloud';
+interface CloudProvider {
+  id: string;
+  provider_type: string;
+  created_at: number;
+}
 
-export default function ViewSettingsSync() {
-  const { config } = useLoaderData() as SettingsLoaderData;
-  const [isDropboxConnected, setIsDropboxConnected] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [showAuthInput, setShowAuthInput] = useState(false);
-  const [authCode, setAuthCode] = useState('');
+interface CloudFolder {
+  id: string;
+  provider_id: string;
+  cloud_folder_id: string;
+  cloud_folder_name: string;
+  local_folder_path: string;
+}
+
+interface CloudFile {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  is_folder: boolean;
+}
+
+export default function SettingsCloud() {
+  const [isDropboxAuthorized, setIsDropboxAuthorized] = useState(false);
+  const [cloudFolders, setCloudFolders] = useState<CloudFolder[]>([]);
+  const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+  const [selectedCloudFolder, setSelectedCloudFolder] = useState<CloudFile | null>(null);
+  const [cloudFolderList, setCloudFolderList] = useState<CloudFile[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Check initial Dropbox connection status
-    cloud.dropboxIsAuthorized().then(setIsDropboxConnected);
+    checkDropboxAuth();
+    loadCloudFolders();
   }, []);
 
-  const handleDropboxConnect = useCallback(async () => {
+  const checkDropboxAuth = async () => {
+    const isAuthorized = await invoke('cloud_dropbox_is_authorized');
+    setIsDropboxAuthorized(isAuthorized as boolean);
+  };
+
+  const loadCloudFolders = async () => {
+    // TODO: Implement loading cloud folders from database
+  };
+
+  const handleConnectDropbox = async () => {
     try {
-      setIsConnecting(true);
-      // Get the authorization URL
-      const authUrl = await cloud.dropboxStartAuthorization();
-
-      // Open the auth URL in the default browser
-      await open(authUrl);
-
-      // Show the auth code input
-      setShowAuthInput(true);
+      setIsLoading(true);
+      const authUrl = await invoke('cloud_dropbox_start_auth');
+      // Open auth URL in browser
+      await invoke('open_browser', { url: authUrl });
+      // TODO: Handle auth callback
     } catch (error) {
-      console.error('Failed to start Dropbox authorization:', error);
-      setIsConnecting(false);
-    }
-  }, []);
-
-  const handleAuthCodeSubmit = useCallback(async () => {
-    if (!authCode.trim()) return;
-
-    try {
-      await cloud.dropboxCompleteAuthorization(authCode.trim());
-      setIsDropboxConnected(true);
-      setShowAuthInput(false);
-      setAuthCode('');
-    } catch (error) {
-      console.error('Failed to complete Dropbox authorization:', error);
+      console.error('Failed to connect to Dropbox:', error);
     } finally {
-      setIsConnecting(false);
+      setIsLoading(false);
     }
-  }, [authCode]);
+  };
 
-  const handleDropboxDisconnect = useCallback(async () => {
+  const handleDisconnectDropbox = async () => {
     try {
-      await cloud.dropboxUnauthorize();
-      setIsDropboxConnected(false);
+      setIsLoading(true);
+      await invoke('cloud_dropbox_unauthorize');
+      setIsDropboxAuthorized(false);
+      setSelectedProvider(null);
     } catch (error) {
       console.error('Failed to disconnect Dropbox:', error);
+    } finally {
+      setIsLoading(false);
     }
-  }, []);
+  };
+
+  const handleSelectProvider = async (providerId: string) => {
+    setSelectedProvider(providerId);
+    try {
+      setIsLoading(true);
+      const files = await invoke('cloud_dropbox_list_files', { folderId: '' });
+      setCloudFolderList(files as CloudFile[]);
+    } catch (error) {
+      console.error('Failed to list cloud folders:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSelectCloudFolder = (folder: CloudFile) => {
+    setSelectedCloudFolder(folder);
+  };
+
+  const handleAddFolderMapping = async () => {
+    if (!selectedProvider || !selectedCloudFolder) return;
+
+    try {
+      setIsLoading(true);
+      // Open folder picker
+      const localPath = await open({
+        directory: true,
+        multiple: false,
+        title: 'Select Local Music Folder',
+      });
+
+      if (!localPath) return;
+
+      // TODO: Save folder mapping to database
+      await loadCloudFolders();
+    } catch (error) {
+      console.error('Failed to add folder mapping:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRemoveFolderMapping = async (folderId: string) => {
+    try {
+      setIsLoading(true);
+      // TODO: Remove folder mapping from database
+      await loadCloudFolders();
+    } catch (error) {
+      console.error('Failed to remove folder mapping:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
-    <div className="setting setting-sync">
-      <Setting.Section>
-        <Setting.Title>Dropbox</Setting.Title>
-        <Flexbox>
-        {showAuthInput ? (
-          <Flexbox direction="vertical" gap={8}>
-            <p>
-              Please copy the authorization code from the browser and paste it
-              here:
-            </p>
-            <Setting.Input
-              label="Authorization Code"
-              id="dropbox-auth-code"
-              type="text"
-              value={authCode}
-              onChange={(e) => setAuthCode(e.currentTarget.value)}
-              placeholder="Enter authorization code"
-            />
-            <Flexbox gap={8}>
-              <Button
-                onClick={handleAuthCodeSubmit}
-                disabled={!authCode.trim()}
+    <div className={styles.settingsSection}>
+      <h2>Cloud Storage</h2>
+
+      {/* Cloud Providers */}
+      <div className={styles.settingsGroup}>
+        <h3>Cloud Providers</h3>
+        <div className={styles.providerList}>
+          <div className={styles.provider}>
+            <img src="/dropbox-logo.png" alt="Dropbox" />
+            <div className={styles.providerInfo}>
+              <h4>Dropbox</h4>
+              <p>{isDropboxAuthorized ? 'Connected' : 'Not connected'}</p>
+            </div>
+            <button
+              onClick={isDropboxAuthorized ? handleDisconnectDropbox : handleConnectDropbox}
+              disabled={isLoading}
+            >
+              {isDropboxAuthorized ? 'Disconnect' : 'Connect'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Folder Mappings */}
+      {isDropboxAuthorized && (
+        <div className={styles.settingsGroup}>
+          <h3>Folder Mappings</h3>
+          
+          {/* Add New Mapping */}
+          <div className={styles.addMapping}>
+            <h4>Add New Mapping</h4>
+            <div className={styles.folderSelector}>
+              <div className={styles.cloudFolderList}>
+                {cloudFolderList.map((folder) => (
+                  <div
+                    key={folder.id}
+                    className={`${styles.cloudFolder} ${
+                      selectedCloudFolder?.id === folder.id ? styles.selected : ''
+                    }`}
+                    onClick={() => handleSelectCloudFolder(folder)}
+                  >
+                    <span className={folder.is_folder ? styles.folderIcon : styles.fileIcon} />
+                    {folder.name}
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={handleAddFolderMapping}
+                disabled={!selectedCloudFolder || isLoading}
               >
-                Submit
-              </Button>
-              <Button
-                onClick={() => {
-                  setShowAuthInput(false);
-                  setIsConnecting(false);
-                  setAuthCode('');
-                }}
-              >
-                Cancel
-              </Button>
-            </Flexbox>
-          </Flexbox>
-        ) : isDropboxConnected ? (
-          <Button onClick={handleDropboxDisconnect}>Disconnect</Button>
-        ) : (
-          <Button onClick={handleDropboxConnect} disabled={isConnecting}>
-            {isConnecting ? 'Connecting...' : 'Connect'}
-          </Button>
-        )}
-        </Flexbox>
-      </Setting.Section>
-      <Setting.Section>
-        <Setting.Title>Google Drive</Setting.Title>
-        <p>Google Drive integration coming soon.</p>
-        <Flexbox>
-          <Button disabled>Connect</Button>
-        </Flexbox>
-      </Setting.Section>
+                Add Mapping
+              </button>
+            </div>
+          </div>
+
+          {/* Existing Mappings */}
+          <div className={styles.mappingList}>
+            {cloudFolders.map((folder) => (
+              <div key={folder.id} className={styles.mapping}>
+                <div className={styles.mappingInfo}>
+                  <div className={styles.cloudPath}>
+                    <span className={styles.folderIcon} />
+                    {folder.cloud_folder_name}
+                  </div>
+                  <div className={styles.arrow}>→</div>
+                  <div className={styles.localPath}>
+                    <span className={styles.folderIcon} />
+                    {folder.local_folder_path}
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleRemoveFolderMapping(folder.id)}
+                  className={styles.removeButton}
+                  disabled={isLoading}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
