@@ -1,6 +1,6 @@
 import { ask, open } from '@tauri-apps/plugin-dialog';
 
-import type { SortBy, SortOrder, Track } from '../generated/typings';
+import type { SortBy, SortOrder, Track, LocalFolder } from '../generated/typings';
 import config from '../lib/config';
 import database from '../lib/database';
 import { logAndNotifyError } from '../lib/utils';
@@ -115,8 +115,9 @@ const useLibraryStore = createLibraryStore<LibraryState>((set, get) => ({
       try {
         set({ refreshing: true });
 
-        const libraryFolders = await config.get('library_folders');
-        const scanResult = await database.importTracks(libraryFolders);
+        const localFolders = await database.getLocalFolders();
+        const paths = localFolders.map(folder => folder.path);
+        const scanResult = await database.importTracks(paths);
 
         if (scanResult.track_count > 0) {
           useToastsStore
@@ -149,22 +150,30 @@ const useLibraryStore = createLibraryStore<LibraryState>((set, get) => ({
 
     addLibraryFolders: async (paths: Array<string>) => {
       try {
-        const musicFolders = await config.get('library_folders');
+        const existingFolders = await database.getLocalFolders();
+        const existingPaths = existingFolders.map(folder => folder.path);
         const newFolders = removeRedundantFolders([
-          ...musicFolders,
+          ...existingPaths,
           ...paths,
         ]).sort();
-        await config.set('library_folders', newFolders);
+
+        // Add only new folders that don't exist yet
+        for (const path of newFolders) {
+          if (!existingPaths.includes(path)) {
+            await database.addLocalFolder(path);
+          }
+        }
       } catch (err) {
         logAndNotifyError(err);
       }
     },
 
     removeLibraryFolder: async (path) => {
-      const musicFolders = await config.get('library_folders');
-      const index = musicFolders.indexOf(path);
-      musicFolders.splice(index, 1);
-      await config.set('library_folders', musicFolders);
+      try {
+        await database.removeLocalFolder(path);
+      } catch (err) {
+        logAndNotifyError(err);
+      }
     },
 
     setRefresh: async (current, total) => {
@@ -219,7 +228,6 @@ const useLibraryStore = createLibraryStore<LibraryState>((set, get) => ({
 
         if (confirmed) {
           await database.reset();
-          await config.set('library_folders', []);
           useToastsStore.getState().api.add('success', 'Library was reset');
         }
       } catch (err) {
@@ -259,13 +267,8 @@ const useLibraryStore = createLibraryStore<LibraryState>((set, get) => ({
       }
     },
 
-    /**
-     * Manually set the footer content based on a list of tracks
-     */
-    setTracksStatus: async (tracks) => {
-      set({
-        tracksStatus: tracks !== null ? getStatus(tracks) : '',
-      });
+    setTracksStatus: (tracks) => {
+      set({ tracksStatus: tracks ? getStatus(tracks) : '' });
     },
   },
 }));

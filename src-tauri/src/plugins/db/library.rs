@@ -61,18 +61,22 @@ pub async fn import_tracks_to_library<R: Runtime>(
     let mut scan_result = ScanResult::default();
 
     // Scan all directories for valid files to be scanned and imported
-    let mut track_paths = scan_dirs(&import_paths, &SUPPORTED_TRACKS_EXTENSIONS);
+    let mut track_paths = Vec::new();
+    
+    // Scan each import path separately to maintain folder association
+    for import_path in &import_paths {
+        let canonical_import_path = import_path.canonicalize()?;
+        let paths = scan_dirs(&[canonical_import_path.clone()], &SUPPORTED_TRACKS_EXTENSIONS);
+        track_paths.extend(paths.into_iter().map(|path| (canonical_import_path.clone(), path)));
+    }
+    
     let scanned_paths_count = track_paths.len();
 
     // Remove files that are already in the DB (speedup scan + prevent duplicate errors)
-    let existing_paths = db
-        .get_all_tracks()
-        .await?
-        .iter()
-        .map(move |track| PathBuf::from(track.path.to_owned()))
-        .collect::<HashSet<_>>();
+    let existing_tracks = db.get_all_tracks().await?;
+    let existing_paths: HashSet<_> = existing_tracks.iter().map(|t| t.path()).collect();
 
-    track_paths.retain(|path| !existing_paths.contains(path));
+    track_paths.retain(|(_, path)| !existing_paths.contains(path));
 
     info!("Found {} files to import", track_paths.len());
     info!(
@@ -100,8 +104,7 @@ pub async fn import_tracks_to_library<R: Runtime>(
 
     let tracks = track_paths
         .par_iter()
-        .map(|path| -> Option<Track> {
-            // let counter = processed.clone();
+        .map(|(import_path, file_path)| -> Option<Track> {
             let p_current = progress.clone().fetch_add(1, Ordering::SeqCst);
             let p_total = total.clone().load(Ordering::SeqCst);
 
@@ -118,7 +121,7 @@ pub async fn import_tracks_to_library<R: Runtime>(
                     .unwrap();
             }
 
-            get_track_from_file(path)
+            get_track_from_file(file_path, &import_path.to_string_lossy())
         })
         .flatten()
         .collect::<Vec<Track>>();

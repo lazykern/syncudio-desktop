@@ -1,19 +1,8 @@
-use std::collections::HashSet;
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
-use log::{error, info, warn};
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use serde::{Deserialize, Serialize};
-use tauri::{Emitter, Manager, Runtime, State};
-use tauri_plugin_dialog::DialogExt;
+use tauri::State;
 use ts_rs::TS;
 
-use crate::libs::constants::SUPPORTED_TRACKS_EXTENSIONS;
-use crate::libs::error::{AnyResult, SyncudioError};
-use crate::libs::events::IPCEvent;
-use crate::libs::track::{get_track_from_file, get_track_id_for_path, Track};
-use crate::libs::utils::{scan_dirs, TimeLogger};
+use crate::libs::error::AnyResult;
+use crate::libs::track::Track;
 
 use super::core::DBState;
 

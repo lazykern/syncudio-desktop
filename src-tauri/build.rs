@@ -35,6 +35,10 @@ fn main() {
                     "export_playlist",
                     "delete_playlist",
                     "reset",
+                    "get_local_folders",
+                    "add_local_folder",
+                    "remove_local_folder",
+                    "is_local_folder",
                 ]),
             )
             .plugin(

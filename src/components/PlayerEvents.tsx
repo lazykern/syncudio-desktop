@@ -8,6 +8,7 @@ import player from '../lib/player';
 import { logAndNotifyError } from '../lib/utils';
 import { usePlayerAPI } from '../stores/usePlayerStore';
 import { useToastsAPI } from '../stores/useToastsStore';
+import { getTrackPath } from '../lib/track';
 
 const AUDIO_ERRORS = {
   aborted: 'The video playback was aborted.',
@@ -67,7 +68,7 @@ function PlayerEvents() {
         return;
       }
 
-      const cover = await getCover(track.path);
+      const cover = await getCover(await getTrackPath(track));
 
       sendNotification({
         title: track.title,

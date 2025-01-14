@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 
 import { getCover } from '../lib/cover';
 import player from '../lib/player';
+import { getTrackPath } from '../lib/track';
 import { usePlayerAPI } from '../stores/usePlayerStore';
 
 /**
@@ -53,7 +54,8 @@ async function syncArtwork() {
   const track = player.getTrack();
 
   if (track) {
-    const cover = await getCover(track.path);
+    const path = getTrackPath(track);
+    const cover = await getCover(path);
 
     navigator.mediaSession.metadata = new MediaMetadata({
       title: track.title,

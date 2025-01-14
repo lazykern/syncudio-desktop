@@ -4,6 +4,7 @@ import type { Track } from '../generated/typings';
 
 import config from './config';
 import { logAndNotifyError } from './utils';
+import { getTrackPath } from './track';
 
 interface PlayerOptions {
   playbackRate?: number;
@@ -108,13 +109,13 @@ class Player {
     // Cursed Linux: https://github.com/tauri-apps/tauri/issues/3725#issuecomment-2325248116
     if (window.__SYNCUDIO_PLATFORM === 'linux') {
       const blobUrl = URL.createObjectURL(
-        await fetch(convertFileSrc(track.path)).then((res) => res.blob()),
+        await fetch(convertFileSrc(await getTrackPath(track))).then((res) => res.blob()),
       );
       this.audio.src = blobUrl;
       return;
     }
 
-    this.audio.src = convertFileSrc(track.path);
+    this.audio.src = convertFileSrc(await getTrackPath(track));
   }
 
   setCurrentTime(currentTime: number) {

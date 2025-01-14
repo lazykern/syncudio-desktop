@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 /**
  * Track
- * represent a single track, id and path should be unique
+ * represent a single track
  */
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Model, TS)]
 #[ormlite(table = "tracks")]
@@ -18,7 +18,8 @@ use uuid::Uuid;
 pub struct Track {
     #[ormlite(primary_key)]
     pub id: String,
-    pub path: String, // must be unique, ideally, a PathBuf
+    pub local_folder_path: String,  // References local_folders.path
+    pub relative_path: String,      // Path relative to local_folder_path
     pub title: String,
     pub album: String,
     #[ormlite(json)]
@@ -33,16 +34,20 @@ pub struct Track {
     pub disk_of: Option<u32>,
 }
 
+impl Track {
+    pub fn path(&self) -> PathBuf {
+        PathBuf::from(&self.local_folder_path).join(&self.relative_path)
+    }
+}
+
 /**
- * Generate a Track struct from a Path, or nothing if it is not a valid audio
- * file
+ * Generate a Track struct from a Path and its local folder, or nothing if it is not a valid audio file
  */
-pub fn get_track_from_file(path: &PathBuf) -> Option<Track> {
-    match lofty::read_from_path(path) {
+pub fn get_track_from_file(abs_path: &PathBuf, local_folder_path: &str) -> Option<Track> {
+    match lofty::read_from_path(abs_path) {
         Ok(tagged_file) => {
             let tag = tagged_file.primary_tag()?;
 
-            // IMPROVE ME: Is there a more idiomatic way of doing the following?
             let mut artists: Vec<String> = tag
                 .get_strings(&ItemKey::TrackArtist)
                 .map(ToString::to_string)
@@ -59,11 +64,16 @@ pub fn get_track_from_file(path: &PathBuf) -> Option<Track> {
                 artists = vec!["Unknown Artist".into()];
             }
 
-            let id = get_track_id_for_path(path)?;
+            let id = get_track_id_for_path(abs_path)?;
+            
+            // Convert absolute path to relative path
+            let abs_folder = PathBuf::from(local_folder_path);
+            let relative_path = abs_path.strip_prefix(&abs_folder).ok()?.to_string_lossy().into_owned();
 
             Some(Track {
                 id,
-                path: path.to_string_lossy().into_owned(),
+                local_folder_path: local_folder_path.to_string(),
+                relative_path,
                 title: tag
                     .get_string(&ItemKey::TrackTitle)
                     .unwrap_or("Unknown")
@@ -86,7 +96,7 @@ pub fn get_track_from_file(path: &PathBuf) -> Option<Track> {
             })
         }
         Err(err) => {
-            warn!("Failed to get ID3 tags: \"{}\". File {:?}", err, path);
+            warn!("Failed to get ID3 tags: \"{}\". File {:?}", err, abs_path);
             None
         }
     }
@@ -94,9 +104,7 @@ pub fn get_track_from_file(path: &PathBuf) -> Option<Track> {
 
 /**
  * Generate an ID for a track based on its location.
- *
  * We leverage UUID v3 on tracks paths to easily retrieve tracks by path.
- * This is not great and ideally we should use a DB view instead. One day.
  */
 pub fn get_track_id_for_path(path: &PathBuf) -> Option<String> {
     match std::fs::canonicalize(path) {

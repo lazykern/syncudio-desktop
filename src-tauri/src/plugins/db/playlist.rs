@@ -100,7 +100,7 @@ pub async fn export_playlist<R: Runtime>(
                 .iter()
                 .map(|track| {
                     let relative_path =
-                        pathdiff::diff_paths(&track.path, playlist_dir_path).unwrap();
+                        pathdiff::diff_paths(&track.path(), playlist_dir_path).unwrap();
                     m3u::path_entry(relative_path)
                 })
                 .collect::<Vec<m3u::Entry>>();
@@ -120,97 +120,3 @@ pub async fn export_playlist<R: Runtime>(
 pub async fn delete_playlist(db_state: State<'_, DBState>, id: String) -> AnyResult<()> {
     db_state.get_lock().await.delete_playlist(&id).await
 }
-
-/// Import playlists from the given paths
-pub async fn import_playlists(
-    db_state: &mut DBState,
-    import_paths: &[PathBuf],
-) -> AnyResult<(usize, usize)> {
-    let mut db = db_state.get_lock().await;
-    let mut playlist_count = 0;
-    let mut playlist_failures = 0;
-
-    // Now that all tracks are inserted, let's scan for playlists, and import them
-    let mut playlist_paths = scan_dirs(&import_paths, &SUPPORTED_PLAYLISTS_EXTENSIONS);
-
-    // Ignore playlists that are already in the DB (speedup scan + prevent duplicate errors)
-    let existing_playlists_paths = db
-        .get_all_playlists()
-        .await?
-        .iter()
-        .filter_map(move |playlist| playlist.import_path.to_owned())
-        .map(PathBuf::from)
-        .collect::<HashSet<_>>();
-
-    playlist_paths.retain(|path| !existing_playlists_paths.contains(path));
-
-    info!("Found {} playlist(s) to import", playlist_paths.len());
-
-    // Start scanning the content of the playlists and adding them to the DB
-    for playlist_path in playlist_paths {
-        let res = {
-            let mut reader = m3u::Reader::open(&playlist_path).unwrap();
-            let playlist_dir_path = playlist_path.parent().unwrap();
-
-            let track_paths: Vec<PathBuf> = reader
-                .entries()
-                .filter_map(|entry| {
-                    let Ok(entry) = entry else {
-                        return None;
-                    };
-
-                    match entry {
-                        m3u::Entry::Path(path) => Some(playlist_dir_path.join(path)),
-                        _ => None, // We don't support (yet?) URLs in playlists
-                    }
-                })
-                .collect();
-
-            // Ok, this is sketchy. To avoid having to create a TrackByPath DB View,
-            // let's guess the ID of the track with UUID::v3
-            let track_ids = track_paths
-                .iter()
-                .flat_map(get_track_id_for_path)
-                .collect::<Vec<String>>();
-
-            let playlist_name = playlist_path
-                .file_stem()
-                .unwrap()
-                .to_str()
-                .unwrap_or("unknown playlist")
-                .to_owned();
-
-            let tracks = db.get_tracks(&track_ids).await?;
-
-            if tracks.len() != track_ids.len() {
-                info!(
-                    "Playlist track mismatch ({} from playlist, {} from library)",
-                    track_paths.len(),
-                    tracks.len()
-                );
-            }
-
-            info!(
-                r#"Creating playlist "{}" ({} tracks)"#,
-                &playlist_name,
-                &track_ids.len()
-            );
-
-            db.create_playlist(playlist_name, track_ids, Some(playlist_path))
-                .await?;
-            Ok::<(), SyncudioError>(())
-        };
-
-        match res {
-            Ok(_) => {
-                playlist_count += 1;
-            }
-            Err(err) => {
-                warn!("Failed to import playlist: {}", err);
-                playlist_failures += 1;
-            }
-        }
-    }
-
-    Ok((playlist_count, playlist_failures))
-} 

@@ -10,14 +10,25 @@ import useLibraryStore, { useLibraryAPI } from '../stores/useLibraryStore';
 import type { SettingsLoaderData } from './settings';
 
 import { open } from '@tauri-apps/plugin-dialog';
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import styles from './settings-library.module.css';
+import database from '../lib/database';
+import type { LocalFolder } from '../generated/typings';
 
 export default function ViewSettingsLibrary() {
   const libraryAPI = useLibraryAPI();
   const isLibraryRefreshing = useLibraryStore((state) => state.refreshing);
   const { config } = useLoaderData() as SettingsLoaderData;
   const invalidate = useInvalidate();
+  const [localFolders, setLocalFolders] = useState<LocalFolder[]>([]);
+
+  useEffect(() => {
+    const loadFolders = async () => {
+      const folders = await database.getLocalFolders();
+      setLocalFolders(folders);
+    };
+    loadFolders();
+  }, []);
 
   const addLibraryFolders = useCallback(async () => {
     const paths = await open({
@@ -30,35 +41,42 @@ export default function ViewSettingsLibrary() {
     }
 
     await libraryAPI.addLibraryFolders(paths);
+    const folders = await database.getLocalFolders();
+    setLocalFolders(folders);
     invalidate();
   }, [libraryAPI.addLibraryFolders, invalidate]);
+
+  const removeLibraryFolder = useCallback(async (path: string) => {
+    await libraryAPI.removeLibraryFolder(path);
+    const folders = await database.getLocalFolders();
+    setLocalFolders(folders);
+    invalidate();
+  }, [libraryAPI.removeLibraryFolder, invalidate]);
 
   return (
     <div className="setting settings-musicfolder">
       <Setting.Section>
         <Setting.Title>Files</Setting.Title>
-        {config.library_folders.length === 0 && (
+        {localFolders.length === 0 && (
           <Setting.Description>
             There are no folders in your library.
           </Setting.Description>
         )}
-        {config.library_folders.length > 0 && (
+        {localFolders.length > 0 && (
           <ul className={styles.libraryFolders}>
-            {config.library_folders.map((folder) => {
+            {localFolders.map((folder) => {
               return (
-                <li key={folder}>
+                <li key={folder.path}>
                   <Flexbox align="center">
                     <button
                       type="button"
                       className={styles.libraryFoldersRemove}
                       data-syncudio-action
-                      onClick={() =>
-                        libraryAPI.removeLibraryFolder(folder).then(invalidate)
-                      }
+                      onClick={() => removeLibraryFolder(folder.path)}
                     >
                       &times;
                     </button>
-                    <span>{folder}</span>
+                    <span>{folder.path}</span>
                   </Flexbox>
                 </li>
               );
