@@ -1,24 +1,14 @@
-use ormlite::{sqlite::SqliteConnection, Model};
+use ormlite::Model;
 use uuid::Uuid;
 
-use super::models::*;
+use crate::libs::cloud::models::*;
 use crate::libs::error::AnyResult;
 
-pub struct CloudDB {
-    pub connection: SqliteConnection,
-}
+use super::core::DB;
 
-impl CloudDB {
+impl DB {
     // Provider operations
-    pub async fn get_provider(&mut self, id: &str) -> AnyResult<Option<CloudProvider>> {
-        let provider = CloudProvider::select()
-            .where_bind("id = ?", id)
-            .fetch_one(&mut self.connection)
-            .await?;
-        Ok(Some(provider))
-    }
-
-    pub async fn get_provider_by_type(&mut self, provider_type: &str) -> AnyResult<Option<CloudProvider>> {
+    pub async fn get_provider(&mut self, provider_type: &str) -> AnyResult<Option<CloudProvider>> {
         let provider = CloudProvider::select()
             .where_bind("provider_type = ?", provider_type)
             .fetch_one(&mut self.connection)
@@ -36,9 +26,9 @@ impl CloudDB {
         Ok(updated)
     }
 
-    pub async fn delete_provider(&mut self, id: &str) -> AnyResult<()> {
+    pub async fn delete_provider(&mut self, provider_type: &str) -> AnyResult<()> {
         let provider = CloudProvider::select()
-            .where_bind("id = ?", id)
+            .where_bind("provider_type = ?", provider_type)
             .fetch_one(&mut self.connection)
             .await?;
         provider.delete(&mut self.connection).await?;
@@ -54,9 +44,9 @@ impl CloudDB {
         Ok(Some(folder))
     }
 
-    pub async fn get_folders_by_provider(&mut self, provider_id: &str) -> AnyResult<Vec<CloudFolder>> {
+    pub async fn get_folders_by_provider(&mut self, provider_type: &str) -> AnyResult<Vec<CloudFolder>> {
         let folders = CloudFolder::select()
-            .where_bind("provider_id = ?", provider_id)
+            .where_bind("provider_type = ?", provider_type)
             .fetch_all(&mut self.connection)
             .await?;
         Ok(folders)
@@ -167,7 +157,7 @@ impl CloudDB {
     // Helper methods
     pub async fn create_sync_for_track(
         &mut self,
-        provider_id: &str,
+        provider_type: &str,
         folder_id: &str,
         track_id: &str,
         cloud_file_id: &str,
@@ -176,7 +166,7 @@ impl CloudDB {
     ) -> AnyResult<CloudSync> {
         let sync = CloudSync::new(
             Uuid::new_v4().to_string(),
-            provider_id.to_string(),
+            provider_type.to_string(),
             folder_id.to_string(),
             track_id.to_string(),
             ITEM_TYPE_TRACK.to_string(),
@@ -190,7 +180,7 @@ impl CloudDB {
 
     pub async fn create_sync_for_playlist(
         &mut self,
-        provider_id: &str,
+        provider_type: &str,
         folder_id: &str,
         playlist_id: &str,
         cloud_file_id: &str,
@@ -199,7 +189,7 @@ impl CloudDB {
     ) -> AnyResult<CloudSync> {
         let sync = CloudSync::new(
             Uuid::new_v4().to_string(),
-            provider_id.to_string(),
+            provider_type.to_string(),
             folder_id.to_string(),
             playlist_id.to_string(),
             ITEM_TYPE_PLAYLIST.to_string(),

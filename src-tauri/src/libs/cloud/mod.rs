@@ -5,7 +5,6 @@ use std::path::PathBuf;
 
 pub mod dropbox;
 pub mod models;
-pub mod db;
 
 // Re-export commonly used types
 pub use models::{CloudProvider as CloudProviderModel, CloudFolder as CloudFolderModel, CloudSync};
@@ -55,8 +54,6 @@ pub trait CloudProvider: Send + Sync {
     fn provider_type(&self) -> &'static str;
     
     // Authorization
-    async fn start_authorization(&self) -> Result<String, String>;
-    async fn complete_authorization(&self, auth_code: &str) -> Result<CloudAuth, String>;
     async fn is_authorized(&self) -> bool;
     async fn unauthorize(&self);
     

@@ -168,14 +168,6 @@ impl CloudProvider for Dropbox {
         PROVIDER_TYPE
     }
 
-    async fn start_authorization(&self) -> Result<String, String> {
-        self.start_authorization().await
-    }
-
-    async fn complete_authorization(&self, auth_code: &str) -> Result<CloudAuth, String> {
-        self.complete_authorization(auth_code).await
-    }
-
     async fn is_authorized(&self) -> bool {
         self.authorization.lock().await.is_some() && self.client.lock().await.is_some()
     }

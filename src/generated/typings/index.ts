@@ -27,10 +27,13 @@ export type Playlist = { id: string, name: string, tracks: Array<string>, import
 export type Repeat = "All" | "One" | "None";
 
 /**
- * Scan progress
+ * Scan progress information
  */
 export type ScanProgress = { current: number, total: number, };
 
+/**
+ * Result of a library scan operation
+ */
 export type ScanResult = { track_count: number, track_failures: number, playlist_count: number, playlist_failures: number, };
 
 export type SortBy = "Artist" | "Album" | "Title" | "Duration" | "Genre";

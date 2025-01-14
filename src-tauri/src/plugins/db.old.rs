@@ -14,7 +14,8 @@ use tauri_plugin_dialog::{DialogExt, FilePath};
 use tokio::sync::{Mutex, MutexGuard};
 use ts_rs::TS;
 
-use crate::libs::database::{DB, SUPPORTED_PLAYLISTS_EXTENSIONS, SUPPORTED_TRACKS_EXTENSIONS};
+use crate::libs::constants::{SUPPORTED_PLAYLISTS_EXTENSIONS, SUPPORTED_TRACKS_EXTENSIONS};
+use crate::libs::database::DB;
 use crate::libs::error::{AnyResult, SyncudioError};
 use crate::libs::events::IPCEvent;
 use crate::libs::playlist::Playlist;
