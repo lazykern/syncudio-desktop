@@ -1,18 +1,12 @@
 import { invoke } from '@tauri-apps/api/core';
-
-export interface CloudFile {
-  id: string;
-  name: string;
-  parent_id: string | null;
-  is_folder: boolean;
-}
+import type { CloudAuth, CloudFile } from '../generated/typings';
 
 export const cloud = {
   async dropboxStartAuthorization(): Promise<string> {
     return invoke('plugin:cloud|dropbox_start_auth');
   },
 
-  async dropboxCompleteAuthorization(authCode: string): Promise<void> {
+  async dropboxCompleteAuthorization(authCode: string): Promise<CloudAuth> {
     return invoke('plugin:cloud|dropbox_complete_auth', { authCode });
   },
 

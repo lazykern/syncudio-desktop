@@ -13,7 +13,7 @@ use chrono::{DateTime, Utc};
 use std::io::Read;
 use mime_guess::from_path;
 
-use super::{CloudProvider, CloudFile, CloudFolder, CloudAuth, FileHash};
+use super::{CloudProvider, CloudFile, CloudAuth, FileHash};
 
 const DROPBOX_CLIENT_ID: &str = "jgibk23zkucv2ec";
 const PROVIDER_TYPE: &str = "dropbox";
@@ -195,7 +195,7 @@ impl CloudProvider for Dropbox {
         self.list_files(folder_id, true).await
     }
 
-    async fn create_folder(&self, name: &str, parent_id: Option<&str>) -> Result<CloudFolder, String> {
+    async fn create_folder(&self, name: &str, parent_id: Option<&str>) -> Result<CloudFile, String> {
         let client = self.client.lock().await;
         let client_ref = client.as_ref().ok_or("Not authorized")?;
 
@@ -213,10 +213,16 @@ impl CloudProvider for Dropbox {
                 format!("Failed to create Dropbox folder: {}", e)
             })?;
 
-        Ok(CloudFolder {
+        Ok(CloudFile {
             id: result.metadata.id,
             name: result.metadata.name,
             parent_id: parent_id.map(String::from),
+            size: 0,
+            is_folder: true,
+            modified_at: 0,
+            created_at: 0,
+            mime_type: None,
+            hash: None,
         })
     }
 
