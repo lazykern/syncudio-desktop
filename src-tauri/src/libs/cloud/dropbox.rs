@@ -12,11 +12,15 @@ use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use std::io::Read;
 use mime_guess::from_path;
+use std::fs;
 
-use super::{CloudProvider, CloudFile, CloudAuth, FileHash};
+use crate::plugins::config::get_storage_dir;
+use super::{CloudProvider, CloudFile, FileHash};
 
 const DROPBOX_CLIENT_ID: &str = "jgibk23zkucv2ec";
 const PROVIDER_TYPE: &str = "dropbox";
+
+type DropboxAuthData = Option<String>;
 
 pub struct Dropbox {
     pkce_code: Mutex<Option<PkceCode>>,
@@ -25,11 +29,51 @@ pub struct Dropbox {
 }
 
 impl Dropbox {
+    fn get_auth_file_path() -> PathBuf {
+        get_storage_dir().join("dropbox_auth.json")
+    }
+
     pub fn new() -> Self {
+        let auth_data = Self::load_auth_data_from_file();
+        if let Some(auth_data) = auth_data {
+            if let Ok(dropbox) = Self::new_with_auth_data(auth_data) {
+                return dropbox;
+            }
+        }
+
         Self {
             pkce_code: Mutex::new(None),
             authorization: Mutex::new(None),
             client: Mutex::new(None),
+        }
+    }
+
+    fn load_auth_data_from_file() -> Option<String> {
+        let path = Self::get_auth_file_path();
+        fs::read_to_string(path).ok()
+    }
+
+    fn save_auth_data_to_file(auth_data: &str) -> Result<(), String> {
+        let path = Self::get_auth_file_path();
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(|e| format!("Failed to create auth directory: {}", e))?;
+        }
+        fs::write(path, auth_data).map_err(|e| format!("Failed to save auth data: {}", e))
+    }
+
+    pub fn new_with_auth_data(auth_data: String) -> Result<Self, String> {  
+        let auth = Authorization::load(DROPBOX_CLIENT_ID.to_string(), &auth_data);
+
+        match auth {
+            Some(auth) => {
+                let client = UserAuthDefaultClient::new(auth.clone());
+                Ok(Self {
+                    pkce_code: Mutex::new(None),
+                    authorization: Mutex::new(Some(auth)),
+                    client: Mutex::new(Some(client)),
+                })
+            }
+            None => Err(format!("Failed to load authorization data")),
         }
     }
 
@@ -120,7 +164,7 @@ impl Dropbox {
         Ok(auth_url.to_string())
     }
 
-    pub async fn complete_authorization(&self, auth_code: &str) -> Result<CloudAuth, String> {
+    pub async fn complete_authorization(&self, auth_code: &str) -> Result<DropboxAuthData, String> {
         info!("Completing Dropbox authorization");
 
         let pkce_code = self.pkce_code.lock().await.take().ok_or_else(|| {
@@ -151,14 +195,24 @@ impl Dropbox {
         self.client.lock().await.replace(client);
 
         let auth_data = auth.save();
-        info!("Authorization completed successfully");
+        info!("Authorization data saved successfully: {:?}", auth_data);
 
-        Ok(CloudAuth {
-            provider_id: Uuid::new_v4().to_string(),
-            access_token,
-            refresh_token: None,
-            auth_data: auth_data,
-        })
+        // Save auth data to file
+        if let Some(auth_data_str) = &auth_data {
+            Self::save_auth_data_to_file(auth_data_str)?;
+        }
+
+        Ok(auth_data)
+    }
+
+    pub async fn unauthorize(&self) {
+        let mut auth_guard = self.authorization.lock().await;
+        *auth_guard = None;
+        let mut client_guard = self.client.lock().await;
+        *client_guard = None;
+
+        // Remove auth file
+        let _ = fs::remove_file(Self::get_auth_file_path());
     }
 }
 
@@ -177,8 +231,11 @@ impl CloudProvider for Dropbox {
         *auth_guard = None;
         let mut client_guard = self.client.lock().await;
         *client_guard = None;
-    }
 
+        // Remove auth file
+        let _ = fs::remove_file(Self::get_auth_file_path());
+    }
+ 
     async fn list_files(&self, folder_id: &str) -> Result<Vec<CloudFile>, String> {
         self.list_files(folder_id, false).await
     }

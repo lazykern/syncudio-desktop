@@ -41,11 +41,7 @@ impl DB {
         ormlite::query(
             "CREATE TABLE IF NOT EXISTS cloud_providers (
                 provider_type TEXT PRIMARY KEY NOT NULL, -- 'dropbox' or 'gdrive'
-                access_token TEXT NOT NULL,
-                refresh_token TEXT,
-                auth_data TEXT,
-                created_at INTEGER NOT NULL,
-                updated_at INTEGER NOT NULL
+                auth_data TEXT -- Raw auth data for provider-specific storage
             );",
         )
         .execute(&mut self.connection)
@@ -72,7 +68,7 @@ impl DB {
             "CREATE TABLE IF NOT EXISTS cloud_syncs (
                 id TEXT PRIMARY KEY NOT NULL,
                 provider_type TEXT NOT NULL, -- Reference to cloud_providers
-                folder_id TEXT NOT NULL,
+                folder_id TEXT NOT NULL, -- Reference to cloud_folders
                 item_id TEXT NOT NULL, -- track_id or playlist_id
                 item_type TEXT NOT NULL, -- 'track' or 'playlist'
                 cloud_file_id TEXT NOT NULL,
@@ -94,12 +90,20 @@ impl DB {
             .execute(&mut self.connection)
             .await?;
 
-        // New indices for cloud tables
-        ormlite::query("CREATE INDEX IF NOT EXISTS index_cloud_folder_id ON cloud_folders (cloud_folder_id, local_folder_path);")
+        // Indices for cloud tables
+        ormlite::query("CREATE INDEX IF NOT EXISTS index_cloud_folder_provider ON cloud_folders (provider_type);")
+            .execute(&mut self.connection)
+            .await?;
+
+        ormlite::query("CREATE INDEX IF NOT EXISTS index_cloud_folder_path ON cloud_folders (local_folder_path);")
             .execute(&mut self.connection)
             .await?;
 
         ormlite::query("CREATE INDEX IF NOT EXISTS index_cloud_syncs_item ON cloud_syncs (item_id, item_type);")
+            .execute(&mut self.connection)
+            .await?;
+
+        ormlite::query("CREATE INDEX IF NOT EXISTS index_cloud_syncs_folder ON cloud_syncs (folder_id);")
             .execute(&mut self.connection)
             .await?;
 

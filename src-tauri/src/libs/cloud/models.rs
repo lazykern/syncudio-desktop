@@ -1,20 +1,27 @@
 use ormlite::model::*;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
-use std::path::PathBuf;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Model, TS)]
-#[ormlite(table = "cloud_providers")]
+#[derive(Debug, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/generated/typings/index.ts")]
-pub struct CloudProvider {
-    #[ormlite(primary_key)]
+pub struct CloudFile {
     pub id: String,
-    pub provider_type: String,
-    pub access_token: String,
-    pub refresh_token: Option<String>,
-    pub auth_data: Option<String>,
+    pub name: String,
+    pub parent_id: Option<String>,
+    pub size: u64,
+    pub is_folder: bool,
+    pub modified_at: i64,
     pub created_at: i64,
-    pub updated_at: i64,
+    pub mime_type: Option<String>,
+    pub hash: Option<FileHash>,
+}
+
+#[derive(Debug, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/generated/typings/index.ts")]
+pub enum FileHash {
+    Sha1(String),
+    Sha256(String),
+    ContentHash(String), // For Dropbox
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Model, TS)]
@@ -23,7 +30,7 @@ pub struct CloudProvider {
 pub struct CloudFolder {
     #[ormlite(primary_key)]
     pub id: String,
-    pub provider_id: String,
+    pub provider_type: String,
     pub cloud_folder_id: String,
     pub cloud_folder_name: String,
     pub local_folder_path: String,
@@ -37,7 +44,7 @@ pub struct CloudFolder {
 pub struct CloudSync {
     #[ormlite(primary_key)]
     pub id: String,
-    pub provider_id: String,
+    pub provider_type: String,
     pub folder_id: String,
     pub item_id: String,
     pub item_type: String, // "track" or "playlist"
@@ -50,31 +57,10 @@ pub struct CloudSync {
     pub updated_at: i64,
 }
 
-impl CloudProvider {
-    pub fn new(
-        id: String,
-        provider_type: String,
-        access_token: String,
-        refresh_token: Option<String>,
-        auth_data: Option<String>,
-    ) -> Self {
-        let now = chrono::Utc::now().timestamp();
-        Self {
-            id,
-            provider_type,
-            access_token,
-            refresh_token,
-            auth_data,
-            created_at: now,
-            updated_at: now,
-        }
-    }
-}
-
 impl CloudFolder {
     pub fn new(
         id: String,
-        provider_id: String,
+        provider_type: String,
         cloud_folder_id: String,
         cloud_folder_name: String,
         local_folder_path: String,
@@ -82,7 +68,7 @@ impl CloudFolder {
         let now = chrono::Utc::now().timestamp();
         Self {
             id,
-            provider_id,
+            provider_type,
             cloud_folder_id,
             cloud_folder_name,
             local_folder_path,
@@ -95,7 +81,7 @@ impl CloudFolder {
 impl CloudSync {
     pub fn new(
         id: String,
-        provider_id: String,
+        provider_type: String,
         folder_id: String,
         item_id: String,
         item_type: String,
@@ -107,7 +93,7 @@ impl CloudSync {
         let now = chrono::Utc::now().timestamp();
         Self {
             id,
-            provider_id,
+            provider_type,
             folder_id,
             item_id,
             item_type,

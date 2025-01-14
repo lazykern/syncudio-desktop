@@ -1,17 +1,15 @@
-use std::path::PathBuf;
 use log::{error, info};
+use std::path::PathBuf;
 use tauri::plugin::{Builder, TauriPlugin};
 use tauri::{Manager, Runtime, State};
 
-use crate::libs::cloud::{CloudAuth, CloudFile, CloudProvider};
 use crate::libs::cloud::dropbox::Dropbox;
+use crate::libs::cloud::{CloudFile, CloudProvider};
 use crate::libs::constants::{CLOUD_PROVIDER_DROPBOX, CLOUD_PROVIDER_GDRIVE};
 
 // Dropbox-specific auth commands
 #[tauri::command]
-pub async fn dropbox_start_auth(
-    provider: State<'_, Dropbox>,
-) -> Result<String, String> {
+pub async fn dropbox_start_auth(provider: State<'_, Dropbox>) -> Result<String, String> {
     info!("Starting Dropbox authorization");
     provider.start_authorization().await
 }
@@ -20,9 +18,21 @@ pub async fn dropbox_start_auth(
 pub async fn dropbox_complete_auth(
     auth_code: String,
     provider: State<'_, Dropbox>,
-) -> Result<CloudAuth, String> {
-    info!("Completing Dropbox authorization with auth code: {}", auth_code);
-    provider.complete_authorization(&auth_code).await
+) -> Result<(), String> {
+    info!(
+        "Completing Dropbox authorization with auth code: {}",
+        auth_code
+    );
+    let auth_data = provider.complete_authorization(&auth_code).await?;
+    if let Some(auth_data) = auth_data {
+        info!(
+            "Dropbox authorization completed successfully: {:?}",
+            auth_data
+        );
+    } else {
+        error!("Dropbox authorization failed");
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -87,7 +97,7 @@ pub async fn cloud_create_folder(
                 mime_type: None,
                 hash: None,
             })
-        },
+        }
         CLOUD_PROVIDER_GDRIVE => Err("Google Drive not implemented yet".to_string()),
         _ => Err(format!("Unknown provider type: {}", provider_type)),
     }
@@ -103,7 +113,11 @@ pub async fn cloud_upload_file(
     // Add other providers here when implemented
 ) -> Result<CloudFile, String> {
     match provider_type.as_str() {
-        CLOUD_PROVIDER_DROPBOX => dropbox.upload_file(&PathBuf::from(abs_local_path), &name, parent_id.as_deref()).await,
+        CLOUD_PROVIDER_DROPBOX => {
+            dropbox
+                .upload_file(&PathBuf::from(abs_local_path), &name, parent_id.as_deref())
+                .await
+        }
         CLOUD_PROVIDER_GDRIVE => Err("Google Drive not implemented yet".to_string()),
         _ => Err(format!("Unknown provider type: {}", provider_type)),
     }
@@ -118,7 +132,11 @@ pub async fn cloud_download_file(
     // Add other providers here when implemented
 ) -> Result<(), String> {
     match provider_type.as_str() {
-        CLOUD_PROVIDER_DROPBOX => dropbox.download_file(&file_id, &PathBuf::from(abs_local_path)).await,
+        CLOUD_PROVIDER_DROPBOX => {
+            dropbox
+                .download_file(&file_id, &PathBuf::from(abs_local_path))
+                .await
+        }
         CLOUD_PROVIDER_GDRIVE => Err("Google Drive not implemented yet".to_string()),
         _ => Err(format!("Unknown provider type: {}", provider_type)),
     }
@@ -142,7 +160,7 @@ pub async fn cloud_delete_file(
  * Cloud plugin
  */
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
-    Builder::<R>::new("cloud") 
+    Builder::<R>::new("cloud")
         .invoke_handler(tauri::generate_handler![
             // Dropbox-specific auth commands
             dropbox_start_auth,
@@ -158,12 +176,9 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             cloud_delete_file,
         ])
         .setup(move |app_handle, _api| {
-            let app_handle = app_handle.clone();
 
-            // Initialize providers
             let dropbox = Dropbox::new();
             app_handle.manage(dropbox);
-            // Add other providers here when implemented
 
             Ok(())
         })

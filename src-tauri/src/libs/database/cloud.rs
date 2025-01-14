@@ -7,34 +7,6 @@ use crate::libs::error::AnyResult;
 use super::core::DB;
 
 impl DB {
-    // Provider operations
-    pub async fn get_provider(&mut self, provider_type: &str) -> AnyResult<Option<CloudProvider>> {
-        let provider = CloudProvider::select()
-            .where_bind("provider_type = ?", provider_type)
-            .fetch_one(&mut self.connection)
-            .await?;
-        Ok(Some(provider))
-    }
-
-    pub async fn save_provider(&mut self, provider: CloudProvider) -> AnyResult<CloudProvider> {
-        let saved = provider.insert(&mut self.connection).await?;
-        Ok(saved)
-    }
-
-    pub async fn update_provider(&mut self, provider: CloudProvider) -> AnyResult<CloudProvider> {
-        let updated = provider.update_all_fields(&mut self.connection).await?;
-        Ok(updated)
-    }
-
-    pub async fn delete_provider(&mut self, provider_type: &str) -> AnyResult<()> {
-        let provider = CloudProvider::select()
-            .where_bind("provider_type = ?", provider_type)
-            .fetch_one(&mut self.connection)
-            .await?;
-        provider.delete(&mut self.connection).await?;
-        Ok(())
-    }
-
     // Folder operations
     pub async fn get_folder(&mut self, id: &str) -> AnyResult<Option<CloudFolder>> {
         let folder = CloudFolder::select()
