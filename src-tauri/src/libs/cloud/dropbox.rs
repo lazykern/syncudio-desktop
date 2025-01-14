@@ -131,7 +131,7 @@ impl Dropbox {
                             modified_at,
                             created_at: modified_at,
                             mime_type: Some(from_path(&f.name).first_or_octet_stream().to_string()),
-                            hash: f.index_hash.as_ref().map(|h| FileHash::ContentHash(h.clone())),
+                            hash: f.content_hash.as_ref().map(|h| FileHash::ContentHash(h.clone())),
                         })
                     }
                     files::Metadata::Folder(f) => Some(CloudFile {
@@ -304,7 +304,7 @@ impl CloudProvider for Dropbox {
             modified_at,
             created_at: modified_at,
             mime_type: Some(from_path(&result.name).first_or_octet_stream().to_string()),
-            hash: result.index_hash.as_ref().map(|h| FileHash::ContentHash(h.clone())),
+            hash: result.content_hash.as_ref().map(|h| FileHash::ContentHash(h.clone())),
         })
     }
 
