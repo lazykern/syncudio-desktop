@@ -32,11 +32,17 @@ pub struct Track {
     pub track_of: Option<u32>,
     pub disk_no: Option<u32>,
     pub disk_of: Option<u32>,
+    pub content_hash: Option<String>,
 }
 
 impl Track {
     pub fn path(&self) -> PathBuf {
         PathBuf::from(&self.local_folder_path).join(&self.relative_path)
+    }
+    
+    pub fn with_content_hash(mut self, hash: String) -> Self {
+        self.content_hash = Some(hash);
+        self
     }
 }
 
@@ -93,6 +99,7 @@ pub fn get_track_from_file(abs_path: &PathBuf, local_folder_path: &str) -> Optio
                 track_of: tag.track_total(),
                 disk_no: tag.disk(),
                 disk_of: tag.disk_total(),
+                content_hash: None,
             })
         }
         Err(err) => {

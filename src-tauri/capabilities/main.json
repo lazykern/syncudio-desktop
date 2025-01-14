@@ -54,7 +54,8 @@
     "cloud:allow-dropbox-start-auth",
     "cloud:allow-dropbox-complete-auth",
     "cloud:allow-dropbox-is-authorized",
-    "cloud:allow-dropbox-unauthorize"
+    "cloud:allow-dropbox-unauthorize",
+    "database:allow-update-tracks-content-hash"
   ],
   "platforms": [
     "linux",

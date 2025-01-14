@@ -1,10 +1,8 @@
 use std::{
-    collections::HashSet,
-    path::PathBuf,
-    sync::{
+    collections::HashSet, fs::File, path::PathBuf, sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
-    },
+    }
 };
 
 use log::{error, info, warn};
@@ -19,7 +17,7 @@ use crate::{
         error::{AnyResult, SyncudioError},
         events::IPCEvent,
         track::{get_track_from_file, get_track_id_for_path, Track},
-        utils::{scan_dirs, TimeLogger},
+        utils::{compute_content_hash, scan_dirs, TimeLogger},
     },
     plugins::db::DBState,
 };
@@ -232,4 +230,30 @@ pub async fn import_tracks_to_library<R: Runtime>(
 
     // All good :]
     Ok(scan_result)
+}
+
+/// Compute the content hash of all tracks in the library
+#[tauri::command]
+pub async fn update_tracks_content_hash(db_state: State<'_, DBState>) -> AnyResult<()> {
+    // Get tracks while holding lock briefly
+    let tracks = {
+        let mut db = db_state.get_lock().await;
+        db.get_all_tracks().await?
+    };
+
+    // Process tracks in chunks of 20
+    for chunk in tracks.chunks(20) {
+        // Compute hashes in parallel for this chunk
+        let updated_tracks: Vec<Track> = chunk.par_iter().map(|track| {
+            let file = File::open(track.path()).unwrap();
+            let hash = compute_content_hash(file);
+            track.clone().with_content_hash(hash)
+        }).collect::<Vec<Track>>();
+
+        // Get lock and update this batch
+        let mut db = db_state.get_lock().await;
+        db.update_tracks(updated_tracks).await?;
+    }
+
+    Ok(())
 }

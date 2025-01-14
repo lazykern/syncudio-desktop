@@ -138,6 +138,11 @@ const useLibraryStore = createLibraryStore<LibraryState>((set, get) => ({
               5000,
             );
         }
+
+        // Update content hashes for all tracks
+        database.updateTracksContentHash().then(() => {
+          console.log('Content hashes updated');
+        });
       } catch (err) {
         logAndNotifyError(err);
       } finally {

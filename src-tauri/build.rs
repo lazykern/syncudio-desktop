@@ -39,6 +39,7 @@ fn main() {
                     "add_local_folder",
                     "remove_local_folder",
                     "is_local_folder",
+                    "update_tracks_content_hash",
                 ]),
             )
             .plugin(

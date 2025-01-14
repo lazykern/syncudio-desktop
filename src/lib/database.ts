@@ -114,6 +114,10 @@ const database = {
   async reset(): Promise<string | null> {
     return invoke('plugin:database|reset');
   },
+
+  async updateTracksContentHash(): Promise<void> {
+    return invoke('plugin:database|update_tracks_content_hash');
+  },
 };
 
 export default database;
