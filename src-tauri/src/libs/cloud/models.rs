@@ -2,28 +2,6 @@ use ormlite::model::*;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-#[derive(Debug, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "../../src/generated/typings/index.ts")]
-pub struct CloudFile {
-    pub id: String,
-    pub name: String,
-    pub parent_id: Option<String>,
-    pub size: u64,
-    pub is_folder: bool,
-    pub modified_at: i64,
-    pub created_at: i64,
-    pub mime_type: Option<String>,
-    pub hash: Option<FileHash>,
-}
-
-#[derive(Debug, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "../../src/generated/typings/index.ts")]
-pub enum FileHash {
-    Sha1(String),
-    Sha256(String),
-    ContentHash(String), // For Dropbox
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Model, TS)]
 #[ormlite(table = "cloud_folders")]
 #[ts(export, export_to = "../../src/generated/typings/index.ts")]
