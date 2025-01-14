@@ -115,8 +115,8 @@ const database = {
     return invoke('plugin:database|reset');
   },
 
-  async updateTracksContentHash(): Promise<void> {
-    return invoke('plugin:database|update_tracks_content_hash');
+  async reindexTracks(): Promise<void> {
+    return invoke('plugin:database|reindex_tracks');
   },
 };
 

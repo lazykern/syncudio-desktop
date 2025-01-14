@@ -43,7 +43,7 @@ impl DB {
                 track_of INTEGER,
                 disk_no INTEGER,
                 disk_of INTEGER,
-                content_hash TEXT,
+                index_hash TEXT,
                 UNIQUE(local_folder_path, relative_path)
             );",
         )
@@ -120,7 +120,7 @@ impl DB {
             .execute(&mut self.connection)
             .await?;
 
-        ormlite::query("CREATE INDEX IF NOT EXISTS index_track_content_hash ON tracks (content_hash);")
+        ormlite::query("CREATE INDEX IF NOT EXISTS index_track_index_hash ON tracks (index_hash);")
             .execute(&mut self.connection)
             .await?;
 

@@ -44,6 +44,7 @@
     "database:allow-export-playlist",
     "database:allow-delete-playlist",
     "database:allow-reset",
+    "database:allow-reindex-tracks",
     "database:allow-get-local-folders",
     "database:allow-add-local-folder",
     "database:allow-remove-local-folder",
@@ -54,8 +55,7 @@
     "cloud:allow-dropbox-start-auth",
     "cloud:allow-dropbox-complete-auth",
     "cloud:allow-dropbox-is-authorized",
-    "cloud:allow-dropbox-unauthorize",
-    "database:allow-update-tracks-content-hash"
+    "cloud:allow-dropbox-unauthorize"
   ],
   "platforms": [
     "linux",

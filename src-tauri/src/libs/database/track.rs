@@ -53,7 +53,7 @@ impl DB {
     /// Update multiple tracks in the database
     pub async fn update_tracks(&mut self, tracks: Vec<Track>) -> AnyResult<()> {
         for track in tracks {
-            self.update_track(track).await?;
+            track.update_all_fields(&mut self.connection).await?;
         }
         Ok(())
     }

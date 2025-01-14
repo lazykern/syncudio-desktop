@@ -18,6 +18,7 @@ type LibraryState = API<{
   sortBy: SortBy;
   sortOrder: SortOrder;
   refreshing: boolean;
+  reindexing: boolean;
   refresh: {
     current: number;
     total: number;
@@ -30,6 +31,7 @@ type LibraryState = API<{
     addLibraryFolders: (paths: Array<string>) => Promise<void>;
     removeLibraryFolder: (path: string) => Promise<void>;
     refresh: () => Promise<void>;
+    reindex: () => Promise<void>;
     remove: (tracksIDs: string[]) => Promise<void>;
     reset: () => Promise<void>;
     setRefresh: (processed: number, total: number) => void;
@@ -46,6 +48,7 @@ const useLibraryStore = createLibraryStore<LibraryState>((set, get) => ({
   sortBy: config.getInitial('library_sort_by'),
   sortOrder: config.getInitial('library_sort_order'),
   refreshing: false,
+  reindexing: false,
   refresh: {
     current: 0,
     total: 0,
@@ -139,9 +142,15 @@ const useLibraryStore = createLibraryStore<LibraryState>((set, get) => ({
             );
         }
 
+        if (get().reindexing) {
+          console.log('Already reindexing');
+          return;
+        }
+        
+        set({ reindexing: true });
         // Update content hashes for all tracks
-        database.updateTracksContentHash().then(() => {
-          console.log('Content hashes updated');
+        database.reindexTracks().then(() => {
+          console.log('Tracks reindexed');
         });
       } catch (err) {
         logAndNotifyError(err);
@@ -149,7 +158,35 @@ const useLibraryStore = createLibraryStore<LibraryState>((set, get) => ({
         set({
           refreshing: false,
           refresh: { current: 0, total: 0 },
+          reindexing: false,
         });
+      }
+    },
+
+    reindex: async () => {
+      try {
+        set({ reindexing: true });
+        useToastsStore
+          .getState()
+          .api.add(
+            'warning',
+            'Reindexing tracks...',
+            5000,
+          );
+
+        await database.reindexTracks();
+        
+        useToastsStore
+          .getState()
+          .api.add(
+            'success',
+            'All tracks have been reindexed successfully.',
+            5000,
+          );
+      } catch (err) {
+        logAndNotifyError(err);
+      } finally {
+        set({ reindexing: false });
       }
     },
 

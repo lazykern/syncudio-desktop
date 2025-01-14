@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use std::{ffi::OsStr, time::Instant};
 use tauri::Theme;
 use walkdir::WalkDir;
+use blake3;
 
 use crate::plugins::config::SYSTEM_THEME;
 
@@ -91,38 +92,11 @@ pub fn get_theme_from_name(theme_name: &str) -> Option<Theme> {
     }
 }
 
-const CONTENT_HASH_BLOCK_SIZE: usize = 4 * 1024 * 1024; // 4MB
-
 /**
- * Compute the content hash of a file
+ * Compute the index hash of a file using BLAKE3
  */
-pub fn compute_content_hash<R: Read>(mut reader: R) -> String {
-    let mut blocks = Vec::new();
-    let mut buffer = vec![0u8; CONTENT_HASH_BLOCK_SIZE];
-
-    while let Ok(bytes_read) = reader.read(&mut buffer) {
-        if bytes_read == 0 {
-            break;
-        }
-        blocks.push(buffer[..bytes_read].to_vec());
-        if bytes_read < CONTENT_HASH_BLOCK_SIZE {
-            break;
-        }
-    }
-
-    let block_hashes: Vec<_> = blocks
-        .par_iter()
-        .map(|block| {
-            let mut block_hasher = Sha256::new();
-            block_hasher.update(block);
-            block_hasher.finalize().to_vec()
-        })
-        .collect();
-
-    let mut overall_hasher = Sha256::new();
-    for block_hash in block_hashes {
-        overall_hasher.update(block_hash);
-    }
-
-    hex::encode(overall_hasher.finalize())
+pub fn compute_index_hash<R: Read>(reader: R) -> std::io::Result<String> {
+    let mut hasher = blake3::Hasher::new();
+    std::io::copy(&mut std::io::BufReader::new(reader), &mut hasher)?;
+    Ok(hasher.finalize().to_hex().to_string())
 }

@@ -1,8 +1,11 @@
 use std::{
-    collections::HashSet, fs::File, path::PathBuf, sync::{
+    collections::HashSet,
+    fs::File,
+    path::PathBuf,
+    sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
-    }
+    },
 };
 
 use log::{error, info, warn};
@@ -17,7 +20,7 @@ use crate::{
         error::{AnyResult, SyncudioError},
         events::IPCEvent,
         track::{get_track_from_file, get_track_id_for_path, Track},
-        utils::{compute_content_hash, scan_dirs, TimeLogger},
+        utils::{compute_index_hash, scan_dirs, TimeLogger},
     },
     plugins::db::DBState,
 };
@@ -60,14 +63,21 @@ pub async fn import_tracks_to_library<R: Runtime>(
 
     // Scan all directories for valid files to be scanned and imported
     let mut track_paths = Vec::new();
-    
+
     // Scan each import path separately to maintain folder association
     for import_path in &import_paths {
         let canonical_import_path = import_path.canonicalize()?;
-        let paths = scan_dirs(&[canonical_import_path.clone()], &SUPPORTED_TRACKS_EXTENSIONS);
-        track_paths.extend(paths.into_iter().map(|path| (canonical_import_path.clone(), path)));
+        let paths = scan_dirs(
+            &[canonical_import_path.clone()],
+            &SUPPORTED_TRACKS_EXTENSIONS,
+        );
+        track_paths.extend(
+            paths
+                .into_iter()
+                .map(|path| (canonical_import_path.clone(), path)),
+        );
     }
-    
+
     let scanned_paths_count = track_paths.len();
 
     // Remove files that are already in the DB (speedup scan + prevent duplicate errors)
@@ -234,26 +244,44 @@ pub async fn import_tracks_to_library<R: Runtime>(
 
 /// Compute the content hash of all tracks in the library
 #[tauri::command]
-pub async fn update_tracks_content_hash(db_state: State<'_, DBState>) -> AnyResult<()> {
+pub async fn reindex_tracks(db_state: State<'_, DBState>) -> AnyResult<()> {
     // Get tracks while holding lock briefly
     let tracks = {
         let mut db = db_state.get_lock().await;
         db.get_all_tracks().await?
     };
 
-    // Process tracks in chunks of 20
-    for chunk in tracks.chunks(20) {
-        // Compute hashes in parallel for this chunk
-        let updated_tracks: Vec<Track> = chunk.par_iter().map(|track| {
-            let file = File::open(track.path()).unwrap();
-            let hash = compute_content_hash(file);
-            track.clone().with_content_hash(hash)
-        }).collect::<Vec<Track>>();
+    info!("Reindexing {} tracks", tracks.len());
+
+    // Process tracks in chunks of 50
+    for chunk in tracks.chunks(50) {
+        let updated_tracks: Vec<Track> = chunk
+            .par_iter()
+            .map(|track| {
+                let result = File::open(track.path())
+                    .and_then(compute_index_hash)
+                    .map(|hash| {
+                        info!("Computed track index for track {:?}: {}", track.path(), hash);
+                        track.clone().with_index_hash(hash)
+                    });
+
+                match result {
+                    Ok(updated_track) => updated_track,
+                    Err(err) => {
+                        error!("Failed to compute track index for {:?}: {}", track.path(), err);
+                        track.clone()
+                    }
+                }
+            })
+            .collect::<Vec<Track>>();
 
         // Get lock and update this batch
         let mut db = db_state.get_lock().await;
         db.update_tracks(updated_tracks).await?;
+        info!("Updated chunk of {} tracks", chunk.len());
     }
+
+    info!("Reindexed {} tracks", tracks.len());
 
     Ok(())
 }

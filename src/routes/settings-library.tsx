@@ -18,6 +18,7 @@ import type { LocalFolder } from '../generated/typings';
 export default function ViewSettingsLibrary() {
   const libraryAPI = useLibraryAPI();
   const isLibraryRefreshing = useLibraryStore((state) => state.refreshing);
+  const isReindexing = useLibraryStore((state) => state.reindexing);
   const { config } = useLoaderData() as SettingsLoaderData;
   const invalidate = useInvalidate();
   const [localFolders, setLocalFolders] = useState<LocalFolder[]>([]);
@@ -95,6 +96,12 @@ export default function ViewSettingsLibrary() {
             onClick={useInvalidateCallback(libraryAPI.refresh)}
           >
             Refresh library
+          </Button>
+          <Button
+            disabled={isReindexing}
+            onClick={useInvalidateCallback(libraryAPI.reindex)}
+          >
+            Reindex tracks
           </Button>
         </Flexbox>
         <Setting.Description>
