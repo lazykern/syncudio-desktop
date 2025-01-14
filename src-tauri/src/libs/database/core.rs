@@ -111,6 +111,22 @@ impl DB {
         .execute(&mut self.connection)
         .await?;
 
+        // Cloud playlists table - uses index_hash for track references
+        ormlite::query(
+            "CREATE TABLE IF NOT EXISTS cloud_playlists (
+                id TEXT PRIMARY KEY NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT,
+                tracks JSON NOT NULL DEFAULT '[]',  -- Array of {index_hash: string, added_at: number}
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                creator_id TEXT,                    -- For future user identification
+                is_public BOOLEAN NOT NULL DEFAULT false
+            );",
+        )
+        .execute(&mut self.connection)
+        .await?;
+
         // Create indices
         ormlite::query("CREATE INDEX IF NOT EXISTS index_track_folder ON tracks (local_folder_path);")
             .execute(&mut self.connection)
