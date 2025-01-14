@@ -34,26 +34,27 @@ async-trait = "0.1.77"
 base64 = "0.22.1"
 chrono = "0.4.31"
 dirs = "5.0.1"
-dropbox-sdk = { version = "0.19.1", features = ["default_client", "dbx_files"] }
+dropbox-sdk = { version = "0.19", features = ["default_client", "dbx_files"] }
 futures = "0.3.31"
 home-config = { version = "0.6.0", features = ["toml"] }
 itertools = "0.14.0"
 log = "0.4.22"
-lofty = "0.22.0"
+lofty = "0.22.1"
 m3u = "1.0.0"
 memoize = "0.4.2"
 nosleep = "0.2.1"
-ormlite = { version = "0.22.8", features = ["default-sqlite"] }
+ormlite = { version = "0.22.9", features = ["default-sqlite"] }
 pathdiff = "0.2.3"
 rayon = "1.10.0"
 serde = { version = "1.0.217", features = ["derive"] }
-serde_json = "1.0.134"
+serde_json = "1.0.135"
 strum = { version = "0.26.3", features = ["derive"] }
-tokio = "1.42.0"
-thiserror = "2.0.9"
+tokio = "1.43.0"
+thiserror = "2.0.11"
 ts-rs = "10.1.0"
-uuid = { version = "1.11.0", features = ["v3", "v4", "fast-rng"] }
+uuid = { version = "1.11.1", features = ["v3", "v4", "fast-rng"] }
 walkdir = "2.5.0"
+mime_guess = "2.0"
 
 [profile.dev]
 incremental = true # Compile your binary in smaller steps.

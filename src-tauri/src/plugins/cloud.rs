@@ -3,12 +3,12 @@ use log::{error, info};
 use tauri::plugin::{Builder, TauriPlugin};
 use tauri::{Manager, Runtime};
 
-use crate::libs::cloud::{CloudAuth, CloudFile};
+use crate::libs::cloud::{CloudAuth, CloudFile, CloudProvider};
 use crate::libs::cloud::dropbox::Dropbox;
 
 // Dropbox commands
 #[tauri::command]
-pub async fn cloud_dropbox_start_auth(
+pub async fn dropbox_start_auth(
     provider: tauri::State<'_, Dropbox>,
 ) -> Result<String, String> {
     info!("Handling cloud_dropbox_start_auth command");
@@ -16,7 +16,7 @@ pub async fn cloud_dropbox_start_auth(
 }
 
 #[tauri::command]
-pub async fn cloud_dropbox_complete_auth(
+pub async fn dropbox_complete_auth(
     auth_code: String,
     provider: tauri::State<'_, Dropbox>,
 ) -> Result<CloudAuth, String> {
@@ -28,33 +28,34 @@ pub async fn cloud_dropbox_complete_auth(
 }
 
 #[tauri::command]
-pub async fn cloud_dropbox_is_authorized(provider: tauri::State<'_, Dropbox>) -> bool {
-    provider.is_authorized().await
+pub async fn dropbox_is_authorized(provider: tauri::State<'_, Dropbox>) -> Result<bool, String> {
+    Ok(provider.is_authorized().await)
 }
 
 #[tauri::command]
-pub async fn cloud_dropbox_unauthorize(provider: tauri::State<'_, Dropbox>) {
+pub async fn dropbox_unauthorize(provider: tauri::State<'_, Dropbox>) -> Result<(), String> {
     provider.unauthorize().await;
+    Ok(())
 }
 
 #[tauri::command]
-pub async fn cloud_dropbox_list_files(
+pub async fn dropbox_list_files(
     provider: tauri::State<'_, Dropbox>,
     folder_id: String,
 ) -> Result<Vec<CloudFile>, String> {
-    provider.list_folder(&folder_id).await
+    provider.list_files(&folder_id).await
 }
 
 #[tauri::command]
-pub async fn cloud_dropbox_list_files_recursive(
+pub async fn dropbox_list_files_recursive(
     provider: tauri::State<'_, Dropbox>,
     folder_id: String,
 ) -> Result<Vec<CloudFile>, String> {
-    provider.list_files(&folder_id, true).await
+    provider.list_files_recursive(&folder_id).await
 }
 
 #[tauri::command]
-pub async fn cloud_dropbox_create_folder(
+pub async fn dropbox_create_folder(
     provider: tauri::State<'_, Dropbox>,
     name: String,
     parent_id: Option<String>,
@@ -67,11 +68,14 @@ pub async fn cloud_dropbox_create_folder(
         size: 0,
         is_folder: true,
         modified_at: 0,
+        created_at: 0,
+        mime_type: None,
+        hash: None,
     })
 }
 
 #[tauri::command]
-pub async fn cloud_dropbox_upload_file(
+pub async fn dropbox_upload_file(
     provider: tauri::State<'_, Dropbox>,
     abs_local_path: String,
     name: String,
@@ -81,7 +85,7 @@ pub async fn cloud_dropbox_upload_file(
 }
 
 #[tauri::command]
-pub async fn cloud_dropbox_download_file(
+pub async fn dropbox_download_file(
     provider: tauri::State<'_, Dropbox>,
     file_id: String,
     abs_local_path: String,
@@ -90,7 +94,7 @@ pub async fn cloud_dropbox_download_file(
 }
 
 #[tauri::command]
-pub async fn cloud_dropbox_delete_file(
+pub async fn dropbox_delete_file(
     provider: tauri::State<'_, Dropbox>,
     file_id: String,
 ) -> Result<(), String> {
@@ -103,16 +107,16 @@ pub async fn cloud_dropbox_delete_file(
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::<R>::new("cloud") 
         .invoke_handler(tauri::generate_handler![
-            cloud_dropbox_start_auth,
-            cloud_dropbox_complete_auth,
-            cloud_dropbox_is_authorized,
-            cloud_dropbox_unauthorize,
-            cloud_dropbox_list_files,
-            cloud_dropbox_list_files_recursive,
-            cloud_dropbox_create_folder,
-            cloud_dropbox_upload_file,
-            cloud_dropbox_download_file,
-            cloud_dropbox_delete_file,
+            dropbox_start_auth,
+            dropbox_complete_auth,
+            dropbox_is_authorized,
+            dropbox_unauthorize,
+            dropbox_list_files,
+            dropbox_list_files_recursive,
+            dropbox_create_folder,
+            dropbox_upload_file,
+            dropbox_download_file,
+            dropbox_delete_file,
         ])
         .setup(move |app_handle, _api| {
             let app_handle = app_handle.clone();

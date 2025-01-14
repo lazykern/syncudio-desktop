@@ -116,7 +116,7 @@ impl DB {
             .await?;
 
         // New indices for cloud tables
-        ormlite::query("CREATE INDEX IF NOT EXISTS index_cloud_folder_paths ON cloud_folders (cloud_folder_path, local_folder_path);")
+        ormlite::query("CREATE INDEX IF NOT EXISTS index_cloud_folder_id ON cloud_folders (cloud_folder_id, local_folder_path);")
             .execute(&mut self.connection)
             .await?;
 

@@ -21,10 +21,20 @@ pub use models::{
 pub struct CloudFile {
     pub id: String,
     pub name: String,
-    pub parent_id: Option<String>, // Parent folder ID, None for root
+    pub parent_id: Option<String>,
     pub size: u64,
     pub is_folder: bool,
     pub modified_at: i64,
+    pub created_at: i64,
+    pub mime_type: Option<String>,
+    pub hash: Option<FileHash>,        // Content hash for change detection
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum FileHash {
+    Sha1(String),
+    Sha256(String),
+    ContentHash(String), // For Dropbox
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -47,15 +57,18 @@ pub trait CloudProvider: Send + Sync {
     // Basic provider info
     fn provider_type(&self) -> &'static str;
     
-    // Authorization status
+    // Authorization
+    async fn start_authorization(&self) -> Result<String, String>;
+    async fn complete_authorization(&self, auth_code: &str) -> Result<CloudAuth, String>;
     async fn is_authorized(&self) -> bool;
     async fn unauthorize(&self);
     
     // File operations
-    async fn list_folder(&self, folder_id: &str) -> Result<Vec<CloudFile>, String>;
+    async fn list_files(&self, folder_id: &str) -> Result<Vec<CloudFile>, String>;
+    async fn list_files_recursive(&self, folder_id: &str) -> Result<Vec<CloudFile>, String>;
     async fn create_folder(&self, name: &str, parent_id: Option<&str>) -> Result<CloudFolder, String>;
     async fn upload_file(&self, local_path: &PathBuf, name: &str, parent_id: Option<&str>) -> Result<CloudFile, String>;
     async fn download_file(&self, file_id: &str, local_path: &PathBuf) -> Result<(), String>;
     async fn delete_file(&self, file_id: &str) -> Result<(), String>;
-    async fn get_file_metadata(&self, file_id: &str) -> Result<CloudFile, String>;
 }
+

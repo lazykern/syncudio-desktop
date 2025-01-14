@@ -1,9 +1,11 @@
 use ormlite::model::*;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 use std::path::PathBuf;
 
-#[derive(Debug, Serialize, Deserialize, Model)]
-#[ormlite(table_name = "cloud_providers")]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Model, TS)]
+#[ormlite(table = "cloud_providers")]
+#[ts(export, export_to = "../../src/generated/typings/index.ts")]
 pub struct CloudProvider {
     #[ormlite(primary_key)]
     pub id: String,
@@ -15,8 +17,9 @@ pub struct CloudProvider {
     pub updated_at: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize, Model)]
-#[ormlite(table_name = "cloud_folders")]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Model, TS)]
+#[ormlite(table = "cloud_folders")]
+#[ts(export, export_to = "../../src/generated/typings/index.ts")]
 pub struct CloudFolder {
     #[ormlite(primary_key)]
     pub id: String,
@@ -28,8 +31,9 @@ pub struct CloudFolder {
     pub updated_at: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize, Model)]
-#[ormlite(table_name = "cloud_syncs")]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Model, TS)]
+#[ormlite(table = "cloud_syncs")]
+#[ts(export, export_to = "../../src/generated/typings/index.ts")]
 pub struct CloudSync {
     #[ormlite(primary_key)]
     pub id: String,

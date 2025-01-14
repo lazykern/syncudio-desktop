@@ -1,4 +1,4 @@
-use ormlite::sqlite::SqliteConnection;
+use ormlite::{sqlite::SqliteConnection, Model};
 use uuid::Uuid;
 
 use super::models::*;
@@ -100,7 +100,9 @@ impl CloudDB {
 
     pub async fn get_sync_by_item(&mut self, item_id: &str, item_type: &str) -> AnyResult<Option<CloudSync>> {
         let sync = CloudSync::select()
-            .where_bind("item_id = ? AND item_type = ?", (item_id, item_type))
+            .where_("item_id = ? AND item_type = ?")
+            .bind(item_id)
+            .bind(item_type)
             .fetch_one(&mut self.connection)
             .await?;
         Ok(Some(sync))
@@ -124,10 +126,9 @@ impl CloudDB {
 
     pub async fn get_pending_syncs(&mut self) -> AnyResult<Vec<CloudSync>> {
         let syncs = CloudSync::select()
-            .where_bind(
-                "sync_status IN (?, ?)",
-                (SYNC_STATUS_PENDING_UPLOAD, SYNC_STATUS_PENDING_DOWNLOAD),
-            )
+            .where_("sync_status IN (?, ?)")
+            .bind(SYNC_STATUS_PENDING_UPLOAD)
+            .bind(SYNC_STATUS_PENDING_DOWNLOAD)
             .fetch_all(&mut self.connection)
             .await?;
         Ok(syncs)
