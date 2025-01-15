@@ -5,7 +5,7 @@ import * as Setting from '../components/Setting';
 import Flexbox from '../elements/Flexbox';
 import Button from '../elements/Button';
 import { useCallback, useEffect, useState } from 'react';
-import { cloud } from '../lib/cloud';
+import { cloud } from '../lib/cloud-provider';
 import { open } from '@tauri-apps/plugin-shell';
 
 export default function SettingsCloud() {

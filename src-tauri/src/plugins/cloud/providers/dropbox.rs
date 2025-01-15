@@ -47,7 +47,7 @@ impl Dropbox {
     }
 
     fn get_auth_file_path() -> PathBuf {
-        get_storage_dir().join("dropbox_auth.json")
+        get_storage_dir().join("dropbox_auth.dat")
     }
 
     fn load_auth_data_from_file() -> Option<String> {

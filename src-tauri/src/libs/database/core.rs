@@ -55,7 +55,7 @@ impl DB {
         .await?;
 
         // Create cloud-related tables
-        crate::plugins::cloud::database::create_tables(&mut self.connection).await?;
+        crate::plugins::cloud::create_tables(&mut self.connection).await?;
 
         Ok(())
     }

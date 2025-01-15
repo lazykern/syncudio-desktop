@@ -4,7 +4,11 @@ export type CloudFile = { id: string, name: string, parent_id: string | null, si
 
 export type CloudFolder = { id: string, provider_type: string, cloud_folder_id: string, cloud_folder_name: string, local_folder_path: string, created_at: bigint, updated_at: bigint, };
 
-export type CloudSync = { id: string, provider_type: string, folder_id: string, item_id: string, item_type: string, cloud_file_id: string, cloud_file_name: string, local_path: string, last_synced: bigint | null, sync_status: string, created_at: bigint, updated_at: bigint, };
+export type CloudPlaylist = { id: string, name: string, tracks: Array<string>, created_at: bigint, updated_at: bigint, };
+
+export type CloudTrack = { id: string, blake3_hash: string | null, old_blake3_hash: Array<string>, cloud_file_id: string | null, created_at: bigint, updated_at: bigint, file_name: string, tags: CloudTrackTag | null, };
+
+export type CloudTrackTag = { title: string, album: string, artists: Array<string>, genres: Array<string>, year: number | null, duration: number, track_no: number | null, track_of: number | null, disk_no: number | null, disk_of: number | null, };
 
 export type Config = { theme: string, audio_volume: number, audio_playback_rate: number | null, audio_output_device: string, audio_muted: boolean, audio_shuffle: boolean, audio_repeat: Repeat, default_view: DefaultView, library_sort_by: SortBy, library_sort_order: SortOrder, library_folders: Array<string>, library_autorefresh: boolean, sleepblocker: boolean, auto_update_checker: boolean, minimize_to_tray: boolean, notifications: boolean, track_view_density: string, };
 
@@ -40,4 +44,4 @@ export type SortOrder = "Asc" | "Dsc";
  * Track
  * represent a single track, id and path should be unique
  */
-export type Track = { id: string, path: string, title: string, album: string, artists: Array<string>, genres: Array<string>, year: number | null, duration: number, track_no: number | null, track_of: number | null, disk_no: number | null, disk_of: number | null, };
+export type Track = { id: string, blake3_hash: string | null, path: string, title: string, album: string, artists: Array<string>, genres: Array<string>, year: number | null, duration: number, track_no: number | null, track_of: number | null, disk_no: number | null, disk_of: number | null, };

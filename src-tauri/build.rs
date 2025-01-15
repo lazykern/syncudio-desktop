@@ -48,10 +48,25 @@ fn main() {
             .plugin(
                 "cloud",
                 tauri_build::InlinedPlugin::new().commands(&[
+                    // Dropbox-specific auth commands
                     "dropbox_start_auth",
                     "dropbox_complete_auth",
                     "dropbox_is_authorized",
                     "dropbox_unauthorize",
+                    // Generic cloud operations
+                    "cloud_list_files",
+                    "cloud_list_root_files",
+                    "cloud_create_folder",
+                    "cloud_upload_file",
+                    "cloud_download_file",
+                    "cloud_delete_file",
+                    // Cloud folder database operations
+                    "get_cloud_folder",
+                    "get_cloud_folders_by_provider",
+                    "get_cloud_folder_by_local_path",
+                    "save_cloud_folder",
+                    "update_cloud_folder",
+                    "delete_cloud_folder",
                 ]),
             ),
     )

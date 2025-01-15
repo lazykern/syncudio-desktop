@@ -1,10 +1,10 @@
-use log::{error, info};
+use log::{info, error};
 use std::path::PathBuf;
-use tauri::plugin::{Builder, TauriPlugin};
-use tauri::{Manager, Runtime, State};
+use tauri::State;
 
-use crate::plugins::cloud::providers::*;
+use crate::plugins::cloud::providers::Dropbox;
 use crate::libs::constants::{CLOUD_PROVIDER_DROPBOX, CLOUD_PROVIDER_GDRIVE};
+use crate::plugins::cloud::{CloudFile, CloudProvider};
 
 // Dropbox-specific auth commands
 #[tauri::command]
@@ -154,33 +154,4 @@ pub async fn cloud_delete_file(
         CLOUD_PROVIDER_GDRIVE => Err("Google Drive not implemented yet".to_string()),
         _ => Err(format!("Unknown provider type: {}", provider_type)),
     }
-}
-
-/**
- * Cloud plugin
- */
-pub fn init<R: Runtime>() -> TauriPlugin<R> {
-    Builder::<R>::new("cloud")
-        .invoke_handler(tauri::generate_handler![
-            // Dropbox-specific auth commands
-            dropbox_start_auth,
-            dropbox_complete_auth,
-            dropbox_is_authorized,
-            dropbox_unauthorize,
-            // Generic cloud operations
-            cloud_list_files,
-            cloud_list_root_files,
-            cloud_create_folder,
-            cloud_upload_file,
-            cloud_download_file,
-            cloud_delete_file,
-        ])
-        .setup(move |app_handle, _api| {
-
-            let dropbox = Dropbox::new();
-            app_handle.manage(dropbox);
-
-            Ok(())
-        })
-        .build()
 }
