@@ -2,7 +2,7 @@
 
 export type CloudFile = { id: string, name: string, parent_id: string | null, size: bigint, is_folder: boolean, modified_at: bigint, created_at: bigint, mime_type: string | null, hash: FileHash | null, };
 
-export type CloudFolder = { id: string, provider_type: string, cloud_folder_id: string, cloud_folder_name: string, local_folder_path: string, created_at: bigint, updated_at: bigint, };
+export type CloudFolder = { id: string, provider_type: string, cloud_folder_id: string, cloud_folder_name: string, local_folder_path: string, };
 
 export type CloudPlaylist = { id: string, name: string, tracks: Array<string>, created_at: bigint, updated_at: bigint, };
 

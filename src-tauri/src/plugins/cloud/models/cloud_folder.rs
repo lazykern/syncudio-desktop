@@ -13,8 +13,6 @@ pub struct CloudFolder {
     pub cloud_folder_id: String,
     pub cloud_folder_name: String,
     pub local_folder_path: String,
-    pub created_at: i64,
-    pub updated_at: i64,
 }
 
 impl CloudFolder {
@@ -31,8 +29,6 @@ impl CloudFolder {
             cloud_folder_id,
             cloud_folder_name,
             local_folder_path,
-            created_at: now,
-            updated_at: now,
         }
     }
 }

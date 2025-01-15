@@ -1,0 +1,78 @@
+.cloudFolders {
+  margin-top: 1rem;
+}
+
+.cloudFolders h3 {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+  color: var(--text);
+}
+
+.cloudFolders ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.cloudFolders li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.cloudFolders li:last-child {
+  border-bottom: none;
+}
+
+.cloudFolders li span {
+  margin-right: 1rem;
+  color: var(--text);
+}
+
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal > div {
+  background-color: var(--background);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.authInput {
+  margin-top: 1rem;
+  width: 100%;
+  max-width: 400px;
+}
+
+.input {
+  width: 100%;
+  padding: 0.5rem;
+  margin: 0.5rem 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  background-color: var(--input-bg);
+  color: var(--input-color);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--info-color);
+}
+
+.authInput .flexbox {
+  margin-top: 0.5rem;
+  gap: 0.5rem;
+  justify-content: flex-end;
+} 
