@@ -77,7 +77,7 @@ impl Dropbox {
         }
     }
 
-    fn folder_id_to_path(&self, folder_id: &str) -> String {
+    fn amend_path_or_id(&self, folder_id: &str) -> String {
         if folder_id.is_empty() || folder_id == "/" {
             String::new()
         } else {
@@ -98,8 +98,8 @@ impl Dropbox {
     }
 
     async fn list_files(&self, folder_id: &str, recursive: bool) -> Result<Vec<CloudFile>, String> {
-        let path = self.folder_id_to_path(folder_id);
-        let list_folder_arg = files::ListFolderArg::new(path)
+        let path_or_id = self.amend_path_or_id(folder_id);
+        let list_folder_arg = files::ListFolderArg::new(path_or_id)
             .with_recursive(recursive)
             .with_include_media_info(true)
             .with_include_deleted(false);
@@ -218,37 +218,28 @@ impl Dropbox {
 
 #[async_trait]
 impl CloudProvider for Dropbox {
-    fn provider_type(&self) -> &'static str {
-        PROVIDER_TYPE
-    }
 
     async fn is_authorized(&self) -> bool {
         self.authorization.lock().await.is_some() && self.client.lock().await.is_some()
     }
 
     async fn unauthorize(&self) {
-        let mut auth_guard = self.authorization.lock().await;
-        *auth_guard = None;
-        let mut client_guard = self.client.lock().await;
-        *client_guard = None;
-
-        // Remove auth file
-        let _ = fs::remove_file(Self::get_auth_file_path());
+        self.unauthorize().await;
     }
  
-    async fn list_files(&self, folder_id: &str) -> Result<Vec<CloudFile>, String> {
-        self.list_files(folder_id, false).await
+    async fn list_files(&self, folder_id: &str, recursive: bool) -> Result<Vec<CloudFile>, String> {
+        self.list_files(folder_id, recursive).await
     }
 
-    async fn list_files_recursive(&self, folder_id: &str) -> Result<Vec<CloudFile>, String> {
-        self.list_files(folder_id, true).await
+    async fn list_root_files(&self, recursive: bool) -> Result<Vec<CloudFile>, String> {
+        self.list_files("", recursive).await
     }
 
     async fn create_folder(&self, name: &str, parent_id: Option<&str>) -> Result<CloudFile, String> {
         let client = self.client.lock().await;
         let client_ref = client.as_ref().ok_or("Not authorized")?;
 
-        let parent_path = parent_id.map(|id| self.folder_id_to_path(id)).unwrap_or_default();
+        let parent_path = parent_id.map(|id| self.amend_path_or_id(id)).unwrap_or_default();
         let folder_path = if parent_path.is_empty() {
             format!("/{}", name)
         } else {
@@ -279,7 +270,7 @@ impl CloudProvider for Dropbox {
         let client = self.client.lock().await;
         let client_ref = client.as_ref().ok_or("Not authorized")?;
 
-        let parent_path = parent_id.map(|id| self.folder_id_to_path(id)).unwrap_or_default();
+        let parent_path = parent_id.map(|id| self.amend_path_or_id(id)).unwrap_or_default();
         let file_path = if parent_path.is_empty() {
             format!("/{}", name)
         } else {
