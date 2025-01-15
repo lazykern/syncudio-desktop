@@ -2,12 +2,16 @@
  * Small utility to display time metrics with a log message
  */
 use log::info;
+use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::{ffi::OsStr, time::Instant};
 use tauri::Theme;
 use walkdir::WalkDir;
+use blake3::Hash;
 
 use crate::plugins::config::SYSTEM_THEME;
+
+use super::error::SyncudioError;
 
 /**
  * Small helper to compute the execution time of some code
@@ -86,4 +90,10 @@ pub fn get_theme_from_name(theme_name: &str) -> Option<Theme> {
         SYSTEM_THEME => None,
         _ => None, // ? :]
     }
+}
+
+pub fn blake3_hash(path: &PathBuf) -> Result<String, SyncudioError> {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update_mmap_rayon(path)?;
+    Ok(hasher.finalize().to_string())
 }
