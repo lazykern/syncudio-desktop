@@ -221,7 +221,7 @@ export default function SettingsCloud() {
 
         {cloudFolders.length > 0 && (
           <div className={styles.cloudFolders}>
-            <h3>Synced Folders</h3>
+            <h3>Sync Folders</h3>
             <ul>
               {cloudFolders.map(folder => (
                 <li key={folder.id}>
