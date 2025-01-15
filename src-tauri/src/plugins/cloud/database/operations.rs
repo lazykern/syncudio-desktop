@@ -1,10 +1,16 @@
 use ormlite::Model;
 use uuid::Uuid;
 
-use crate::libs::cloud::models::*;
+use crate::libs::database::core::DB;
 use crate::libs::error::AnyResult;
+use crate::plugins::cloud::models::*;
 
-use super::core::DB;
+// Constants for sync status and item types
+pub const SYNC_STATUS_SYNCED: &str = "synced";
+pub const SYNC_STATUS_PENDING_UPLOAD: &str = "pending_upload";
+pub const SYNC_STATUS_PENDING_DOWNLOAD: &str = "pending_download";
+pub const ITEM_TYPE_TRACK: &str = "track";
+pub const ITEM_TYPE_PLAYLIST: &str = "playlist";
 
 impl DB {
     // Folder operations

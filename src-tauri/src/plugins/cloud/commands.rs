@@ -3,8 +3,8 @@ use std::path::PathBuf;
 use tauri::plugin::{Builder, TauriPlugin};
 use tauri::{Manager, Runtime, State};
 
-use crate::libs::cloud::dropbox::Dropbox;
-use crate::libs::cloud::{CloudFile, CloudProvider};
+use crate::plugins::cloud::models::*;
+use crate::plugins::cloud::providers::*;
 use crate::libs::constants::{CLOUD_PROVIDER_DROPBOX, CLOUD_PROVIDER_GDRIVE};
 
 // Dropbox-specific auth commands
