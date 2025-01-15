@@ -1,22 +1,23 @@
-use std::path::PathBuf;
 use async_trait::async_trait;
-use tokio::sync::Mutex;
+use chrono::{DateTime, Utc};
 use dropbox_sdk::{
     default_client::{NoauthDefaultClient, UserAuthDefaultClient},
+    files::{self, CreateFolderArg, FileMetadata, FolderMetadata, ListFolderArg, ListFolderResult},
     oauth2::{Authorization, AuthorizeUrlBuilder, Oauth2Type, PkceCode},
-    files::{self, ListFolderArg, ListFolderResult, FileMetadata, FolderMetadata, CreateFolderArg},
 };
 use log::{error, info, warn};
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use uuid::Uuid;
-use chrono::{DateTime, Utc};
-use std::io::Read;
 use mime_guess::from_path;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::fs;
+use std::io::Read;
+use std::path::PathBuf;
+use tokio::sync::Mutex;
+use uuid::Uuid;
 
+use crate::plugins::cloud::CloudFile;
+use crate::plugins::cloud::CloudProvider;
+use crate::plugins::cloud::FileHash;
 use crate::plugins::config::get_storage_dir;
-use crate::plugins::cloud::models::{CloudFile, FileHash};
-use super::traits::CloudProvider;
 
 const DROPBOX_CLIENT_ID: &str = "jgibk23zkucv2ec";
 const PROVIDER_TYPE: &str = "dropbox";
@@ -57,12 +58,13 @@ impl Dropbox {
     fn save_auth_data_to_file(auth_data: &str) -> Result<(), String> {
         let path = Self::get_auth_file_path();
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).map_err(|e| format!("Failed to create auth directory: {}", e))?;
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create auth directory: {}", e))?;
         }
         fs::write(path, auth_data).map_err(|e| format!("Failed to save auth data: {}", e))
     }
 
-    pub fn new_with_auth_data(auth_data: String) -> Result<Self, String> {  
+    pub fn new_with_auth_data(auth_data: String) -> Result<Self, String> {
         let auth = Authorization::load(DROPBOX_CLIENT_ID.to_string(), &auth_data);
 
         match auth {
@@ -146,7 +148,13 @@ impl Dropbox {
             let parent = std::path::Path::new(path)
                 .parent()
                 .and_then(|p| p.to_str())
-                .map(|s| if s == "/" { String::new() } else { s.to_string() });
+                .map(|s| {
+                    if s == "/" {
+                        String::new()
+                    } else {
+                        s.to_string()
+                    }
+                });
             parent
         }
     }
@@ -178,46 +186,46 @@ impl CloudProvider for Dropbox {
         let client = self.client.lock().await;
         let client_ref = client.as_ref().ok_or("Not authorized")?;
 
-        let result = files::list_folder(client_ref, &list_folder_arg)
-            .map_err(|e| {
-                error!("Failed to list Dropbox files: {}", e);
-                format!("Failed to list Dropbox files: {}", e)
-            })?;
+        let result = files::list_folder(client_ref, &list_folder_arg).map_err(|e| {
+            error!("Failed to list Dropbox files: {}", e);
+            format!("Failed to list Dropbox files: {}", e)
+        })?;
 
         let cloud_files = result
             .entries
             .par_iter()
-            .filter_map(|entry| {
-                match entry {
-                    files::Metadata::File(f) => {
-                        let modified_at = DateTime::parse_from_rfc3339(&f.server_modified)
-                            .map(|dt| dt.timestamp())
-                            .unwrap_or(0);
-                        Some(CloudFile {
-                            id: f.id.clone(),
-                            name: f.name.clone(),
-                            parent_id: Self::get_parent_id(&f.path_display.clone().unwrap_or_default()),
-                            size: f.size as u64,
-                            is_folder: false,
-                            modified_at,
-                            created_at: modified_at,
-                            mime_type: Some(from_path(&f.name).first_or_octet_stream().to_string()),
-                            hash: f.content_hash.as_ref().map(|h| FileHash::ContentHash(h.clone())),
-                        })
-                    }
-                    files::Metadata::Folder(f) => Some(CloudFile {
+            .filter_map(|entry| match entry {
+                files::Metadata::File(f) => {
+                    let modified_at = DateTime::parse_from_rfc3339(&f.server_modified)
+                        .map(|dt| dt.timestamp())
+                        .unwrap_or(0);
+                    Some(CloudFile {
                         id: f.id.clone(),
                         name: f.name.clone(),
                         parent_id: Self::get_parent_id(&f.path_display.clone().unwrap_or_default()),
-                        size: 0,
-                        is_folder: true,
-                        modified_at: 0,
-                        created_at: 0,
-                        mime_type: None,
-                        hash: None,
-                    }),
-                    _ => None,
+                        size: f.size as u64,
+                        is_folder: false,
+                        modified_at,
+                        created_at: modified_at,
+                        mime_type: Some(from_path(&f.name).first_or_octet_stream().to_string()),
+                        hash: f
+                            .content_hash
+                            .as_ref()
+                            .map(|h| FileHash::ContentHash(h.clone())),
+                    })
                 }
+                files::Metadata::Folder(f) => Some(CloudFile {
+                    id: f.id.clone(),
+                    name: f.name.clone(),
+                    parent_id: Self::get_parent_id(&f.path_display.clone().unwrap_or_default()),
+                    size: 0,
+                    is_folder: true,
+                    modified_at: 0,
+                    created_at: 0,
+                    mime_type: None,
+                    hash: None,
+                }),
+                _ => None,
             })
             .collect::<Vec<CloudFile>>();
         Ok(cloud_files)
@@ -227,11 +235,17 @@ impl CloudProvider for Dropbox {
         self.list_files("", recursive).await
     }
 
-    async fn create_folder(&self, name: &str, parent_id: Option<&str>) -> Result<CloudFile, String> {
+    async fn create_folder(
+        &self,
+        name: &str,
+        parent_id: Option<&str>,
+    ) -> Result<CloudFile, String> {
         let client = self.client.lock().await;
         let client_ref = client.as_ref().ok_or("Not authorized")?;
 
-        let parent_path = parent_id.map(|id| self.amend_path_or_id(id)).unwrap_or_default();
+        let parent_path = parent_id
+            .map(|id| self.amend_path_or_id(id))
+            .unwrap_or_default();
         let folder_path = if parent_path.is_empty() {
             format!("/{}", name)
         } else {
@@ -239,11 +253,10 @@ impl CloudProvider for Dropbox {
         };
 
         let create_folder_arg = files::CreateFolderArg::new(folder_path);
-        let result = files::create_folder_v2(client_ref, &create_folder_arg)
-            .map_err(|e| {
-                error!("Failed to create Dropbox folder: {}", e);
-                format!("Failed to create Dropbox folder: {}", e)
-            })?;
+        let result = files::create_folder_v2(client_ref, &create_folder_arg).map_err(|e| {
+            error!("Failed to create Dropbox folder: {}", e);
+            format!("Failed to create Dropbox folder: {}", e)
+        })?;
 
         Ok(CloudFile {
             id: result.metadata.id,
@@ -258,11 +271,18 @@ impl CloudProvider for Dropbox {
         })
     }
 
-    async fn upload_file(&self, local_path: &PathBuf, name: &str, parent_id: Option<&str>) -> Result<CloudFile, String> {
+    async fn upload_file(
+        &self,
+        local_path: &PathBuf,
+        name: &str,
+        parent_id: Option<&str>,
+    ) -> Result<CloudFile, String> {
         let client = self.client.lock().await;
         let client_ref = client.as_ref().ok_or("Not authorized")?;
 
-        let parent_path = parent_id.map(|id| self.amend_path_or_id(id)).unwrap_or_default();
+        let parent_path = parent_id
+            .map(|id| self.amend_path_or_id(id))
+            .unwrap_or_default();
         let file_path = if parent_path.is_empty() {
             format!("/{}", name)
         } else {
@@ -274,11 +294,10 @@ impl CloudProvider for Dropbox {
             format!("Failed to read local file: {}", e)
         })?;
 
-        let upload_arg = files::UploadArg::new(file_path)
-            .with_mode(files::WriteMode::Overwrite);
+        let upload_arg = files::UploadArg::new(file_path).with_mode(files::WriteMode::Overwrite);
 
-        let result = files::upload(client_ref, &upload_arg, file_content.as_ref())
-            .map_err(|e| {
+        let result =
+            files::upload(client_ref, &upload_arg, file_content.as_ref()).map_err(|e| {
                 error!("Failed to upload file: {}", e);
                 format!("Failed to upload file: {}", e)
             })?;
@@ -296,7 +315,10 @@ impl CloudProvider for Dropbox {
             modified_at,
             created_at: modified_at,
             mime_type: Some(from_path(&result.name).first_or_octet_stream().to_string()),
-            hash: result.content_hash.as_ref().map(|h| FileHash::ContentHash(h.clone())),
+            hash: result
+                .content_hash
+                .as_ref()
+                .map(|h| FileHash::ContentHash(h.clone())),
         })
     }
 
@@ -305,11 +327,10 @@ impl CloudProvider for Dropbox {
         let client_ref = client.as_ref().ok_or("Not authorized")?;
 
         let download_arg = files::DownloadArg::new(file_id.to_string());
-        let result = files::download(client_ref, &download_arg, None, None)
-            .map_err(|e| {
-                error!("Failed to download file: {}", e);
-                format!("Failed to download file: {}", e)
-            })?;
+        let result = files::download(client_ref, &download_arg, None, None).map_err(|e| {
+            error!("Failed to download file: {}", e);
+            format!("Failed to download file: {}", e)
+        })?;
 
         let mut buffer = Vec::new();
         result.body.unwrap().read_to_end(&mut buffer).map_err(|e| {
@@ -337,12 +358,11 @@ impl CloudProvider for Dropbox {
         let client_ref = client.as_ref().ok_or("Not authorized")?;
 
         let delete_arg = files::DeleteArg::new(file_id.to_string());
-        files::delete_v2(client_ref, &delete_arg)
-            .map_err(|e| {
-                error!("Failed to delete file: {}", e);
-                format!("Failed to delete file: {}", e)
-            })?;
+        files::delete_v2(client_ref, &delete_arg).map_err(|e| {
+            error!("Failed to delete file: {}", e);
+            format!("Failed to delete file: {}", e)
+        })?;
 
         Ok(())
     }
-} 
+}
