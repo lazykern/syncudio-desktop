@@ -51,26 +51,25 @@ pub async fn dropbox_unauthorize(provider: State<'_, Dropbox>) -> Result<(), Str
 pub async fn cloud_list_files(
     provider_type: String,
     folder_id: String,
-    recursive: bool,
     dropbox: State<'_, Dropbox>,
     // Add other providers here when implemented
 ) -> Result<Vec<CloudFile>, String> {
     match provider_type.as_str() {
-        CLOUD_PROVIDER_DROPBOX => dropbox.list_files(&folder_id, recursive).await,
+        CLOUD_PROVIDER_DROPBOX => dropbox.list_files(&folder_id).await,
         CLOUD_PROVIDER_GDRIVE => Err("Google Drive not implemented yet".to_string()),
         _ => Err(format!("Unknown provider type: {}", provider_type)),
     }
 }
 
 #[tauri::command]
-pub async fn cloud_list_root_files(
+pub async fn cloud_list_files_recursive(
     provider_type: String,
-    recursive: bool,
+    folder_id: String,
     dropbox: State<'_, Dropbox>,
     // Add other providers here when implemented
 ) -> Result<Vec<CloudFile>, String> {
     match provider_type.as_str() {
-        CLOUD_PROVIDER_DROPBOX => dropbox.list_root_files(recursive).await,
+        CLOUD_PROVIDER_DROPBOX => dropbox.list_files_recursive(&folder_id).await,
         CLOUD_PROVIDER_GDRIVE => Err("Google Drive not implemented yet".to_string()),
         _ => Err(format!("Unknown provider type: {}", provider_type)),
     }
@@ -170,7 +169,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             dropbox_unauthorize,
             // Generic cloud operations
             cloud_list_files,
-            cloud_list_root_files,
+            cloud_list_files_recursive,
             cloud_create_folder,
             cloud_upload_file,
             cloud_download_file,
