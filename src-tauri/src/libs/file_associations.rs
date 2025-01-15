@@ -78,7 +78,7 @@ fn handle_file_associations(app_handle: AppHandle, mut files: Vec<PathBuf>) {
     // Build a list of tracks, without importing them to the library
     let queue = files
         .par_iter()
-        .map(|path| get_track_from_file(path, ""))
+        .map(get_track_from_file)
         .flatten()
         .collect::<Vec<_>>();
 

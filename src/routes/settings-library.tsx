@@ -10,26 +10,14 @@ import useLibraryStore, { useLibraryAPI } from '../stores/useLibraryStore';
 import type { SettingsLoaderData } from './settings';
 
 import { open } from '@tauri-apps/plugin-dialog';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import styles from './settings-library.module.css';
-import database from '../lib/database';
-import type { LocalFolder } from '../generated/typings';
 
 export default function ViewSettingsLibrary() {
   const libraryAPI = useLibraryAPI();
   const isLibraryRefreshing = useLibraryStore((state) => state.refreshing);
-  const isReindexing = useLibraryStore((state) => state.reindexing);
   const { config } = useLoaderData() as SettingsLoaderData;
   const invalidate = useInvalidate();
-  const [localFolders, setLocalFolders] = useState<LocalFolder[]>([]);
-
-  useEffect(() => {
-    const loadFolders = async () => {
-      const folders = await database.getLocalFolders();
-      setLocalFolders(folders);
-    };
-    loadFolders();
-  }, []);
 
   const addLibraryFolders = useCallback(async () => {
     const paths = await open({
@@ -42,42 +30,35 @@ export default function ViewSettingsLibrary() {
     }
 
     await libraryAPI.addLibraryFolders(paths);
-    const folders = await database.getLocalFolders();
-    setLocalFolders(folders);
     invalidate();
   }, [libraryAPI.addLibraryFolders, invalidate]);
-
-  const removeLibraryFolder = useCallback(async (path: string) => {
-    await libraryAPI.removeLibraryFolder(path);
-    const folders = await database.getLocalFolders();
-    setLocalFolders(folders);
-    invalidate();
-  }, [libraryAPI.removeLibraryFolder, invalidate]);
 
   return (
     <div className="setting settings-musicfolder">
       <Setting.Section>
         <Setting.Title>Files</Setting.Title>
-        {localFolders.length === 0 && (
+        {config.library_folders.length === 0 && (
           <Setting.Description>
             There are no folders in your library.
           </Setting.Description>
         )}
-        {localFolders.length > 0 && (
+        {config.library_folders.length > 0 && (
           <ul className={styles.libraryFolders}>
-            {localFolders.map((folder) => {
+            {config.library_folders.map((folder) => {
               return (
-                <li key={folder.path}>
+                <li key={folder}>
                   <Flexbox align="center">
                     <button
                       type="button"
                       className={styles.libraryFoldersRemove}
                       data-syncudio-action
-                      onClick={() => removeLibraryFolder(folder.path)}
+                      onClick={() =>
+                        libraryAPI.removeLibraryFolder(folder).then(invalidate)
+                      }
                     >
                       &times;
                     </button>
-                    <span>{folder.path}</span>
+                    <span>{folder}</span>
                   </Flexbox>
                 </li>
               );
@@ -96,12 +77,6 @@ export default function ViewSettingsLibrary() {
             onClick={useInvalidateCallback(libraryAPI.refresh)}
           >
             Refresh library
-          </Button>
-          <Button
-            disabled={isReindexing}
-            onClick={useInvalidateCallback(libraryAPI.reindex)}
-          >
-            Reindex tracks
           </Button>
         </Flexbox>
         <Setting.Description>

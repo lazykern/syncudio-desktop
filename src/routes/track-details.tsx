@@ -18,12 +18,11 @@ import { useLibraryAPI } from '../stores/useLibraryStore';
 import type { LoaderData, TrackMutation } from '../types/syncudio';
 
 import styles from './track-details.module.css';
-import { getTrackPath } from '../lib/track';
 
 // We assume no artist or genre has a comma in its name (fingers crossed)
 const DELIMITER = ',';
 
-export default async function ViewTrackDetails() {
+export default function ViewTrackDetails() {
   const { track } = useLoaderData() as DetailsLoaderData;
   const invalidate = useInvalidate();
 
@@ -217,7 +216,7 @@ export default async function ViewTrackDetails() {
             id="path"
             type="text"
             disabled
-            value={await getTrackPath(track)}
+            value={track.path}
           />
         </Setting.Section>
         <div className={styles.detailsActions}>

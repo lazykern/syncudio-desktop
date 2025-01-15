@@ -31,7 +31,6 @@ import useInvalidate from '../hooks/useInvalidate';
 import { useScrollRestoration } from '../hooks/useScrollRestoration';
 import { keyboardSelect } from '../lib/utils-list';
 import styles from './TracksList.module.css';
-import { getTrackPath } from '../lib/track';
 
 const ROW_HEIGHT = 30;
 const ROW_HEIGHT_COMPACT = 24;
@@ -426,7 +425,7 @@ export default function TracksList(props: Props) {
           MenuItem.new({
             text: 'Show in file manager',
             action: async () => {
-              await revealItemInDir(await getTrackPath(track));
+              await revealItemInDir(track.path);
             },
           }),
           MenuItem.new({

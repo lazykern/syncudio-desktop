@@ -2,14 +2,10 @@
  * Small utility to display time metrics with a log message
  */
 use log::info;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use sha2::{Digest, Sha256};
-use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::{ffi::OsStr, time::Instant};
 use tauri::Theme;
 use walkdir::WalkDir;
-use blake3;
 
 use crate::plugins::config::SYSTEM_THEME;
 
@@ -90,13 +86,4 @@ pub fn get_theme_from_name(theme_name: &str) -> Option<Theme> {
         SYSTEM_THEME => None,
         _ => None, // ? :]
     }
-}
-
-/**
- * Compute the index hash of a file using BLAKE3
- */
-pub fn compute_index_hash<R: Read>(reader: R) -> std::io::Result<String> {
-    let mut hasher = blake3::Hasher::new();
-    std::io::copy(&mut std::io::BufReader::new(reader), &mut hasher)?;
-    Ok(hasher.finalize().to_hex().to_string())
 }

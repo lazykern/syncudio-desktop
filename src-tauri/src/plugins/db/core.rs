@@ -15,7 +15,6 @@ use crate::plugins::config::get_storage_dir;
 use super::track::*;
 use super::playlist::*;
 use super::library::*;
-use super::local_folder::*;
 /// Database state wrapper to ensure thread safety
 pub struct DBState(Mutex<DB>);
 
@@ -80,7 +79,6 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             remove_tracks,
             update_track,
             import_tracks_to_library,
-            reindex_tracks,
             // Playlist operations
             get_all_playlists,
             get_playlist,
@@ -89,11 +87,6 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             set_playlist_tracks,
             export_playlist,
             delete_playlist,
-            // Local folder operations
-            get_local_folders,
-            add_local_folder,
-            remove_local_folder,
-            is_local_folder,
             // Core operations
             reset,
         ])

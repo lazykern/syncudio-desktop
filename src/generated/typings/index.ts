@@ -6,15 +6,13 @@ export type CloudFolder = { id: string, provider_type: string, cloud_folder_id: 
 
 export type CloudSync = { id: string, provider_type: string, folder_id: string, item_id: string, item_type: string, cloud_file_id: string, cloud_file_name: string, local_path: string, last_synced: bigint | null, sync_status: string, created_at: bigint, updated_at: bigint, };
 
-export type Config = { theme: string, audio_volume: number, audio_playback_rate: number | null, audio_output_device: string, audio_muted: boolean, audio_shuffle: boolean, audio_repeat: Repeat, default_view: DefaultView, library_sort_by: SortBy, library_sort_order: SortOrder, library_autorefresh: boolean, sleepblocker: boolean, auto_update_checker: boolean, minimize_to_tray: boolean, notifications: boolean, track_view_density: string, };
+export type Config = { theme: string, audio_volume: number, audio_playback_rate: number | null, audio_output_device: string, audio_muted: boolean, audio_shuffle: boolean, audio_repeat: Repeat, default_view: DefaultView, library_sort_by: SortBy, library_sort_order: SortOrder, library_folders: Array<string>, library_autorefresh: boolean, sleepblocker: boolean, auto_update_checker: boolean, minimize_to_tray: boolean, notifications: boolean, track_view_density: string, };
 
 export type DefaultView = "Library" | "Playlists";
 
 export type FileHash = { "Sha1": string } | { "Sha256": string } | { "ContentHash": string };
 
 export type IPCEvent = { "Unknown": string } | "PlaybackPlay" | "PlaybackPause" | "PlaybackStop" | "PlaybackPlayPause" | "PlaybackPrevious" | "PlaybackNext" | "PlaybackStart" | "LibraryScanProgress" | "GoToLibrary" | "GoToPlaylists" | "GoToSettings" | "JumpToPlayingTrack";
-
-export type LocalFolder = { path: string, };
 
 /** ----------------------------------------------------------------------------
  * Playlist
@@ -40,6 +38,6 @@ export type SortOrder = "Asc" | "Dsc";
 
 /**
  * Track
- * represent a single track
+ * represent a single track, id and path should be unique
  */
-export type Track = { id: string, local_folder_path: string, relative_path: string, title: string, album: string, artists: Array<string>, genres: Array<string>, year: number | null, duration: number, track_no: number | null, track_of: number | null, disk_no: number | null, disk_of: number | null, index_hash: string | null, };
+export type Track = { id: string, path: string, title: string, album: string, artists: Array<string>, genres: Array<string>, year: number | null, duration: number, track_no: number | null, track_of: number | null, disk_no: number | null, disk_of: number | null, };

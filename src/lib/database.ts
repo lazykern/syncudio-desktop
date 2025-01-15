@@ -1,33 +1,13 @@
 import { invoke } from '@tauri-apps/api/core';
 
-import type { Playlist, ScanResult, Track, LocalFolder } from '../generated/typings';
+import type { Playlist, ScanResult, Track } from '../generated/typings';
 
 /**
  * Bridge for the UI to communicate with the backend and manipulate the Database
  */
 const database = {
   // ---------------------------------------------------------------------------
-  // Local Folders read/write actions
-  // ---------------------------------------------------------------------------
-
-  async getLocalFolders(): Promise<Array<LocalFolder>> {
-    return invoke('plugin:database|get_local_folders');
-  },
-
-  async addLocalFolder(path: string): Promise<LocalFolder> {
-    return invoke('plugin:database|add_local_folder', {
-      path,
-    });
-  },
-
-  async removeLocalFolder(path: string): Promise<void> {
-    return invoke('plugin:database|remove_local_folder', {
-      path,
-    });
-  },
-
-  // ---------------------------------------------------------------------------
-  // Tracks read/write actions
+  // Playlists read/write actions
   // ---------------------------------------------------------------------------
 
   async getAllTracks(): Promise<Array<Track>> {
@@ -113,10 +93,6 @@ const database = {
   // ---------------------------------------------------------------------------
   async reset(): Promise<string | null> {
     return invoke('plugin:database|reset');
-  },
-
-  async reindexTracks(): Promise<void> {
-    return invoke('plugin:database|reindex_tracks');
   },
 };
 

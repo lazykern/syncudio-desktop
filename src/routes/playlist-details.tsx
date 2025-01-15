@@ -1,5 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
-import { useCallback, Suspense } from 'react';
+import { useCallback } from 'react';
 import {
   Link,
   type LoaderFunctionArgs,
@@ -10,7 +9,7 @@ import {
 
 import TracksList from '../components/TracksList';
 import * as ViewMessage from '../elements/ViewMessage';
-import type { Track, Playlist } from '../generated/typings';
+import type { Track } from '../generated/typings';
 import useFilteredTracks from '../hooks/useFilteredTracks';
 import useInvalidate from '../hooks/useInvalidate';
 import usePlayingTrackID from '../hooks/usePlayingTrackID';
@@ -20,46 +19,16 @@ import PlaylistsAPI from '../stores/PlaylistsAPI';
 import useLibraryStore from '../stores/useLibraryStore';
 import type { LoaderData } from '../types/syncudio';
 
-// Skeleton loading component
-function PlaylistSkeleton() {
-  return (
-    <ViewMessage.Notice>
-      <p>Loading playlist...</p>
-    </ViewMessage.Notice>
-  );
-}
-
-interface PlaylistContentProps {
-  playlists: Playlist[];
-  tracksDensity: 'compact' | 'normal';
-}
-
-function PlaylistContent({ playlists, tracksDensity }: PlaylistContentProps) {
+export default function ViewPlaylistDetails() {
+  const { playlists, playlistTracks, tracksDensity } =
+    useLoaderData() as PlaylistLoaderData;
   const { playlistID } = useParams();
   const trackPlayingID = usePlayingTrackID();
+
   const invalidate = useInvalidate();
+
   const search = useLibraryStore((state) => state.search);
-
-  const { data: playlist } = useQuery({
-    queryKey: ['playlist', playlistID],
-    queryFn: async () => {
-      if (!playlistID) throw new Error('No playlist ID');
-      return database.getPlaylist(playlistID);
-    },
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-    enabled: !!playlistID
-  });
-
-  const { data: playlistTracks } = useQuery({
-    queryKey: ['playlist-tracks', playlistID],
-    queryFn: () => database.getTracks(playlist?.tracks || []),
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-    enabled: !!playlist
-  });
-
-  const filteredTracks = useFilteredTracks(playlistTracks ?? []);
+  const filteredTracks = useFilteredTracks(playlistTracks);
 
   const onReorder = useCallback(
     async (tracks: Track[]) => {
@@ -71,7 +40,7 @@ function PlaylistContent({ playlists, tracksDensity }: PlaylistContentProps) {
     [invalidate, playlistID],
   );
 
-  if (!playlistTracks || playlistTracks.length === 0) {
+  if (playlistTracks.length === 0) {
     return (
       <ViewMessage.Notice>
         <p>Empty playlist</p>
@@ -93,28 +62,32 @@ function PlaylistContent({ playlists, tracksDensity }: PlaylistContentProps) {
     );
   }
 
+  // A bit hacky though
+  if (filteredTracks && filteredTracks.length === 0) {
+    return (
+      <ViewMessage.Notice>
+        <p>Empty playlist</p>
+        <ViewMessage.Sub>
+          You can add tracks from the{' '}
+          <Link to="/library" draggable={false}>
+            library view
+          </Link>
+        </ViewMessage.Sub>
+      </ViewMessage.Notice>
+    );
+  }
+
   return (
     <TracksList
       type="playlist"
+      reorderable={true}
+      onReorder={onReorder}
       tracks={filteredTracks}
       tracksDensity={tracksDensity}
       trackPlayingID={trackPlayingID}
       playlists={playlists}
-      onReorder={onReorder}
+      currentPlaylist={playlistID}
     />
-  );
-}
-
-export default function ViewPlaylistDetails() {
-  const { playlists, tracksDensity } = useLoaderData() as PlaylistLoaderData;
-
-  return (
-    <Suspense fallback={<PlaylistSkeleton />}>
-      <PlaylistContent 
-        playlists={playlists}
-        tracksDensity={tracksDensity}
-      />
-    </Suspense>
   );
 }
 
@@ -126,19 +99,17 @@ ViewPlaylistDetails.loader = async ({ params }: LoaderFunctionArgs) => {
   }
 
   try {
-    const density = await config.get('track_view_density') as 'compact' | 'normal';
-    if (density !== 'compact' && density !== 'normal') {
-      throw new Error('Invalid track density value');
-    }
-
+    const playlist = await database.getPlaylist(params.playlistID);
     return {
       playlists: await database.getAllPlaylists(),
-      tracksDensity: density,
+      playlistTracks: await database.getTracks(playlist.tracks),
+      tracksDensity: await config.get('track_view_density'),
     };
   } catch (err) {
     if (err === 'Playlist not found') {
       return redirect('/playlists');
     }
+
     throw err;
   }
 };

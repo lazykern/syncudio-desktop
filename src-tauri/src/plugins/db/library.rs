@@ -1,6 +1,5 @@
 use std::{
     collections::HashSet,
-    fs::File,
     path::PathBuf,
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -20,7 +19,7 @@ use crate::{
         error::{AnyResult, SyncudioError},
         events::IPCEvent,
         track::{get_track_from_file, get_track_id_for_path, Track},
-        utils::{compute_index_hash, scan_dirs, TimeLogger},
+        utils::{scan_dirs, TimeLogger},
     },
     plugins::db::DBState,
 };
@@ -62,29 +61,18 @@ pub async fn import_tracks_to_library<R: Runtime>(
     let mut scan_result = ScanResult::default();
 
     // Scan all directories for valid files to be scanned and imported
-    let mut track_paths = Vec::new();
-
-    // Scan each import path separately to maintain folder association
-    for import_path in &import_paths {
-        let canonical_import_path = import_path.canonicalize()?;
-        let paths = scan_dirs(
-            &[canonical_import_path.clone()],
-            &SUPPORTED_TRACKS_EXTENSIONS,
-        );
-        track_paths.extend(
-            paths
-                .into_iter()
-                .map(|path| (canonical_import_path.clone(), path)),
-        );
-    }
-
+    let mut track_paths = scan_dirs(&import_paths, &SUPPORTED_TRACKS_EXTENSIONS);
     let scanned_paths_count = track_paths.len();
 
     // Remove files that are already in the DB (speedup scan + prevent duplicate errors)
-    let existing_tracks = db.get_all_tracks().await?;
-    let existing_paths: HashSet<_> = existing_tracks.iter().map(|t| t.path()).collect();
+    let existing_paths = db
+        .get_all_tracks()
+        .await?
+        .iter()
+        .map(move |track| PathBuf::from(track.path.to_owned()))
+        .collect::<HashSet<_>>();
 
-    track_paths.retain(|(_, path)| !existing_paths.contains(path));
+    track_paths.retain(|path| !existing_paths.contains(path));
 
     info!("Found {} files to import", track_paths.len());
     info!(
@@ -112,7 +100,8 @@ pub async fn import_tracks_to_library<R: Runtime>(
 
     let tracks = track_paths
         .par_iter()
-        .map(|(import_path, file_path)| -> Option<Track> {
+        .map(|path| -> Option<Track> {
+            // let counter = processed.clone();
             let p_current = progress.clone().fetch_add(1, Ordering::SeqCst);
             let p_total = total.clone().load(Ordering::SeqCst);
 
@@ -129,7 +118,7 @@ pub async fn import_tracks_to_library<R: Runtime>(
                     .unwrap();
             }
 
-            get_track_from_file(file_path, &import_path.to_string_lossy())
+            get_track_from_file(path)
         })
         .flatten()
         .collect::<Vec<Track>>();
@@ -240,48 +229,4 @@ pub async fn import_tracks_to_library<R: Runtime>(
 
     // All good :]
     Ok(scan_result)
-}
-
-/// Compute the content hash of all tracks in the library
-#[tauri::command]
-pub async fn reindex_tracks(db_state: State<'_, DBState>) -> AnyResult<()> {
-    // Get tracks while holding lock briefly
-    let tracks = {
-        let mut db = db_state.get_lock().await;
-        db.get_all_tracks().await?
-    };
-
-    info!("Reindexing {} tracks", tracks.len());
-
-    // Process tracks in chunks of 50
-    for chunk in tracks.chunks(50) {
-        let updated_tracks: Vec<Track> = chunk
-            .par_iter()
-            .map(|track| {
-                let result = File::open(track.path())
-                    .and_then(compute_index_hash)
-                    .map(|hash| {
-                        info!("Computed track index for track {:?}: {}", track.path(), hash);
-                        track.clone().with_index_hash(hash)
-                    });
-
-                match result {
-                    Ok(updated_track) => updated_track,
-                    Err(err) => {
-                        error!("Failed to compute track index for {:?}: {}", track.path(), err);
-                        track.clone()
-                    }
-                }
-            })
-            .collect::<Vec<Track>>();
-
-        // Get lock and update this batch
-        let mut db = db_state.get_lock().await;
-        db.update_tracks(updated_tracks).await?;
-        info!("Updated chunk of {} tracks", chunk.len());
-    }
-
-    info!("Reindexed {} tracks", tracks.len());
-
-    Ok(())
 }

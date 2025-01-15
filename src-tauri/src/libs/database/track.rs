@@ -50,14 +50,6 @@ impl DB {
         Ok(updated_track)
     }
 
-    /// Update multiple tracks in the database
-    pub async fn update_tracks(&mut self, tracks: Vec<Track>) -> AnyResult<()> {
-        for track in tracks {
-            track.update_all_fields(&mut self.connection).await?;
-        }
-        Ok(())
-    }
-
     /// Delete multiple tracks by ID
     pub async fn remove_tracks(&mut self, track_ids: &Vec<String>) -> AnyResult<()> {
         // TODO: batch that, use DELETE statement instead

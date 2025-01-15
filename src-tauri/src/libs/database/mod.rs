@@ -1,8 +1,6 @@
-pub mod core;
-pub mod track;
-pub mod playlist;
-pub mod cloud;
-pub mod cloud_playlist;
-pub mod local_folder;
+mod core;
+mod track;
+mod playlist;
+mod cloud;
 
 pub use core::*; 

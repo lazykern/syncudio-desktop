@@ -1,6 +1,6 @@
 import { ask, open } from '@tauri-apps/plugin-dialog';
 
-import type { SortBy, SortOrder, Track, LocalFolder } from '../generated/typings';
+import type { SortBy, SortOrder, Track } from '../generated/typings';
 import config from '../lib/config';
 import database from '../lib/database';
 import { logAndNotifyError } from '../lib/utils';
@@ -18,7 +18,6 @@ type LibraryState = API<{
   sortBy: SortBy;
   sortOrder: SortOrder;
   refreshing: boolean;
-  reindexing: boolean;
   refresh: {
     current: number;
     total: number;
@@ -31,7 +30,6 @@ type LibraryState = API<{
     addLibraryFolders: (paths: Array<string>) => Promise<void>;
     removeLibraryFolder: (path: string) => Promise<void>;
     refresh: () => Promise<void>;
-    reindex: () => Promise<void>;
     remove: (tracksIDs: string[]) => Promise<void>;
     reset: () => Promise<void>;
     setRefresh: (processed: number, total: number) => void;
@@ -48,7 +46,6 @@ const useLibraryStore = createLibraryStore<LibraryState>((set, get) => ({
   sortBy: config.getInitial('library_sort_by'),
   sortOrder: config.getInitial('library_sort_order'),
   refreshing: false,
-  reindexing: false,
   refresh: {
     current: 0,
     total: 0,
@@ -118,9 +115,8 @@ const useLibraryStore = createLibraryStore<LibraryState>((set, get) => ({
       try {
         set({ refreshing: true });
 
-        const localFolders = await database.getLocalFolders();
-        const paths = localFolders.map(folder => folder.path);
-        const scanResult = await database.importTracks(paths);
+        const libraryFolders = await config.get('library_folders');
+        const scanResult = await database.importTracks(libraryFolders);
 
         if (scanResult.track_count > 0) {
           useToastsStore
@@ -141,81 +137,34 @@ const useLibraryStore = createLibraryStore<LibraryState>((set, get) => ({
               5000,
             );
         }
-
-        if (get().reindexing) {
-          console.log('Already reindexing');
-          return;
-        }
-        
-        set({ reindexing: true });
-        // Update content hashes for all tracks
-        database.reindexTracks().then(() => {
-          console.log('Tracks reindexed');
-        });
       } catch (err) {
         logAndNotifyError(err);
       } finally {
         set({
           refreshing: false,
           refresh: { current: 0, total: 0 },
-          reindexing: false,
         });
-      }
-    },
-
-    reindex: async () => {
-      try {
-        set({ reindexing: true });
-        useToastsStore
-          .getState()
-          .api.add(
-            'warning',
-            'Reindexing tracks...',
-            5000,
-          );
-
-        await database.reindexTracks();
-        
-        useToastsStore
-          .getState()
-          .api.add(
-            'success',
-            'All tracks have been reindexed successfully.',
-            5000,
-          );
-      } catch (err) {
-        logAndNotifyError(err);
-      } finally {
-        set({ reindexing: false });
       }
     },
 
     addLibraryFolders: async (paths: Array<string>) => {
       try {
-        const existingFolders = await database.getLocalFolders();
-        const existingPaths = existingFolders.map(folder => folder.path);
+        const musicFolders = await config.get('library_folders');
         const newFolders = removeRedundantFolders([
-          ...existingPaths,
+          ...musicFolders,
           ...paths,
         ]).sort();
-
-        // Add only new folders that don't exist yet
-        for (const path of newFolders) {
-          if (!existingPaths.includes(path)) {
-            await database.addLocalFolder(path);
-          }
-        }
+        await config.set('library_folders', newFolders);
       } catch (err) {
         logAndNotifyError(err);
       }
     },
 
     removeLibraryFolder: async (path) => {
-      try {
-        await database.removeLocalFolder(path);
-      } catch (err) {
-        logAndNotifyError(err);
-      }
+      const musicFolders = await config.get('library_folders');
+      const index = musicFolders.indexOf(path);
+      musicFolders.splice(index, 1);
+      await config.set('library_folders', musicFolders);
     },
 
     setRefresh: async (current, total) => {
@@ -270,6 +219,7 @@ const useLibraryStore = createLibraryStore<LibraryState>((set, get) => ({
 
         if (confirmed) {
           await database.reset();
+          await config.set('library_folders', []);
           useToastsStore.getState().api.add('success', 'Library was reset');
         }
       } catch (err) {
@@ -309,8 +259,13 @@ const useLibraryStore = createLibraryStore<LibraryState>((set, get) => ({
       }
     },
 
-    setTracksStatus: (tracks) => {
-      set({ tracksStatus: tracks ? getStatus(tracks) : '' });
+    /**
+     * Manually set the footer content based on a list of tracks
+     */
+    setTracksStatus: async (tracks) => {
+      set({
+        tracksStatus: tracks !== null ? getStatus(tracks) : '',
+      });
     },
   },
 }));
