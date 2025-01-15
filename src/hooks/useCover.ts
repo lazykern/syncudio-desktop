@@ -11,12 +11,16 @@ export default function useCover(track: Track): string | null {
 
   useEffect(() => {
     const refreshCover = async () => {
+      if (!track?.path) {
+        setCoverPath(null);
+        return;
+      }
       const cover = await getCover(track.path);
       setCoverPath(cover);
     };
 
     refreshCover();
-  }, [track.path]);
+  }, [track?.path]);
 
   return coverPath;
 }
