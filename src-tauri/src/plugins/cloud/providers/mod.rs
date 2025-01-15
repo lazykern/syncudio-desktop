@@ -4,12 +4,37 @@ pub use dropbox::*;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-
 use crate::libs::{
     error::{AnyResult, SyncudioError},
     track::Track,
 };
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export, export_to = "../../src/generated/typings/index.ts")]
+pub enum CloudProviderType {
+    #[serde(rename = "dropbox")]
+    Dropbox,
+    #[serde(rename = "gdrive")]
+    GoogleDrive,
+}
+
+impl CloudProviderType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            CloudProviderType::Dropbox => "dropbox",
+            CloudProviderType::GoogleDrive => "gdrive",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "dropbox" => Some(CloudProviderType::Dropbox),
+            "gdrive" => Some(CloudProviderType::GoogleDrive),
+            _ => None,
+        }
+    }
+}
 #[derive(Debug, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/generated/typings/index.ts")]
 pub struct CloudFile {

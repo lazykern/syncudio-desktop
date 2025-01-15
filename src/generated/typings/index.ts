@@ -6,6 +6,8 @@ export type CloudFolder = { id: string, provider_type: string, cloud_folder_id: 
 
 export type CloudPlaylist = { id: string, name: string, tracks: Array<string>, created_at: bigint, updated_at: bigint, };
 
+export type CloudProviderType = "dropbox" | "gdrive";
+
 export type CloudTrack = { id: string, blake3_hash: string | null, old_blake3_hash: Array<string>, cloud_file_id: string | null, created_at: bigint, updated_at: bigint, file_name: string, tags: CloudTrackTag | null, };
 
 export type CloudTrackTag = { title: string, album: string, artists: Array<string>, genres: Array<string>, year: number | null, duration: number, track_no: number | null, track_of: number | null, disk_no: number | null, disk_of: number | null, };

@@ -17,10 +17,10 @@ use uuid::Uuid;
 use crate::plugins::cloud::CloudFile;
 use crate::plugins::cloud::CloudProvider;
 use crate::plugins::cloud::FileHash;
+use crate::plugins::cloud::providers::CloudProviderType;
 use crate::plugins::config::get_storage_dir;
 
 const DROPBOX_CLIENT_ID: &str = "jgibk23zkucv2ec";
-const PROVIDER_TYPE: &str = "dropbox";
 
 type DropboxAuthData = Option<String>;
 
@@ -44,6 +44,10 @@ impl Dropbox {
             authorization: Mutex::new(None),
             client: Mutex::new(None),
         }
+    }
+
+    pub fn provider_type() -> CloudProviderType {
+        CloudProviderType::Dropbox
     }
 
     fn get_auth_file_path() -> PathBuf {
