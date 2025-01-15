@@ -21,6 +21,7 @@ impl DB {
         ormlite::query(
             "CREATE TABLE IF NOT EXISTS tracks (
                 id TEXT PRIMARY KEY NOT NULL,
+                blake3_hash TEXT,
                 path TEXT NOT NULL UNIQUE, -- Path as a string and unique
                 title TEXT NOT NULL,
                 album TEXT NOT NULL,
