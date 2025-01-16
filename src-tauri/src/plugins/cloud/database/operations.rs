@@ -10,9 +10,9 @@ impl DB {
     pub async fn get_cloud_folder(&mut self, id: &str) -> AnyResult<Option<CloudFolder>> {
         let folder = CloudFolder::select()
             .where_bind("id = ?", id)
-            .fetch_one(&mut self.connection)
+            .fetch_optional(&mut self.connection)
             .await?;
-        Ok(Some(folder))
+        Ok(folder)
     }
 
     pub async fn get_cloud_folders_by_provider(
@@ -32,9 +32,9 @@ impl DB {
     ) -> AnyResult<Option<CloudFolder>> {
         let folder = CloudFolder::select()
             .where_bind("local_folder_path = ?", local_path)
-            .fetch_one(&mut self.connection)
+            .fetch_optional(&mut self.connection)
             .await?;
-        Ok(Some(folder))
+        Ok(folder)
     }
 
     pub async fn save_cloud_folder(&mut self, folder: CloudFolder) -> AnyResult<CloudFolder> {
@@ -48,11 +48,12 @@ impl DB {
     }
 
     pub async fn delete_cloud_folder(&mut self, id: &str) -> AnyResult<()> {
-        let folder = CloudFolder::select()
+        if let Some(folder) = CloudFolder::select()
             .where_bind("id = ?", id)
-            .fetch_one(&mut self.connection)
-            .await?;
-        folder.delete(&mut self.connection).await?;
+            .fetch_optional(&mut self.connection)
+            .await? {
+            folder.delete(&mut self.connection).await?;
+        }
         Ok(())
     }
 }

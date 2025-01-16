@@ -100,45 +100,36 @@ impl CloudTrack {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/generated/typings/index.ts")]
 pub struct CloudTracksMetadata {
-    pub last_updated: i64,
     pub tracks: Vec<CloudTrack>,
 }
 
 impl CloudTracksMetadata {
     pub fn new(tracks: Vec<CloudTrack>) -> Self {
-        Self {
-            last_updated: chrono::Utc::now().timestamp(),
-            tracks,
-        }
+        Self { tracks }
     }
 
     pub fn merge(&mut self, other: CloudTracksMetadata) {
-        // If other is newer, take all its tracks
-        if other.last_updated > self.last_updated {
-            self.tracks = other.tracks;
-            self.last_updated = other.last_updated;
-            return;
-        }
-
-        // If same timestamp or older, merge by most recent track update
+        // Create a map of all tracks, keeping the most recent version of each
         let mut track_map: HashMap<(Option<String>, Option<String>), CloudTrack> = self.tracks
             .iter()
             .map(|t| ((t.blake3_hash.clone(), t.cloud_file_id.clone()), t.clone()))
             .collect();
 
+        // Merge in other tracks, keeping the most recent version
         for other_track in other.tracks {
             let key = (other_track.blake3_hash.clone(), other_track.cloud_file_id.clone());
-            if let Some(existing) = track_map.get(&key) {
-                if other_track.updated_at > existing.updated_at {
+            match track_map.get(&key) {
+                Some(existing) if other_track.updated_at > existing.updated_at => {
                     track_map.insert(key, other_track);
                 }
-            } else {
-                track_map.insert(key, other_track);
+                None => {
+                    track_map.insert(key, other_track);
+                }
+                _ => {}
             }
         }
 
         self.tracks = track_map.into_values().collect();
-        self.last_updated = chrono::Utc::now().timestamp();
     }
 
     pub fn to_json(&self) -> AnyResult<String> {
