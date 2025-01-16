@@ -11,11 +11,12 @@ pub use provider::*;
 use tauri::State;
 
 use crate::libs::constants::SUPPORTED_TRACKS_EXTENSIONS;
+use crate::libs::error::SyncudioError;
 use crate::plugins::cloud::CloudFile;
 use crate::{libs::error::AnyResult, plugins::db::DBState};
 
 use super::models::cloud_track::{CloudTrack};
-use super::{CloudFolder, CloudState};
+use super::{CloudFolder, CloudProvider, CloudProviderType, CloudState, CloudTracksMetadata};
 
 use crate::libs::track::Track;
 use log::info;
@@ -171,6 +172,61 @@ pub async fn discover_cloud_folder_tracks(
     // Update existing cloud tracks
     for cloud_track in cloud_tracks_to_update {
         cloud_track.update_all_fields(&mut db.connection).await?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn sync_cloud_tracks_metadata(
+    provider_type: String,
+    cloud_state: State<'_, CloudState>,
+    db_state: State<'_, DBState>,
+) -> AnyResult<()> {
+    let mut db = db_state.get_lock().await;
+    let provider = CloudProviderType::from_str(&provider_type)?;
+
+    // Get local cloud tracks
+    let local_tracks = CloudTrack::select()
+        .fetch_all(&mut db.connection)
+        .await?;
+    let local_metadata = CloudTracksMetadata::new(local_tracks);
+
+    // Download cloud metadata if exists
+    match provider {
+        CloudProviderType::Dropbox => {
+            match cloud_state.dropbox.download_metadata().await? {
+                Some(mut cloud_metadata) => {
+                    // Merge cloud metadata with local
+                    cloud_metadata.merge(local_metadata);
+                    
+                    // Update local database with merged tracks
+                    for track in &cloud_metadata.tracks {
+                        match CloudTrack::select()
+                            .where_("(blake3_hash = ? OR blake3_hash IS NULL) AND (cloud_file_id = ? OR cloud_file_id IS NULL)")
+                            .bind(&track.blake3_hash)
+                            .bind(&track.cloud_file_id)
+                            .fetch_optional(&mut db.connection)
+                            .await? {
+                                Some(_) => {
+                                    (*track).clone().update_all_fields(&mut db.connection).await?;
+                                }
+                                None => {
+                                    (*track).clone().insert(&mut db.connection).await?;
+                                }
+                            }
+                    }
+
+                    // Upload merged metadata back to cloud
+                    cloud_state.dropbox.upload_metadata(&cloud_metadata).await?;
+                }
+                None => {
+                    // No cloud metadata exists, upload local
+                    cloud_state.dropbox.upload_metadata(&local_metadata).await?;
+                }
+            }
+        }
+        CloudProviderType::GoogleDrive => return Err(SyncudioError::GoogleDrive("Google Drive not implemented yet".to_string())),
     }
 
     Ok(())

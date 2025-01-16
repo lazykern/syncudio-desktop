@@ -1,6 +1,6 @@
 import { useLoaderData } from 'react-router';
 import type { SettingsLoaderData } from './settings';
-import type { CloudFile, CloudFolder } from '../generated/typings';
+import type { CloudFile, CloudFolder, CloudProviderType } from '../generated/typings';
 
 import * as Setting from '../components/Setting';
 import Flexbox from '../elements/Flexbox';
@@ -238,6 +238,7 @@ export default function SettingsCloud() {
                       onClick={async () => {
                         try {
                           await cloudDatabase.discoverCloudFolderTracks(folder);
+                          await cloudDatabase.syncCloudTracksMetadata(folder.provider_type as CloudProviderType);
                           toastsAPI.add('success', 'Folder sync completed successfully');
                         } catch (error) {
                           console.error('Failed to sync folder:', error);

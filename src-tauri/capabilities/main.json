@@ -63,7 +63,8 @@
     "cloud:allow-save-cloud-folder",
     "cloud:allow-update-cloud-folder",
     "cloud:allow-delete-cloud-folder",
-    "cloud:allow-discover-cloud-folder-tracks"
+    "cloud:allow-discover-cloud-folder-tracks",
+    "cloud:allow-sync-cloud-tracks-metadata"
   ],
   "platforms": [
     "linux",

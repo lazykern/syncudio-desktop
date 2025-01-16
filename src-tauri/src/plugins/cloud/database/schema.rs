@@ -20,21 +20,12 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
         "CREATE TABLE IF NOT EXISTS cloud_tracks (
             id TEXT PRIMARY KEY NOT NULL,
             blake3_hash TEXT UNIQUE,
-            old_blake3_hashes JSON NOT NULL, -- JSON array of old hashes
             cloud_file_id TEXT UNIQUE,
-            created_at INTEGER NOT NULL,
+            old_blake3_hashes JSON NOT NULL, -- JSON array of old hashes
             updated_at INTEGER NOT NULL,
             file_name TEXT NOT NULL,
             tags JSON -- JSON object of CloudTrackTag
         );",
-    )
-    .execute(&mut *connection)
-    .await?;
-
-    // Create indexes for performance
-    ormlite::query(
-        "CREATE INDEX IF NOT EXISTS idx_cloud_tracks_blake3_hash ON cloud_tracks(blake3_hash);
-         CREATE INDEX IF NOT EXISTS idx_cloud_tracks_cloud_file_id ON cloud_tracks(cloud_file_id);",
     )
     .execute(&mut *connection)
     .await?;

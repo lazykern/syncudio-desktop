@@ -43,6 +43,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             delete_cloud_folder,
             // Cloud sync operations
             discover_cloud_folder_tracks,
+            sync_cloud_tracks_metadata,
         ])
         .setup(move |app_handle, _api| {
             let dropbox = Dropbox::new();

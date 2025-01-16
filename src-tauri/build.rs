@@ -69,6 +69,7 @@ fn main() {
                     "delete_cloud_folder",
                     // Cloud track operations
                     "discover_cloud_folder_tracks",
+                    "sync_cloud_tracks_metadata",
                 ]),
             ),
     )

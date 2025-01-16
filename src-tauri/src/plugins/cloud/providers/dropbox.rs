@@ -167,6 +167,10 @@ impl Dropbox {
 
 #[async_trait]
 impl CloudProvider for Dropbox {
+    fn provider_type(&self) -> CloudProviderType {
+        CloudProviderType::Dropbox
+    }
+
     async fn is_authorized(&self) -> bool {
         self.authorization.lock().await.is_some() && self.client.lock().await.is_some()
     }
@@ -243,28 +247,25 @@ impl CloudProvider for Dropbox {
         self.list_files("", recursive).await
     }
 
-    async fn create_folder(&self, name: &str, parent_id: Option<&str>) -> AnyResult<CloudFile> {
+    async fn create_folder(&self, name: &str, parent_ref: Option<&str>) -> AnyResult<CloudFile> {
         let client = self.client.lock().await;
         let client_ref = client
             .as_ref()
             .ok_or(SyncudioError::Dropbox("Not authorized".to_string()))?;
 
-        let parent_path = parent_id
-            .map(|id| self.amend_path_or_id(id))
-            .unwrap_or_default();
-        let folder_path = if parent_path.is_empty() {
-            format!("/{}", name)
-        } else {
-            format!("{}/{}", parent_path, name)
+        // For Dropbox, parent_ref is already a path
+        let folder_path = match parent_ref {
+            Some(path) if !path.is_empty() => format!("{}/{}", path, name),
+            _ => format!("/{}", name),
         };
 
-        let create_folder_arg = files::CreateFolderArg::new(folder_path);
+        let create_folder_arg = files::CreateFolderArg::new(folder_path.clone());
         let result = files::create_folder_v2(client_ref, &create_folder_arg)?;
 
         Ok(CloudFile {
             id: result.metadata.id,
             name: result.metadata.name,
-            parent_id: parent_id.map(String::from),
+            parent_id: Some(folder_path),
             size: 0,
             is_folder: true,
             modified_at: 0,
@@ -279,26 +280,21 @@ impl CloudProvider for Dropbox {
         &self,
         local_path: &PathBuf,
         name: &str,
-        parent_id: Option<&str>,
+        parent_ref: Option<&str>,
     ) -> AnyResult<CloudFile> {
         let client = self.client.lock().await;
         let client_ref = client
             .as_ref()
             .ok_or(SyncudioError::Dropbox("Not authorized".to_string()))?;
 
-        let parent_path = parent_id
-            .map(|id| self.amend_path_or_id(id))
-            .unwrap_or_default();
-        let file_path = if parent_path.is_empty() {
-            format!("/{}", name)
-        } else {
-            format!("{}/{}", parent_path, name)
+        // For Dropbox, parent_ref is already a path
+        let file_path = match parent_ref {
+            Some(path) if !path.is_empty() => format!("{}/{}", path, name),
+            _ => format!("/{}", name),
         };
 
         let file_content = std::fs::read(local_path)?;
-
-        let upload_arg = files::UploadArg::new(file_path).with_mode(files::WriteMode::Overwrite);
-
+        let upload_arg = files::UploadArg::new(file_path.clone()).with_mode(files::WriteMode::Overwrite);
         let result = files::upload(client_ref, &upload_arg, file_content.as_ref())?;
 
         let modified_at = DateTime::parse_from_rfc3339(&result.server_modified)
@@ -308,7 +304,7 @@ impl CloudProvider for Dropbox {
         Ok(CloudFile {
             id: result.id,
             name: result.name.clone(),
-            parent_id: parent_id.map(String::from),
+            parent_id: Some(file_path),
             size: result.size as u64,
             is_folder: false,
             modified_at,
@@ -332,8 +328,6 @@ impl CloudProvider for Dropbox {
         let result = files::download(client_ref, &download_arg, None, None)?;
 
         let mut buffer = Vec::new();
-
-        // result.body.unwrap().read_to_end(&mut buffer)?;
         result
             .body
             .ok_or(SyncudioError::Dropbox(
@@ -346,7 +340,6 @@ impl CloudProvider for Dropbox {
         }
 
         std::fs::write(local_path, buffer)?;
-
         Ok(())
     }
 
@@ -358,7 +351,6 @@ impl CloudProvider for Dropbox {
 
         let delete_arg = files::DeleteArg::new(file_id.to_string());
         files::delete_v2(client_ref, &delete_arg)?;
-
         Ok(())
     }
 }

@@ -69,10 +69,21 @@ pub trait CloudProvider {
     async fn unauthorize(&self);
     async fn list_files(&self, folder_id: &str, recursive: bool) -> AnyResult<Vec<CloudFile>>;
     async fn list_root_files(&self, recursive: bool) -> AnyResult<Vec<CloudFile>>;
-    async fn create_folder(&self, name: &str, parent_id: Option<&str>) -> AnyResult<CloudFile>;
-    async fn upload_file(&self, local_path: &PathBuf, name: &str, parent_id: Option<&str>) -> AnyResult<CloudFile>;
+    async fn create_folder(&self, name: &str, parent_ref: Option<&str>) -> AnyResult<CloudFile>;
+    async fn upload_file(&self, local_path: &PathBuf, name: &str, parent_ref: Option<&str>) -> AnyResult<CloudFile>;
     async fn download_file(&self, file_id: &str, local_path: &PathBuf) -> AnyResult<()>;
     async fn delete_file(&self, file_id: &str) -> AnyResult<()>;
+
+    // Get the full path or ID for a parent reference based on provider
+    fn get_parent_ref(&self, parent_id: Option<&str>, parent_path: Option<&str>) -> Option<String> {
+        match self.provider_type() {
+            CloudProviderType::Dropbox => parent_path.map(|p| p.to_string()),
+            CloudProviderType::GoogleDrive => parent_id.map(|id| id.to_string()),
+        }
+    }
+
+    // Get provider type
+    fn provider_type(&self) -> CloudProviderType;
 
     // Metadata sync methods
     async fn ensure_metadata_folder(&self) -> AnyResult<String> {
@@ -80,15 +91,25 @@ pub trait CloudProvider {
         let syncudio = match self.list_root_files(false).await?.iter()
             .find(|f| f.is_folder && f.name == "Syncudio") {
                 Some(f) => f.id.clone(),
-                None => self.create_folder("Syncudio", None).await?.id
+                None => {
+                    let parent_ref = self.get_parent_ref(None, Some("/"));
+                    self.create_folder("Syncudio", parent_ref.as_deref()).await?.id
+                }
             };
 
         // Create /Syncudio/metadata if it doesn't exist
-        match self.list_files(&syncudio, false).await?.iter()
+        let metadata = match self.list_files(&syncudio, false).await?.iter()
             .find(|f| f.is_folder && f.name == "metadata") {
                 Some(f) => Ok(f.id.clone()),
-                None => Ok(self.create_folder("metadata", Some(&syncudio)).await?.id)
-            }
+                None => {
+                    let parent_ref = self.get_parent_ref(
+                        Some(&syncudio),
+                        Some("/Syncudio")
+                    );
+                    Ok(self.create_folder("metadata", parent_ref.as_deref()).await?.id)
+                }
+            };
+        metadata
     }
 
     async fn get_metadata_file_id(&self) -> AnyResult<Option<String>> {
@@ -110,8 +131,11 @@ pub trait CloudProvider {
             let _ = self.delete_file(&file_id).await;
         }
         
-        self.upload_file(&temp_path, "tracks.json", Some(&metadata_folder))
-            .await?;
+        let parent_ref = self.get_parent_ref(
+            Some(&metadata_folder),
+            Some("/Syncudio/metadata")
+        );
+        self.upload_file(&temp_path, "tracks.json", parent_ref.as_deref()).await?;
         
         std::fs::remove_file(temp_path)?;
         Ok(())
