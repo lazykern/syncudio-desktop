@@ -2,6 +2,7 @@ use anyhow::Result;
 use lofty::error::LoftyError;
 use serde::{ser::Serializer, Serialize};
 use thiserror::Error;
+use std::path::StripPrefixError;
 
 /**
  * Create the error type that represents all errors possible in our program
@@ -31,6 +32,9 @@ pub enum SyncudioError {
     Config(String),
 
     #[error(transparent)]
+    SystemTime(#[from] std::time::SystemTimeError),
+
+    #[error(transparent)]
     Unknown(#[from] anyhow::Error),
 
     #[error("Dropbox SDK error: {0}")]
@@ -42,6 +46,12 @@ pub enum SyncudioError {
     #[error("Google Drive error: {0}")]
     GoogleDrive(String),
 
+    #[error("Serialization error: {0}")]
+    SerializationError(String),
+
+    #[error("Deserialization error: {0}")]
+    DeserializationError(String),
+
     /**
      * Custom errors
      */
@@ -50,6 +60,9 @@ pub enum SyncudioError {
 
     #[error("Invalid provider type")]
     InvalidProviderType,
+
+    #[error("Path error: {0}")]
+    Path(String),
 }
 
 /**
@@ -69,5 +82,11 @@ pub type AnyResult<T, E = SyncudioError> = Result<T, E>;
 impl<T: std::fmt::Debug> From<dropbox_sdk::Error<T>> for SyncudioError {
     fn from(error: dropbox_sdk::Error<T>) -> Self {
         SyncudioError::DropboxSdk(format!("{:?}", error))
+    }
+}
+
+impl From<StripPrefixError> for SyncudioError {
+    fn from(error: StripPrefixError) -> Self {
+        SyncudioError::Path(error.to_string())
     }
 }

@@ -7,7 +7,7 @@ import styles from './CloudFolderSelect.module.css';
 
 interface CloudFolderSelectProps {
   providerType: CloudProviderType;
-  onSelect: (folder: CloudFile) => void;
+  onSelect: (folder: CloudFile, fullPath: string) => void;
   onCancel: () => void;
 }
 
@@ -62,15 +62,24 @@ export default function CloudFolderSelect({ providerType, onSelect, onCancel }: 
     await loadFolders(item.file);
   }, [loadFolders]);
 
+  const getFullPath = useCallback((folder: CloudFile) => {
+    const path = breadcrumbs
+      .slice(1) // Skip 'Root'
+      .map(item => item.name)
+      .concat(folder.name)
+      .join('/');
+    return `/${path}`;
+  }, [breadcrumbs]);
+
   const handleFolderSelect = useCallback((folder: CloudFile) => {
     setSelectedFolder(folder);
   }, []);
 
   const handleConfirmSelection = useCallback(() => {
     if (selectedFolder) {
-      onSelect(selectedFolder);
+      onSelect(selectedFolder, getFullPath(selectedFolder));
     }
-  }, [selectedFolder, onSelect]);
+  }, [selectedFolder, onSelect, getFullPath]);
 
   return (
     <div className={styles.container}>

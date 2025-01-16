@@ -195,6 +195,8 @@ impl CloudProvider for Dropbox {
 
         let result = files::list_folder(client_ref, &list_folder_arg)?;
 
+        info!("Found {:?} files in Dropbox", result.entries);
+
         let cloud_files = result
             .entries
             .par_iter()
@@ -210,12 +212,13 @@ impl CloudProvider for Dropbox {
                         size: f.size as u64,
                         is_folder: false,
                         modified_at,
-                        created_at: modified_at,
                         mime_type: Some(from_path(&f.name).first_or_octet_stream().to_string()),
                         hash: f
                             .content_hash
                             .as_ref()
                             .map(|h| FileHash::ContentHash(h.clone())),
+                        display_path: f.path_display.clone(),
+                        relative_path: None
                     })
                 }
                 files::Metadata::Folder(f) => Some(CloudFile {
@@ -225,9 +228,10 @@ impl CloudProvider for Dropbox {
                     size: 0,
                     is_folder: true,
                     modified_at: 0,
-                    created_at: 0,
                     mime_type: None,
                     hash: None,
+                    display_path: f.path_display.clone(),
+                    relative_path: None,
                 }),
                 _ => None,
             })
@@ -264,9 +268,10 @@ impl CloudProvider for Dropbox {
             size: 0,
             is_folder: true,
             modified_at: 0,
-            created_at: 0,
             mime_type: None,
             hash: None,
+            display_path: result.metadata.path_display,
+            relative_path: None,
         })
     }
 
@@ -307,12 +312,13 @@ impl CloudProvider for Dropbox {
             size: result.size as u64,
             is_folder: false,
             modified_at,
-            created_at: modified_at,
             mime_type: Some(from_path(&result.name).first_or_octet_stream().to_string()),
             hash: result
                 .content_hash
                 .as_ref()
                 .map(|h| FileHash::ContentHash(h.clone())),
+            display_path: result.path_display,
+            relative_path: None,
         })
     }
 

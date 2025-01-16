@@ -62,7 +62,8 @@
     "cloud:allow-get-cloud-folder-by-local-path",
     "cloud:allow-save-cloud-folder",
     "cloud:allow-update-cloud-folder",
-    "cloud:allow-delete-cloud-folder"
+    "cloud:allow-delete-cloud-folder",
+    "cloud:allow-discover-cloud-folder-tracks"
   ],
   "platforms": [
     "linux",

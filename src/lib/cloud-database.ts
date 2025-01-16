@@ -24,5 +24,17 @@ export const cloudDatabase = {
 
   async deleteCloudFolder(id: string): Promise<void> {
     return invoke('plugin:cloud|delete_cloud_folder', { id });
+  },
+
+  /**
+   * Discovers and syncs tracks in a cloud folder.
+   * Should be called:
+   * 1. When a new cloud folder is mapped
+   * 2. During manual sync operations
+   * 3. During periodic background scans
+   * 4. When file system changes are detected
+   */
+  async discoverCloudFolderTracks(folder: CloudFolder): Promise<void> {
+    return invoke('plugin:cloud|discover_cloud_folder_tracks', { folder });
   }
 }; 

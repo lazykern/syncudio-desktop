@@ -11,7 +11,7 @@ pub struct CloudFolder {
     pub id: String,
     pub provider_type: String,
     pub cloud_folder_id: String,
-    pub cloud_folder_name: String,
+    pub cloud_folder_path: String,
     pub local_folder_path: String,
 }
 
@@ -19,7 +19,7 @@ impl CloudFolder {
     pub fn new(
         provider_type: String,
         cloud_folder_id: String,
-        cloud_folder_name: String,
+        cloud_folder_path: String,
         local_folder_path: String,
     ) -> Self {
         let now = chrono::Utc::now().timestamp();
@@ -27,7 +27,7 @@ impl CloudFolder {
             id: Uuid::new_v4().to_string(),
             provider_type,
             cloud_folder_id,
-            cloud_folder_name,
+            cloud_folder_path,
             local_folder_path,
         }
     }

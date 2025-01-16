@@ -67,6 +67,8 @@ fn main() {
                     "save_cloud_folder",
                     "update_cloud_folder",
                     "delete_cloud_folder",
+                    // Cloud track operations
+                    "discover_cloud_folder_tracks",
                 ]),
             ),
     )

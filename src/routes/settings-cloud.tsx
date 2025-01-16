@@ -50,7 +50,6 @@ export default function SettingsCloud() {
 
   const handleConnect = useCallback(async () => {
     try {
-      setIsConnecting(true);
       // Get authorization URL
       const authUrl = await cloud.dropboxStartAuthorization();
       
@@ -62,7 +61,6 @@ export default function SettingsCloud() {
     } catch (error) {
       console.error('Failed to connect to Dropbox:', error);
       toastsAPI.add('danger', 'Failed to connect to Dropbox. Please try again.');
-      setIsConnecting(false);
     }
   }, [toastsAPI]);
 
@@ -72,6 +70,8 @@ export default function SettingsCloud() {
         toastsAPI.add('danger', 'Please enter the authorization code');
         return;
       }
+
+      setIsConnecting(true);
 
       await cloud.dropboxCompleteAuthorization(authCode);
       setIsAuthorized(true);
@@ -115,7 +115,7 @@ export default function SettingsCloud() {
     setShowCloudFolderSelect(true);
   }, []);
 
-  const handleCloudFolderSelect = useCallback(async (cloudFile: CloudFile) => {
+  const handleCloudFolderSelect = useCallback(async (cloudFile: CloudFile, fullPath: string) => {
     try {
       // Open dialog to select local folder
       const localPath = await openDialog({
@@ -134,7 +134,7 @@ export default function SettingsCloud() {
         id: crypto.randomUUID(),
         provider_type: 'dropbox',
         cloud_folder_id: cloudFile.id,
-        cloud_folder_name: cloudFile.name,
+        cloud_folder_path: fullPath,
         local_folder_path: localPath,
       };
 
@@ -225,14 +225,30 @@ export default function SettingsCloud() {
             <ul>
               {cloudFolders.map(folder => (
                 <li key={folder.id}>
-                  <span>{folder.cloud_folder_name} → {folder.local_folder_path}</span>
-                  <Button
-                    onClick={() => handleRemoveCloudFolder(folder.id)}
-                    relevancy="danger"
-                    bSize="small"
-                  >
-                    Remove
-                  </Button>
+                  <span>{folder.cloud_folder_path} → {folder.local_folder_path}</span>
+                  <Flexbox gap={4}>
+                    <Button
+                      onClick={() => handleRemoveCloudFolder(folder.id)}
+                      relevancy="danger"
+                      bSize="small"
+                    >
+                      Remove
+                    </Button>
+                    <Button
+                      onClick={async () => {
+                        try {
+                          await cloudDatabase.discoverCloudFolderTracks(folder);
+                          toastsAPI.add('success', 'Folder sync completed successfully');
+                        } catch (error) {
+                          console.error('Failed to sync folder:', error);
+                          toastsAPI.add('danger', 'Failed to sync folder. Please try again.');
+                        }
+                      }}
+                      bSize="small"
+                    >
+                      Sync
+                    </Button>
+                  </Flexbox>
                 </li>
               ))}
             </ul>

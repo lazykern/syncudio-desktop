@@ -11,21 +11,21 @@ use crate::plugins::cloud::{CloudFile, CloudProvider};
 
 // Dropbox-specific auth commands
 #[tauri::command]
-pub async fn dropbox_start_auth(provider: State<'_, Dropbox>) -> AnyResult<String> {
+pub async fn dropbox_start_auth(cloud_state: State<'_, CloudState>) -> AnyResult<String> {
     info!("Starting Dropbox authorization");
-    provider.start_authorization().await
+    cloud_state.dropbox.start_authorization().await
 }
 
 #[tauri::command]
 pub async fn dropbox_complete_auth(
     auth_code: String,
-    provider: State<'_, Dropbox>,
+    cloud_state: State<'_, CloudState>,
 ) -> AnyResult<()> {
     info!(
         "Completing Dropbox authorization with auth code: {}",
         auth_code
     );
-    let auth_data = provider.complete_authorization(&auth_code).await?;
+    let auth_data = cloud_state.dropbox.complete_authorization(&auth_code).await?;
     if let Some(auth_data) = auth_data {
         info!(
             "Dropbox authorization completed successfully: {:?}",
@@ -38,13 +38,13 @@ pub async fn dropbox_complete_auth(
 }
 
 #[tauri::command]
-pub async fn dropbox_is_authorized(provider: State<'_, Dropbox>) -> AnyResult<bool> {
-    Ok(provider.is_authorized().await)
+pub async fn dropbox_is_authorized(cloud_state: State<'_, CloudState>) -> AnyResult<bool> {
+    Ok(cloud_state.dropbox.is_authorized().await)
 }
 
 #[tauri::command]
-pub async fn dropbox_unauthorize(provider: State<'_, Dropbox>) -> AnyResult<()> {
-    provider.unauthorize().await;
+pub async fn dropbox_unauthorize(cloud_state: State<'_, CloudState>) -> AnyResult<()> {
+    cloud_state.dropbox.unauthorize().await;
     Ok(())
 }
 
@@ -92,18 +92,7 @@ pub async fn cloud_create_folder(
 
     match provider {
         CloudProviderType::Dropbox => {
-            let folder = cloud_state.dropbox.create_folder(&name, parent_id.as_deref()).await?;
-            Ok(CloudFile {
-                id: folder.id,
-                name: folder.name,
-                parent_id: folder.parent_id,
-                size: 0,
-                is_folder: true,
-                modified_at: 0,
-                created_at: 0,
-                mime_type: None,
-                hash: None,
-            })
+            Ok(cloud_state.dropbox.create_folder(&name, parent_id.as_deref()).await?)
         }
         CloudProviderType::GoogleDrive => Err(SyncudioError::GoogleDrive("Google Drive not implemented yet".to_string())),
     }
