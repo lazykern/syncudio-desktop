@@ -12,7 +12,7 @@ export type CloudTrack = { blake3_hash: string | null, cloud_file_id: string | n
 
 export type CloudTrackTag = { title: string, album: string, artists: Array<string>, genres: Array<string>, year: number | null, duration: number, track_no: number | null, track_of: number | null, disk_no: number | null, disk_of: number | null, };
 
-export type CloudTracksMetadata = { version: number, last_updated: bigint, tracks: Array<CloudTrack>, };
+export type CloudTracksMetadata = { tracks: Array<CloudTrack>, };
 
 export type Config = { theme: string, audio_volume: number, audio_playback_rate: number | null, audio_output_device: string, audio_muted: boolean, audio_shuffle: boolean, audio_repeat: Repeat, default_view: DefaultView, library_sort_by: SortBy, library_sort_order: SortOrder, library_folders: Array<string>, library_autorefresh: boolean, sleepblocker: boolean, auto_update_checker: boolean, minimize_to_tray: boolean, notifications: boolean, track_view_density: string, };
 
