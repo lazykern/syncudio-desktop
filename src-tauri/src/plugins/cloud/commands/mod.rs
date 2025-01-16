@@ -286,8 +286,8 @@ pub async fn sync_cloud_tracks_metadata(
                             .bind(&track.cloud_file_id)
                             .fetch_optional(&mut db.connection)
                             .await? {
-                                Some(_) => {
-                                    (*track).clone().update_all_fields(&mut db.connection).await?;
+                                Some(existing) => {
+                                    existing.update_all_fields(&mut db.connection).await?;
                                 }
                                 None => {
                                     (*track).clone().insert(&mut db.connection).await?;
