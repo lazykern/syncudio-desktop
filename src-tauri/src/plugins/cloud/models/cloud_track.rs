@@ -84,16 +84,36 @@ impl CloudTrack {
         })
     }
 
-    pub fn set_blake3_hash(&mut self, blake3_hash: String) {
-        self.blake3_hash = Some(blake3_hash);
+    pub fn needs_update_from_cloud_file(&self, cloud_file: &CloudFile) -> bool {
+        self.cloud_file_id != Some(cloud_file.id.clone())
     }
 
-    pub fn set_cloud_file_id(&mut self, cloud_file_id: String) {
-        self.cloud_file_id = Some(cloud_file_id);
+    pub fn needs_update_from_local_track(&self, local_track: &Track, local_mtime: i64) -> bool {
+        local_track.blake3_hash != self.blake3_hash && local_mtime > self.updated_at
     }
 
-    pub fn set_tags(&mut self, tags: CloudTrackTag) {
-        self.tags = Some(tags);
+    pub fn update_from_cloud_file(&mut self, cloud_file: &CloudFile) {
+        self.cloud_file_id = Some(cloud_file.id.clone());
+    }
+
+    pub fn update_from_local_track(&mut self, local_track: &Track, local_mtime: i64) {
+        if let Some(old_hash) = &self.blake3_hash {
+            if !self.old_blake3_hashes.contains(old_hash) {
+                self.old_blake3_hashes.push(old_hash.clone());
+            }
+        }
+        self.blake3_hash = local_track.blake3_hash.clone();
+        self.updated_at = local_mtime;
+    }
+
+    pub fn matches_track(&self, cloud_file: Option<&CloudFile>, local_track: &Track) -> bool {
+        (cloud_file.is_some() && self.cloud_file_id.as_ref() == cloud_file.map(|f| &f.id)) ||
+        (self.blake3_hash == local_track.blake3_hash)
+    }
+
+    pub fn matches_cloud_file(&self, cloud_file: &CloudFile, local_track: Option<&Track>) -> bool {
+        (self.cloud_file_id.as_ref() == Some(&cloud_file.id)) ||
+        (local_track.is_some() && self.blake3_hash.as_ref() == local_track.and_then(|t| t.blake3_hash.as_ref()))
     }
 }
 
