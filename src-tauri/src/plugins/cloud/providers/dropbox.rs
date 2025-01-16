@@ -14,11 +14,14 @@ use std::path::PathBuf;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
-use crate::plugins::cloud::CloudFile;
+use crate::plugins::cloud::providers::CloudProviderType;
 use crate::plugins::cloud::CloudProvider;
 use crate::plugins::cloud::FileHash;
-use crate::plugins::cloud::providers::CloudProviderType;
 use crate::plugins::config::get_storage_dir;
+use crate::{
+    libs::error::{AnyResult, SyncudioError},
+    plugins::cloud::CloudFile,
+};
 
 const DROPBOX_CLIENT_ID: &str = "jgibk23zkucv2ec";
 
@@ -34,7 +37,7 @@ impl Dropbox {
     pub fn new() -> Self {
         let auth_data = Self::load_auth_data_from_file();
         if let Some(auth_data) = auth_data {
-            if let Ok(dropbox) = Self::new_with_auth_data(auth_data) {
+            if let Some(dropbox) = Self::new_with_auth_data(auth_data) {
                 return dropbox;
             }
         }
@@ -59,32 +62,32 @@ impl Dropbox {
         fs::read_to_string(path).ok()
     }
 
-    fn save_auth_data_to_file(auth_data: &str) -> Result<(), String> {
+    fn save_auth_data_to_file(auth_data: &str) -> AnyResult<()> {
         let path = Self::get_auth_file_path();
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|e| format!("Failed to create auth directory: {}", e))?;
+            fs::create_dir_all(parent)?;
         }
-        fs::write(path, auth_data).map_err(|e| format!("Failed to save auth data: {}", e))
+        fs::write(path, auth_data)?;
+        Ok(())
     }
 
-    pub fn new_with_auth_data(auth_data: String) -> Result<Self, String> {
+    pub fn new_with_auth_data(auth_data: String) -> Option<Self> {
         let auth = Authorization::load(DROPBOX_CLIENT_ID.to_string(), &auth_data);
 
         match auth {
             Some(auth) => {
                 let client = UserAuthDefaultClient::new(auth.clone());
-                Ok(Self {
+                Some(Self {
                     pkce_code: Mutex::new(None),
                     authorization: Mutex::new(Some(auth)),
                     client: Mutex::new(Some(client)),
                 })
             }
-            None => Err(format!("Failed to load authorization data")),
+            None => None,
         }
     }
 
-    pub async fn start_authorization(&self) -> Result<String, String> {
+    pub async fn start_authorization(&self) -> AnyResult<String> {
         info!("Generating Dropbox authorization URL");
         let pkce_code = PkceCode::new();
         let mut pkce_code_guard = self.pkce_code.lock().await;
@@ -96,12 +99,13 @@ impl Dropbox {
         Ok(auth_url.to_string())
     }
 
-    pub async fn complete_authorization(&self, auth_code: &str) -> Result<DropboxAuthData, String> {
+    pub async fn complete_authorization(&self, auth_code: &str) -> AnyResult<DropboxAuthData> {
         info!("Completing Dropbox authorization");
 
         let pkce_code = self.pkce_code.lock().await.take().ok_or_else(|| {
-            error!("No PKCE code found in state");
-            "No PKCE code found. Please start the authorization process again.".to_string()
+            SyncudioError::Dropbox(
+                "No PKCE code found. Please start the authorization process again.".to_string(),
+            )
         })?;
 
         let flow_type: Oauth2Type = Oauth2Type::PKCE(pkce_code);
@@ -115,10 +119,7 @@ impl Dropbox {
 
         info!("Obtaining access token...");
         let client = NoauthDefaultClient::default();
-        let access_token = auth.obtain_access_token(client).map_err(|e| {
-            error!("Failed to obtain access token: {}", e);
-            format!("Failed to obtain access token: {}", e)
-        })?;
+        let access_token = auth.obtain_access_token(client)?;
 
         let mut auth_guard = self.authorization.lock().await;
         *auth_guard = Some(auth.clone());
@@ -180,7 +181,7 @@ impl CloudProvider for Dropbox {
         let _ = fs::remove_file(Self::get_auth_file_path());
     }
 
-    async fn list_files(&self, folder_id: &str, recursive: bool) -> Result<Vec<CloudFile>, String> {
+    async fn list_files(&self, folder_id: &str, recursive: bool) -> AnyResult<Vec<CloudFile>> {
         let path_or_id = self.amend_path_or_id(folder_id);
         let list_folder_arg = files::ListFolderArg::new(path_or_id)
             .with_recursive(recursive)
@@ -188,12 +189,11 @@ impl CloudProvider for Dropbox {
             .with_include_deleted(false);
 
         let client = self.client.lock().await;
-        let client_ref = client.as_ref().ok_or("Not authorized")?;
+        let client_ref = client
+            .as_ref()
+            .ok_or(SyncudioError::Dropbox("Not authorized".to_string()))?;
 
-        let result = files::list_folder(client_ref, &list_folder_arg).map_err(|e| {
-            error!("Failed to list Dropbox files: {}", e);
-            format!("Failed to list Dropbox files: {}", e)
-        })?;
+        let result = files::list_folder(client_ref, &list_folder_arg)?;
 
         let cloud_files = result
             .entries
@@ -235,17 +235,15 @@ impl CloudProvider for Dropbox {
         Ok(cloud_files)
     }
 
-    async fn list_root_files(&self, recursive: bool) -> Result<Vec<CloudFile>, String> {
+    async fn list_root_files(&self, recursive: bool) -> AnyResult<Vec<CloudFile>> {
         self.list_files("", recursive).await
     }
 
-    async fn create_folder(
-        &self,
-        name: &str,
-        parent_id: Option<&str>,
-    ) -> Result<CloudFile, String> {
+    async fn create_folder(&self, name: &str, parent_id: Option<&str>) -> AnyResult<CloudFile> {
         let client = self.client.lock().await;
-        let client_ref = client.as_ref().ok_or("Not authorized")?;
+        let client_ref = client
+            .as_ref()
+            .ok_or(SyncudioError::Dropbox("Not authorized".to_string()))?;
 
         let parent_path = parent_id
             .map(|id| self.amend_path_or_id(id))
@@ -257,10 +255,7 @@ impl CloudProvider for Dropbox {
         };
 
         let create_folder_arg = files::CreateFolderArg::new(folder_path);
-        let result = files::create_folder_v2(client_ref, &create_folder_arg).map_err(|e| {
-            error!("Failed to create Dropbox folder: {}", e);
-            format!("Failed to create Dropbox folder: {}", e)
-        })?;
+        let result = files::create_folder_v2(client_ref, &create_folder_arg)?;
 
         Ok(CloudFile {
             id: result.metadata.id,
@@ -280,9 +275,11 @@ impl CloudProvider for Dropbox {
         local_path: &PathBuf,
         name: &str,
         parent_id: Option<&str>,
-    ) -> Result<CloudFile, String> {
+    ) -> AnyResult<CloudFile> {
         let client = self.client.lock().await;
-        let client_ref = client.as_ref().ok_or("Not authorized")?;
+        let client_ref = client
+            .as_ref()
+            .ok_or(SyncudioError::Dropbox("Not authorized".to_string()))?;
 
         let parent_path = parent_id
             .map(|id| self.amend_path_or_id(id))
@@ -293,18 +290,11 @@ impl CloudProvider for Dropbox {
             format!("{}/{}", parent_path, name)
         };
 
-        let file_content = std::fs::read(local_path).map_err(|e| {
-            error!("Failed to read local file: {}", e);
-            format!("Failed to read local file: {}", e)
-        })?;
+        let file_content = std::fs::read(local_path)?;
 
         let upload_arg = files::UploadArg::new(file_path).with_mode(files::WriteMode::Overwrite);
 
-        let result =
-            files::upload(client_ref, &upload_arg, file_content.as_ref()).map_err(|e| {
-                error!("Failed to upload file: {}", e);
-                format!("Failed to upload file: {}", e)
-            })?;
+        let result = files::upload(client_ref, &upload_arg, file_content.as_ref())?;
 
         let modified_at = DateTime::parse_from_rfc3339(&result.server_modified)
             .map(|dt| dt.timestamp())
@@ -326,46 +316,42 @@ impl CloudProvider for Dropbox {
         })
     }
 
-    async fn download_file(&self, file_id: &str, local_path: &PathBuf) -> Result<(), String> {
+    async fn download_file(&self, file_id: &str, local_path: &PathBuf) -> AnyResult<()> {
         let client = self.client.lock().await;
-        let client_ref = client.as_ref().ok_or("Not authorized")?;
+        let client_ref = client
+            .as_ref()
+            .ok_or(SyncudioError::Dropbox("Not authorized".to_string()))?;
 
         let download_arg = files::DownloadArg::new(file_id.to_string());
-        let result = files::download(client_ref, &download_arg, None, None).map_err(|e| {
-            error!("Failed to download file: {}", e);
-            format!("Failed to download file: {}", e)
-        })?;
+        let result = files::download(client_ref, &download_arg, None, None)?;
 
         let mut buffer = Vec::new();
-        result.body.unwrap().read_to_end(&mut buffer).map_err(|e| {
-            error!("Failed to read file content: {}", e);
-            format!("Failed to read file content: {}", e)
-        })?;
+
+        // result.body.unwrap().read_to_end(&mut buffer)?;
+        result
+            .body
+            .ok_or(SyncudioError::Dropbox(
+                "Failed to read file content".to_string(),
+            ))?
+            .read_to_end(&mut buffer)?;
 
         if let Some(parent) = local_path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| {
-                error!("Failed to create parent directory: {}", e);
-                format!("Failed to create parent directory: {}", e)
-            })?;
+            std::fs::create_dir_all(parent)?;
         }
 
-        std::fs::write(local_path, buffer).map_err(|e| {
-            error!("Failed to write local file: {}", e);
-            format!("Failed to write local file: {}", e)
-        })?;
+        std::fs::write(local_path, buffer)?;
 
         Ok(())
     }
 
-    async fn delete_file(&self, file_id: &str) -> Result<(), String> {
+    async fn delete_file(&self, file_id: &str) -> AnyResult<()> {
         let client = self.client.lock().await;
-        let client_ref = client.as_ref().ok_or("Not authorized")?;
+        let client_ref = client
+            .as_ref()
+            .ok_or(SyncudioError::Dropbox("Not authorized".to_string()))?;
 
         let delete_arg = files::DeleteArg::new(file_id.to_string());
-        files::delete_v2(client_ref, &delete_arg).map_err(|e| {
-            error!("Failed to delete file: {}", e);
-            format!("Failed to delete file: {}", e)
-        })?;
+        files::delete_v2(client_ref, &delete_arg)?;
 
         Ok(())
     }

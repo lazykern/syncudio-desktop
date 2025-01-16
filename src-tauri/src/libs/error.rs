@@ -33,11 +33,23 @@ pub enum SyncudioError {
     #[error(transparent)]
     Unknown(#[from] anyhow::Error),
 
+    #[error("Dropbox SDK error: {0}")]
+    DropboxSdk(String),
+
+    #[error("Dropbox error: {0}")]
+    Dropbox(String),
+
+    #[error("Google Drive error: {0}")]
+    GoogleDrive(String),
+
     /**
      * Custom errors
      */
     #[error("Playlist not found")]
     PlaylistNotFound,
+
+    #[error("Invalid provider type")]
+    InvalidProviderType,
 }
 
 /**
@@ -53,3 +65,9 @@ impl Serialize for SyncudioError {
 }
 
 pub type AnyResult<T, E = SyncudioError> = Result<T, E>;
+
+impl<T: std::fmt::Debug> From<dropbox_sdk::Error<T>> for SyncudioError {
+    fn from(error: dropbox_sdk::Error<T>) -> Self {
+        SyncudioError::DropboxSdk(format!("{:?}", error))
+    }
+}

@@ -27,11 +27,11 @@ impl CloudProviderType {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn from_str(s: &str) -> AnyResult<Self> {
         match s {
-            "dropbox" => Some(CloudProviderType::Dropbox),
-            "gdrive" => Some(CloudProviderType::GoogleDrive),
-            _ => None,
+            "dropbox" => Ok(CloudProviderType::Dropbox),
+            "gdrive" => Ok(CloudProviderType::GoogleDrive),
+            _ => Err(SyncudioError::InvalidProviderType),
         }
     }
 }
@@ -64,10 +64,10 @@ use std::path::PathBuf;
 pub trait CloudProvider {
     async fn is_authorized(&self) -> bool;
     async fn unauthorize(&self);
-    async fn list_files(&self, folder_id: &str, recursive: bool) -> Result<Vec<CloudFile>, String>;
-    async fn list_root_files(&self, recursive: bool) -> Result<Vec<CloudFile>, String>;
-    async fn create_folder(&self, name: &str, parent_id: Option<&str>) -> Result<CloudFile, String>;
-    async fn upload_file(&self, local_path: &PathBuf, name: &str, parent_id: Option<&str>) -> Result<CloudFile, String>;
-    async fn download_file(&self, file_id: &str, local_path: &PathBuf) -> Result<(), String>;
-    async fn delete_file(&self, file_id: &str) -> Result<(), String>;
+    async fn list_files(&self, folder_id: &str, recursive: bool) -> AnyResult<Vec<CloudFile>>;
+    async fn list_root_files(&self, recursive: bool) -> AnyResult<Vec<CloudFile>>;
+    async fn create_folder(&self, name: &str, parent_id: Option<&str>) -> AnyResult<CloudFile>;
+    async fn upload_file(&self, local_path: &PathBuf, name: &str, parent_id: Option<&str>) -> AnyResult<CloudFile>;
+    async fn download_file(&self, file_id: &str, local_path: &PathBuf) -> AnyResult<()>;
+    async fn delete_file(&self, file_id: &str) -> AnyResult<()>;
 } 

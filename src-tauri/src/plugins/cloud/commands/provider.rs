@@ -2,13 +2,16 @@ use log::{info, error};
 use std::path::PathBuf;
 use tauri::State;
 
+use crate::libs::error::AnyResult;
+use crate::libs::error::SyncudioError;
 use crate::plugins::cloud::providers::Dropbox;
 use crate::plugins::cloud::providers::CloudProviderType;
+use crate::plugins::cloud::CloudState;
 use crate::plugins::cloud::{CloudFile, CloudProvider};
 
 // Dropbox-specific auth commands
 #[tauri::command]
-pub async fn dropbox_start_auth(provider: State<'_, Dropbox>) -> Result<String, String> {
+pub async fn dropbox_start_auth(provider: State<'_, Dropbox>) -> AnyResult<String> {
     info!("Starting Dropbox authorization");
     provider.start_authorization().await
 }
@@ -17,7 +20,7 @@ pub async fn dropbox_start_auth(provider: State<'_, Dropbox>) -> Result<String, 
 pub async fn dropbox_complete_auth(
     auth_code: String,
     provider: State<'_, Dropbox>,
-) -> Result<(), String> {
+) -> AnyResult<()> {
     info!(
         "Completing Dropbox authorization with auth code: {}",
         auth_code
@@ -35,12 +38,12 @@ pub async fn dropbox_complete_auth(
 }
 
 #[tauri::command]
-pub async fn dropbox_is_authorized(provider: State<'_, Dropbox>) -> Result<bool, String> {
+pub async fn dropbox_is_authorized(provider: State<'_, Dropbox>) -> AnyResult<bool> {
     Ok(provider.is_authorized().await)
 }
 
 #[tauri::command]
-pub async fn dropbox_unauthorize(provider: State<'_, Dropbox>) -> Result<(), String> {
+pub async fn dropbox_unauthorize(provider: State<'_, Dropbox>) -> AnyResult<()> {
     provider.unauthorize().await;
     Ok(())
 }
@@ -51,15 +54,14 @@ pub async fn cloud_list_files(
     provider_type: String,
     folder_id: String,
     recursive: bool,
-    dropbox: State<'_, Dropbox>,
+    cloud_state: State<'_, CloudState>,
     // Add other providers here when implemented
-) -> Result<Vec<CloudFile>, String> {
-    let provider = CloudProviderType::from_str(&provider_type)
-        .ok_or_else(|| format!("Unknown provider type: {}", provider_type))?;
+) -> AnyResult<Vec<CloudFile>> {
+    let provider = CloudProviderType::from_str(&provider_type)?;
 
     match provider {
-        CloudProviderType::Dropbox => dropbox.list_files(&folder_id, recursive).await,
-        CloudProviderType::GoogleDrive => Err("Google Drive not implemented yet".to_string()),
+        CloudProviderType::Dropbox => cloud_state.dropbox.list_files(&folder_id, recursive).await,
+        CloudProviderType::GoogleDrive => Err(SyncudioError::GoogleDrive("Google Drive not implemented yet".to_string())),
     }
 }
 
@@ -67,15 +69,14 @@ pub async fn cloud_list_files(
 pub async fn cloud_list_root_files(
     provider_type: String,
     recursive: bool,
-    dropbox: State<'_, Dropbox>,
+    cloud_state: State<'_, CloudState>,
     // Add other providers here when implemented
-) -> Result<Vec<CloudFile>, String> {
-    let provider = CloudProviderType::from_str(&provider_type)
-        .ok_or_else(|| format!("Unknown provider type: {}", provider_type))?;
+) -> AnyResult<Vec<CloudFile>> {
+    let provider = CloudProviderType::from_str(&provider_type)?;
 
     match provider {
-        CloudProviderType::Dropbox => dropbox.list_root_files(recursive).await,
-        CloudProviderType::GoogleDrive => Err("Google Drive not implemented yet".to_string()),
+        CloudProviderType::Dropbox => cloud_state.dropbox.list_root_files(recursive).await,
+        CloudProviderType::GoogleDrive => Err(SyncudioError::GoogleDrive("Google Drive not implemented yet".to_string())),
     }
 }
 
@@ -84,15 +85,14 @@ pub async fn cloud_create_folder(
     provider_type: String,
     name: String,
     parent_id: Option<String>,
-    dropbox: State<'_, Dropbox>,
+    cloud_state: State<'_, CloudState>,
     // Add other providers here when implemented
-) -> Result<CloudFile, String> {
-    let provider = CloudProviderType::from_str(&provider_type)
-        .ok_or_else(|| format!("Unknown provider type: {}", provider_type))?;
+) -> AnyResult<CloudFile> {
+    let provider = CloudProviderType::from_str(&provider_type)?;
 
     match provider {
         CloudProviderType::Dropbox => {
-            let folder = dropbox.create_folder(&name, parent_id.as_deref()).await?;
+            let folder = cloud_state.dropbox.create_folder(&name, parent_id.as_deref()).await?;
             Ok(CloudFile {
                 id: folder.id,
                 name: folder.name,
@@ -105,7 +105,7 @@ pub async fn cloud_create_folder(
                 hash: None,
             })
         }
-        CloudProviderType::GoogleDrive => Err("Google Drive not implemented yet".to_string()),
+        CloudProviderType::GoogleDrive => Err(SyncudioError::GoogleDrive("Google Drive not implemented yet".to_string())),
     }
 }
 
@@ -115,19 +115,18 @@ pub async fn cloud_upload_file(
     abs_local_path: String,
     name: String,
     parent_id: Option<String>,
-    dropbox: State<'_, Dropbox>,
+    cloud_state: State<'_, CloudState>,
     // Add other providers here when implemented
-) -> Result<CloudFile, String> {
-    let provider = CloudProviderType::from_str(&provider_type)
-        .ok_or_else(|| format!("Unknown provider type: {}", provider_type))?;
+) -> AnyResult<CloudFile> {
+    let provider = CloudProviderType::from_str(&provider_type)?;
 
     match provider {
         CloudProviderType::Dropbox => {
-            dropbox
+            cloud_state.dropbox
                 .upload_file(&PathBuf::from(abs_local_path), &name, parent_id.as_deref())
                 .await
         }
-        CloudProviderType::GoogleDrive => Err("Google Drive not implemented yet".to_string()),
+        CloudProviderType::GoogleDrive => Err(SyncudioError::GoogleDrive("Google Drive not implemented yet".to_string())),
     }
 }
 
@@ -136,19 +135,18 @@ pub async fn cloud_download_file(
     provider_type: String,
     file_id: String,
     abs_local_path: String,
-    dropbox: State<'_, Dropbox>,
+    cloud_state: State<'_, CloudState>,
     // Add other providers here when implemented
-) -> Result<(), String> {
-    let provider = CloudProviderType::from_str(&provider_type)
-        .ok_or_else(|| format!("Unknown provider type: {}", provider_type))?;
+) -> AnyResult<()> {
+    let provider = CloudProviderType::from_str(&provider_type)?;
 
     match provider {
         CloudProviderType::Dropbox => {
-            dropbox
+            cloud_state.dropbox
                 .download_file(&file_id, &PathBuf::from(abs_local_path))
                 .await
         }
-        CloudProviderType::GoogleDrive => Err("Google Drive not implemented yet".to_string()),
+        CloudProviderType::GoogleDrive => Err(SyncudioError::GoogleDrive("Google Drive not implemented yet".to_string())),
     }
 }
 
@@ -156,14 +154,13 @@ pub async fn cloud_download_file(
 pub async fn cloud_delete_file(
     provider_type: String,
     file_id: String,
-    dropbox: State<'_, Dropbox>,
+    cloud_state: State<'_, CloudState>,
     // Add other providers here when implemented
-) -> Result<(), String> {
-    let provider = CloudProviderType::from_str(&provider_type)
-        .ok_or_else(|| format!("Unknown provider type: {}", provider_type))?;
+) -> AnyResult<()> {
+    let provider = CloudProviderType::from_str(&provider_type)?;
 
     match provider {
-        CloudProviderType::Dropbox => dropbox.delete_file(&file_id).await,
-        CloudProviderType::GoogleDrive => Err("Google Drive not implemented yet".to_string()),
+        CloudProviderType::Dropbox => cloud_state.dropbox.delete_file(&file_id).await,
+        CloudProviderType::GoogleDrive => Err(SyncudioError::GoogleDrive("Google Drive not implemented yet".to_string())),
     }
 }

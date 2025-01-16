@@ -11,6 +11,11 @@ use crate::plugins::cloud::providers::*;
 pub use commands::*;
 pub use models::*;
 pub use database::*;
+
+pub struct CloudState {
+    pub dropbox: Dropbox,
+}
+
 /**
  * Cloud plugin
  */
@@ -39,7 +44,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
         ])
         .setup(move |app_handle, _api| {
             let dropbox = Dropbox::new();
-            app_handle.manage(dropbox);
+            app_handle.manage(CloudState { dropbox });
             Ok(())
         })
         .build()
