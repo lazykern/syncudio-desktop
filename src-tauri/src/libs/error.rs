@@ -63,6 +63,9 @@ pub enum SyncudioError {
 
     #[error("Path error: {0}")]
     Path(String),
+
+    #[error("Invalid queue status")]
+    InvalidQueueStatus,
 }
 
 /**
