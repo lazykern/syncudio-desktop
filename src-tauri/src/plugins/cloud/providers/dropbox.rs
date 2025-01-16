@@ -199,7 +199,7 @@ impl CloudProvider for Dropbox {
 
         let result = files::list_folder(client_ref, &list_folder_arg)?;
 
-        info!("Found {:?} files in Dropbox", result.entries);
+        info!("Found {} files in Dropbox", result.entries.len());
 
         let cloud_files = result
             .entries
