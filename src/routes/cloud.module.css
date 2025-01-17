@@ -23,12 +23,17 @@
 }
 
 .statusIcon {
-  font-size: 1.2rem;
-  width: 24px;
-  height: 24px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  margin-right: 0.5rem;
+  width: 1.2em;
+  height: 1.2em;
+}
+
+.statusIcon svg {
+  width: 1em;
+  height: 1em;
 }
 
 .statusText {
@@ -117,21 +122,23 @@
 .folderIcon {
   color: var(--text-muted);
   font-size: 1.1rem;
-  width: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 20px;
 }
 
-.folderIcon i {
-  font-size: 1.2rem;
+.folderIcon svg {
+  width: 1em;
+  height: 1em;
 }
 
-.folderIcon i.fa-dropbox {
+/* Provider-specific icon colors */
+.folderIcon [data-icon="dropbox"] {
   color: #0061ff;
 }
 
-.folderIcon i.fa-google-drive {
+.folderIcon [data-icon="google-drive"] {
   color: #1da462;
 }
 
@@ -146,6 +153,11 @@
   display: flex;
   align-items: center;
   gap: 0.25rem;
+}
+
+.folderStatus svg {
+  width: 1em;
+  height: 1em;
 }
 
 .badge {
@@ -221,11 +233,19 @@
   cursor: pointer;
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
-  transition: background-color 0.2s;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .actionButton:hover {
   background-color: var(--button-hover-bg);
+}
+
+.actionButton svg {
+  width: 1em;
+  height: 1em;
 }
 
 /* Queue Status */
@@ -280,6 +300,11 @@
   gap: 0.5rem;
 }
 
+.queueItemName svg {
+  width: 1.2em;
+  height: 1.2em;
+}
+
 .queueItemStatus {
   color: var(--text-muted);
   font-size: 0.9rem;
@@ -311,10 +336,14 @@
   margin-bottom: 1rem;
   opacity: 0.5;
   color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.noSelectionIcon i {
-  font-size: 4rem;
+.noSelectionIcon svg {
+  width: 1em;
+  height: 1em;
 }
 
 .noSelection h2 {
@@ -345,4 +374,17 @@
 
 .noFolders a:hover {
   text-decoration: underline;
+}
+
+.spinningIcon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 } 
