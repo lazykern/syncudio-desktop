@@ -1,6 +1,7 @@
 import { useQuery, useQueries } from '@tanstack/react-query';
 import { cloudSync } from '../lib/cloud-sync';
 import type { CloudFolder, CloudFolderSyncDetailsDTO, QueueItemDTO, QueueStatsDTO } from '../generated/typings';
+import { cloudDatabase } from '../lib/cloud-database';
 
 // Query keys
 export const cloudKeys = {
@@ -20,7 +21,7 @@ export function useCloudFolders() {
   // First get all folders
   const foldersQuery = useQuery<CloudFolder[]>({
     queryKey: cloudKeys.folders,
-    queryFn: () => cloudSync.getCloudFolders(),
+    queryFn: () => cloudDatabase.getCloudFolders(),
   });
 
   // Then get details for each folder

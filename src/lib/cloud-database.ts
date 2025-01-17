@@ -2,8 +2,8 @@ import { invoke } from '@tauri-apps/api/core';
 import type { CloudFolder, CloudProviderType } from '../generated/typings';
 
 export const cloudDatabase = {
-  async getCloudFolder(id: string): Promise<CloudFolder | null> {
-    return invoke('plugin:cloud|get_cloud_folder', { id });
+  async getCloudFolders(): Promise<CloudFolder[]> {
+    return invoke('plugin:cloud|get_cloud_folders');
   },
 
   async getCloudFoldersByProvider(providerType: CloudProviderType): Promise<CloudFolder[]> {

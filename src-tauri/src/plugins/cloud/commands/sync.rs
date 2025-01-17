@@ -1,35 +1,210 @@
+use log::info;
+use ormlite::Model;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use tauri::State;
 
 use crate::{
-    libs::error::AnyResult,
+    libs::error::{AnyResult, SyncudioError},
     plugins::{
         cloud::{
-            CloudState, TrackSyncDetailsDTO,
-            CloudTrackDTO, QueueItemDTO, QueueStatsDTO,
-            CloudFolderSyncDetailsDTO, FolderSyncStatus,
+            models::{
+                cloud_folder::CloudFolder,
+                cloud_track::{CloudTrack, CloudTrackMap},
+                dto::{
+                    CloudFolderSyncDetailsDTO, CloudTrackDTO, FolderSyncStatus, QueueItemDTO,
+                    QueueStatsDTO, SyncOperationType, SyncStatus, TrackLocationState,
+                    TrackSyncDetailsDTO,
+                },
+                sync_queue::{DownloadQueueItem, UploadQueueItem},
+            },
+            providers::CloudFile,
+            CloudState,
         },
         db::DBState,
     },
 };
+
+use super::cloud_list_files;
+
+impl SyncStatus {
+    pub fn from_str(s: &str) -> AnyResult<Self> {
+        match s {
+            "pending" => Ok(SyncStatus::Pending),
+            "in_progress" => Ok(SyncStatus::InProgress),
+            "completed" => Ok(SyncStatus::Completed),
+            _ => Ok(SyncStatus::Failed {
+                error: "Unknown status".to_string(),
+                attempts: 0,
+            }),
+        }
+    }
+}
 
 /// Get detailed sync information for a cloud folder
 #[tauri::command]
 pub async fn get_cloud_folder_sync_details(
     folder_id: String,
     db_state: State<'_, DBState>,
+    cloud_state: State<'_, CloudState>,
 ) -> AnyResult<CloudFolderSyncDetailsDTO> {
-    todo!("Implement get_cloud_folder_sync_details");
+    let mut db = db_state.get_lock().await;
+
     // 1. Get folder info from database
-    // 2. Get all tracks mapped to this folder
-    // 3. Calculate location state for each track
-    // 4. Get current sync operations for tracks
-    // 5. Calculate folder sync status:
-    //    - If no tracks: Empty
-    //    - If any track has sync operation: Syncing
-    //    - If any track needs attention (out of sync, missing, etc): NeedsAttention
-    //    - Otherwise: Synced
-    // 6. Count pending sync operations
-    // 7. Return folder details with tracks
+    let folder = CloudFolder::select()
+        .where_("id = ?")
+        .bind(&folder_id)
+        .fetch_one(&mut db.connection)
+        .await?;
+
+
+    let tracks = CloudTrack::query(r#"SELECT * FROM cloud_tracks WHERE cloud_tracks.id IN (
+        SELECT cloud_track_maps.cloud_track_id FROM cloud_track_maps WHERE cloud_track_maps.cloud_folder_id = ?
+    )"#)
+        .bind(&folder_id)
+        .fetch_all(&mut db.connection)
+        .await?;
+
+    // 3. Get all cloud files recursively
+    let cloud_files = cloud_list_files(
+        folder.provider_type.clone(),
+        folder.cloud_folder_id.clone(),
+        folder.cloud_folder_path.clone(),
+        true,
+        cloud_state,
+    )
+    .await?;
+
+    // Create a map of relative paths to cloud files
+    let cloud_files_map: HashMap<String, CloudFile> = cloud_files
+        .into_iter()
+        .filter(|file| !file.is_folder)
+        .map(|file| (file.relative_path.clone(), file))
+        .collect();
+
+    // 4. Get active sync operations
+    let upload_operations = UploadQueueItem::query(
+        r#"SELECT * FROM upload_queue WHERE upload_queue.cloud_track_map_id IN (
+        SELECT cloud_track_maps.id FROM cloud_track_maps WHERE cloud_track_maps.cloud_folder_id = ?
+    ) AND (upload_queue.status = 'pending' OR upload_queue.status = 'in_progress')"#,
+    )
+    .bind(&folder_id)
+    .fetch_all(&mut db.connection)
+    .await?;
+
+    let download_operations = DownloadQueueItem::query(
+        r#"SELECT * FROM download_queue WHERE download_queue.cloud_track_map_id IN (
+        SELECT cloud_track_maps.id FROM cloud_track_maps WHERE cloud_track_maps.cloud_folder_id = ?
+    ) AND (download_queue.status = 'pending' OR download_queue.status = 'in_progress')"#,
+    )
+    .bind(&folder_id)
+    .fetch_all(&mut db.connection)
+    .await?;
+
+    // 5. Calculate track states and build DTOs
+    let mut track_dtos = Vec::new();
+    let mut has_attention_needed = false;
+    let pending_sync_count = upload_operations.len() + download_operations.len();
+    let is_empty = tracks.is_empty();
+
+    for track in tracks {
+        let map = CloudTrackMap::select()
+            .where_("cloud_track_id = ?")
+            .bind(&track.id)
+            .fetch_optional(&mut db.connection)
+            .await?;
+
+        if map.is_none() {
+            // TODO: Handle this case
+            info!("Track map not found: {:?}", track.id);
+            continue;
+        }
+
+        let map = map.unwrap();
+
+        // Check file existence in both locations
+        let local_path = Path::new(&folder.local_folder_path)
+            .join(map.relative_path.trim_start_matches('/'))
+            .to_string_lossy()
+            .to_string();
+        let local_exists = Path::new(&local_path).exists();
+        let cloud_exists = cloud_files_map.contains_key(&map.relative_path);
+
+        // Find any active operations
+        let upload_op = upload_operations
+            .iter()
+            .find(|op| op.cloud_track_map_id == map.id);
+        let download_op = download_operations
+            .iter()
+            .find(|op| op.cloud_track_map_id == map.id);
+
+        // Calculate location state
+        let location_state = match (
+            local_exists,
+            cloud_exists,
+            track.blake3_hash.as_ref(),
+            track.cloud_file_id.as_ref(),
+        ) {
+            (true, true, Some(_), Some(_)) => TrackLocationState::Complete,
+            (true, false, Some(_), _) => {
+                has_attention_needed = true;
+                TrackLocationState::LocalOnly
+            }
+            (false, true, _, Some(_)) => {
+                has_attention_needed = true;
+                TrackLocationState::CloudOnly
+            }
+            (false, false, _, _) => {
+                info!("Track missing: {:?} {:?}", folder.local_folder_path, local_path);
+                info!("Track map: {:?}", map);
+                has_attention_needed = true;
+                TrackLocationState::Missing
+            }
+            _ => {
+                has_attention_needed = true;
+                TrackLocationState::NotMapped
+            }
+        };
+
+        // Build track DTO
+        track_dtos.push(CloudTrackDTO {
+            id: track.id,
+            file_name: track.file_name,
+            relative_path: map.relative_path.clone(),
+            location_state,
+            sync_operation: upload_op
+                .map(|_| SyncOperationType::Upload)
+                .or_else(|| download_op.map(|_| SyncOperationType::Download)),
+            sync_status: match (upload_op, download_op) {
+                (Some(op), _) => Some(SyncStatus::from_str(&op.status).unwrap()),
+                (None, Some(op)) => Some(SyncStatus::from_str(&op.status).unwrap()),
+                (None, None) => None,
+            },
+            updated_at: track.updated_at,
+            tags: track.tags,
+        });
+    }
+
+    // 6. Calculate folder status
+    let sync_status = if is_empty {
+        FolderSyncStatus::Empty
+    } else if pending_sync_count > 0 {
+        FolderSyncStatus::Syncing
+    } else if has_attention_needed {
+        FolderSyncStatus::NeedsAttention
+    } else {
+        FolderSyncStatus::Synced
+    };
+
+    // 7. Return final DTO
+    Ok(CloudFolderSyncDetailsDTO {
+        id: folder.id,
+        cloud_folder_path: folder.cloud_folder_path,
+        local_folder_path: folder.local_folder_path,
+        sync_status,
+        pending_sync_count: pending_sync_count as i32,
+        tracks: track_dtos,
+    })
 }
 
 /// Get active queue items
@@ -71,10 +246,7 @@ pub async fn force_sync_folder(
 
 /// Command to pause/resume sync operations
 #[tauri::command]
-pub async fn set_sync_paused(
-    paused: bool,
-    cloud_state: State<'_, CloudState>,
-) -> AnyResult<()> {
+pub async fn set_sync_paused(paused: bool, cloud_state: State<'_, CloudState>) -> AnyResult<()> {
     todo!("Implement set_sync_paused");
     // 1. Update sync worker state
     // 2. Pause/resume active transfers

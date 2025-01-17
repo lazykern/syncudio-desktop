@@ -57,14 +57,15 @@
     "cloud:allow-cloud-upload-file",
     "cloud:allow-cloud-download-file",
     "cloud:allow-cloud-delete-file",
-    "cloud:allow-get-cloud-folder",
+    "cloud:allow-get-cloud-folders",
     "cloud:allow-get-cloud-folders-by-provider",
     "cloud:allow-get-cloud-folder-by-local-path",
     "cloud:allow-save-cloud-folder",
     "cloud:allow-update-cloud-folder",
     "cloud:allow-delete-cloud-folder",
     "cloud:allow-discover-cloud-folder-tracks",
-    "cloud:allow-sync-cloud-tracks-metadata"
+    "cloud:allow-sync-cloud-tracks-metadata",
+    "cloud:allow-get-cloud-folder-sync-details"
   ],
   "platforms": [
     "linux",

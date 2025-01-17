@@ -61,7 +61,7 @@ fn main() {
                     "cloud_download_file",
                     "cloud_delete_file",
                     // Cloud folder database operations
-                    "get_cloud_folder",
+                    "get_cloud_folders",
                     "get_cloud_folders_by_provider",
                     "get_cloud_folder_by_local_path",
                     "save_cloud_folder",
@@ -70,6 +70,7 @@ fn main() {
                     // Cloud track operations
                     "discover_cloud_folder_tracks",
                     "sync_cloud_tracks_metadata",
+                    "get_cloud_folder_sync_details",
                 ]),
             ),
     )

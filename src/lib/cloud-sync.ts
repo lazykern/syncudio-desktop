@@ -207,30 +207,16 @@ const mockSyncHistory: SyncHistoryEntry[] = [
 
 export const cloudSync = {
   /**
-   * Get all cloud folders
-   */
-  async getCloudFolders(): Promise<CloudFolder[]> {
-    // In production: return invoke('plugin:cloud|get_cloud_folders');
-    return mockFolders;
-  },
-
-  /**
    * Get detailed sync information for a cloud folder
    */
   async getCloudFolderSyncDetails(folderId: string): Promise<CloudFolderSyncDetailsDTO> {
-    // In production: return invoke('plugin:cloud|get_cloud_folder_sync_details', { folderId });
-    const details = mockFolderDetails.find(f => f.id === folderId);
-    if (!details) {
-      throw new Error('Folder not found');
-    }
-    return details;
+    return invoke('plugin:cloud|get_cloud_folder_sync_details', { folderId });
   },
 
   /**
    * Get active queue items
    */
   async getQueueItems(folderId?: string): Promise<QueueItemDTO[]> {
-    // In production: return invoke('plugin:cloud|get_queue_items', { folderId });
     return mockQueueItems;
   },
 
@@ -238,7 +224,6 @@ export const cloudSync = {
    * Get queue statistics
    */
   async getQueueStats(folderId?: string): Promise<QueueStatsDTO> {
-    // In production: return invoke('plugin:cloud|get_queue_stats', { folderId });
     return mockQueueStats;
   },
 
@@ -246,7 +231,6 @@ export const cloudSync = {
    * Force sync a specific folder
    */
   async forceSyncFolder(folderId: string): Promise<void> {
-    // In production: return invoke('plugin:cloud|force_sync_folder', { folderId });
     console.log('Force syncing folder:', folderId);
   },
 
@@ -254,7 +238,6 @@ export const cloudSync = {
    * Pause or resume sync operations
    */
   async setSyncPaused(paused: boolean): Promise<void> {
-    // In production: return invoke('plugin:cloud|set_sync_paused', { paused });
     console.log('Setting sync paused:', paused);
   },
 
@@ -262,7 +245,6 @@ export const cloudSync = {
    * Retry failed sync items for a folder or all folders
    */
   async retryFailedItems(folderId?: string): Promise<void> {
-    // In production: return invoke('plugin:cloud|retry_failed_items', { folderId });
     console.log('Retrying failed items for folder:', folderId);
   },
 
@@ -270,7 +252,6 @@ export const cloudSync = {
    * Get detailed sync information for a track
    */
   async getTrackSyncDetails(trackId: string): Promise<TrackSyncDetailsDTO> {
-    // In production: return invoke('plugin:cloud|get_track_sync_details', { trackId });
     const track = mockFolderDetails
       .flatMap(f => f.tracks)
       .find(t => t.id === trackId);

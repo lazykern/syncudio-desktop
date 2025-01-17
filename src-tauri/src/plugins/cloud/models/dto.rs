@@ -5,7 +5,7 @@ use crate::plugins::{cloud::models::{CloudFolder, CloudTrack, CloudTrackMap}, db
 
 use super::CloudTrackTag;
 
-/// Represents the location state of a track by checking both local and cloud existence
+/// Represents the location state of a track by checking both local and cloud existence by blake3_hash, cloud_file_id and relative_path (should be in local storage and cloud storage)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/generated/typings/index.ts")]
 #[serde(rename_all = "snake_case")]
