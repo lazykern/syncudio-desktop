@@ -95,18 +95,6 @@ impl CloudTrack {
             tags: None,
         })
     }
-
-    pub fn set_blake3_hash(&mut self, blake3_hash: String) {
-        self.blake3_hash = Some(blake3_hash);
-    }
-
-    pub fn set_cloud_file_id(&mut self, cloud_file_id: String) {
-        self.cloud_file_id = Some(cloud_file_id);
-    }
-
-    pub fn set_tags(&mut self, tags: CloudTrackTag) {
-        self.tags = Some(tags);
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
