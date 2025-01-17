@@ -30,5 +30,17 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
     .execute(&mut *connection)
     .await?;
 
+    // Cloud track paths table
+    ormlite::query(
+        "CREATE TABLE IF NOT EXISTS cloud_track_paths (
+            id TEXT PRIMARY KEY NOT NULL,
+            cloud_track_id TEXT NOT NULL,
+            cloud_folder_id TEXT NOT NULL,
+            relative_path TEXT NOT NULL
+        );",
+    )
+    .execute(&mut *connection)
+    .await?;
+
     Ok(())
 }

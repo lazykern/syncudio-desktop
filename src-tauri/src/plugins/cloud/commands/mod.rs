@@ -4,6 +4,7 @@ mod provider;
 use std::collections::HashMap;
 use std::fs::File;
 use std::time::UNIX_EPOCH;
+use uuid::Uuid;
 
 pub use database::*;
 use ormlite::Model;
@@ -15,7 +16,7 @@ use crate::libs::error::SyncudioError;
 use crate::plugins::cloud::CloudFile;
 use crate::{libs::error::AnyResult, plugins::db::DBState};
 
-use super::models::cloud_track::{CloudTrack};
+use super::models::cloud_track::{CloudTrack, CloudTrackPath};
 use super::{CloudFolder, CloudProvider, CloudProviderType, CloudState, CloudTracksMetadata};
 
 use crate::libs::track::Track;
@@ -40,52 +41,60 @@ pub async fn discover_cloud_folder_tracks(
     info!("Found {} cloud files", cloud_files.len());
 
     // Filter for audio files only
-    let unprocessed_cloud_audio_files: Vec<CloudFile> = cloud_files.into_iter().filter(|file| {
-        !file.is_folder
-            && match &file.name.split('.').last() {
-                Some(ext) => SUPPORTED_TRACKS_EXTENSIONS.contains(ext),
-                None => false,
+    let unprocessed_cloud_audio_files: Vec<CloudFile> = cloud_files
+        .into_iter()
+        .filter(|file| {
+            !file.is_folder
+                && match &file.name.split('.').last() {
+                    Some(ext) => SUPPORTED_TRACKS_EXTENSIONS.contains(ext),
+                    None => false,
+                }
+        })
+        .map(|mut file| {
+            if file.relative_path.is_none() {
+                file.relative_path = file.display_path.clone().and_then(|display_path| {
+                    display_path
+                        .strip_prefix(&folder.cloud_folder_path)
+                        .map(|path| path.to_string())
+                });
             }
-    }).map(|mut file| {
-        if file.relative_path.is_none() {
-            file.relative_path = file.display_path.clone().and_then(|display_path| {
-                display_path.strip_prefix(&folder.cloud_folder_path).map(|path| path.to_string())
-            });
-        }
 
-        file
-    }).collect();
+            file
+        })
+        .collect();
 
     // Get all local tracks that are in the cloud folder
     let unprocessed_local_tracks: Vec<Track> = Track::select()
         .fetch_all(&mut db.connection)
-        .await?.into_iter()
+        .await?
+        .into_iter()
         .filter(|track| {
             info!("Checking local track: {}", track.path);
             track.path.starts_with(&folder.local_folder_path)
-        }).collect();
+        })
+        .collect();
 
     // Create a map of relative paths to cloud files for easier lookup
     let cloud_files_map: HashMap<String, CloudFile> = unprocessed_cloud_audio_files
         .into_iter()
-        .filter_map(|file| {
-            file.relative_path.clone().map(|path| (path, file))
-        })
+        .filter_map(|file| file.relative_path.clone().map(|path| (path, file)))
         .collect();
 
     // Create a map of relative paths to local tracks for easier lookup
     let local_tracks_map: HashMap<String, Track> = unprocessed_local_tracks
         .into_iter()
         .filter_map(|track| {
-            track.path.clone().strip_prefix(&folder.local_folder_path)
+            track
+                .path
+                .clone()
+                .strip_prefix(&folder.local_folder_path)
                 .map(|rel_path| (rel_path.to_string(), track))
         })
         .collect();
 
     // Get existing cloud tracks for this folder
-    let existing_cloud_tracks: Vec<CloudTrack> = CloudTrack::select()
-        .fetch_all(&mut db.connection)
-        .await?;
+    let existing_cloud_tracks: Vec<CloudTrack> =
+        CloudTrack::select().fetch_all(&mut db.connection).await?;
 
     let mut cloud_tracks_to_insert = Vec::new();
     let mut cloud_tracks_to_update = Vec::new();
@@ -93,12 +102,11 @@ pub async fn discover_cloud_folder_tracks(
     // Process by focusing on local tracks
     for (rel_path, local_track) in local_tracks_map.iter() {
         let cloud_file = cloud_files_map.get(rel_path);
-        let existing_cloud_track = existing_cloud_tracks.iter()
-            .find(|ct| {
-                // Match by either hash or cloud_file_id
-                (cloud_file.is_some() && ct.cloud_file_id.as_ref() == cloud_file.map(|f| &f.id)) ||
-                (ct.blake3_hash == local_track.blake3_hash)
-            });
+        let existing_cloud_track = existing_cloud_tracks.iter().find(|ct| {
+            // Match by either hash or cloud_file_id
+            (cloud_file.is_some() && ct.cloud_file_id.as_ref() == cloud_file.map(|f| &f.id))
+                || (ct.blake3_hash == local_track.blake3_hash)
+        });
 
         match (cloud_file, existing_cloud_track) {
             // Track exists locally but not in cloud - CloudTrack not created yet -> create
@@ -123,8 +131,9 @@ pub async fn discover_cloud_folder_tracks(
                 if local_track.blake3_hash != updated_track.blake3_hash {
                     let file = File::open(&local_track.path)?;
                     let metadata = file.metadata()?;
-                    let local_mtime = metadata.modified()?.duration_since(UNIX_EPOCH)?.as_secs() as i64;
-                    
+                    let local_mtime =
+                        metadata.modified()?.duration_since(UNIX_EPOCH)?.as_secs() as i64;
+
                     if local_mtime > updated_track.updated_at {
                         info!("Local track is newer, updating from local");
                         if let Some(old_hash) = &updated_track.blake3_hash {
@@ -158,11 +167,11 @@ pub async fn discover_cloud_folder_tracks(
     // Process by focusing on cloud files
     for (rel_path, cloud_file) in cloud_files_map.iter() {
         let local_track = local_tracks_map.get(rel_path);
-        let existing_cloud_track = existing_cloud_tracks.iter()
-            .find(|ct| {
-                (ct.cloud_file_id.as_ref() == Some(&cloud_file.id)) ||
-                (local_track.is_some() && ct.blake3_hash.as_ref() == local_track.and_then(|t| t.blake3_hash.as_ref()))
-            });
+        let existing_cloud_track = existing_cloud_tracks.iter().find(|ct| {
+            (ct.cloud_file_id.as_ref() == Some(&cloud_file.id))
+                || (local_track.is_some()
+                    && ct.blake3_hash.as_ref() == local_track.and_then(|t| t.blake3_hash.as_ref()))
+        });
         match (local_track, existing_cloud_track) {
             // Track exists in cloud but not locally - CloudTrack not created yet -> create
             (None, None) => {
@@ -232,11 +241,14 @@ pub async fn discover_cloud_folder_tracks(
 
     // Insert/update only unique tracks
     for track in seen_tracks.values() {
-        info!("Processing cloud track: ({:?}, {:?})", track.cloud_file_id, track.blake3_hash);
-        match existing_cloud_tracks.iter().find(|ct| 
-            (ct.cloud_file_id.is_some() && ct.cloud_file_id == track.cloud_file_id) ||
-            (ct.blake3_hash.is_some() && ct.blake3_hash == track.blake3_hash)
-        ) {
+        info!(
+            "Processing cloud track: ({:?}, {:?})",
+            track.cloud_file_id, track.blake3_hash
+        );
+        match existing_cloud_tracks.iter().find(|ct| {
+            (ct.cloud_file_id.is_some() && ct.cloud_file_id == track.cloud_file_id)
+                || (ct.blake3_hash.is_some() && ct.blake3_hash == track.blake3_hash)
+        }) {
             Some(_) => {
                 info!("Updating existing track");
                 track.clone().update_all_fields(&mut db.connection).await?;
@@ -248,9 +260,76 @@ pub async fn discover_cloud_folder_tracks(
         }
     }
 
-    CloudTrack::query(r#"
+    CloudTrack::query(
+        r#"
         DELETE FROM cloud_tracks WHERE blake3_hash IS NULL AND cloud_file_id IS NULL
-    "#).fetch_all(&mut db.connection).await?;
+    "#,
+    )
+    .fetch_all(&mut db.connection)
+    .await?;
+
+    // Update cloud track paths
+    info!("Updating cloud track paths");
+
+    // Delete existing paths for this folder
+    CloudTrackPath::query(
+        r#"
+        DELETE FROM cloud_track_paths WHERE cloud_folder_id = ?
+    "#,
+    )
+    .bind(&folder.id)
+    .fetch_all(&mut db.connection)
+    .await?;
+
+    // Insert new paths
+    let mut paths_to_insert = Vec::new();
+
+    // Create paths for all relative paths
+    for (rel_path, local_track) in local_tracks_map.iter() {
+        // Find track by blake3_hash
+        if let Some(cloud_track) = CloudTrack::select()
+            .where_("blake3_hash = ?")
+            .bind(&local_track.blake3_hash)
+            .fetch_optional(&mut db.connection)
+            .await? {
+            if let Some(id) = cloud_track.id {
+                paths_to_insert.push(CloudTrackPath {
+                    id: Some(Uuid::new_v4().to_string()),
+                    cloud_track_id: id,
+                    cloud_folder_id: folder.id.clone(),
+                    relative_path: rel_path.clone(),
+                });
+            }
+        }
+    }
+
+    for (rel_path, cloud_file) in cloud_files_map.iter() {
+        // Find track by cloud_file_id
+        if let Some(cloud_track) = CloudTrack::select()
+            .where_("cloud_file_id = ?")
+            .bind(&cloud_file.id)
+            .fetch_optional(&mut db.connection)
+            .await? {
+            if let Some(id) = cloud_track.id {
+                // Only insert if we haven't already added this path
+                if !paths_to_insert.iter().any(|p| p.relative_path == *rel_path) {
+                    paths_to_insert.push(CloudTrackPath {
+                        id: Some(Uuid::new_v4().to_string()),
+                        cloud_track_id: id,
+                        cloud_folder_id: folder.id.clone(),
+                        relative_path: rel_path.clone(),
+                    });
+                }
+            }
+        }
+    }
+
+    info!("Inserting {} paths", paths_to_insert.len());
+
+    // Insert all paths
+    for path in paths_to_insert {
+        path.insert(&mut db.connection).await?;
+    }
 
     Ok(())
 }
@@ -265,9 +344,7 @@ pub async fn sync_cloud_tracks_metadata(
     let provider = CloudProviderType::from_str(&provider_type)?;
 
     // Get local cloud tracks
-    let local_tracks = CloudTrack::select()
-        .fetch_all(&mut db.connection)
-        .await?;
+    let local_tracks = CloudTrack::select().fetch_all(&mut db.connection).await?;
     let local_metadata = CloudTracksMetadata::new(local_tracks);
 
     // Download cloud metadata if exists
@@ -277,7 +354,7 @@ pub async fn sync_cloud_tracks_metadata(
                 Some(mut cloud_metadata) => {
                     // Merge cloud metadata with local
                     cloud_metadata.merge(local_metadata);
-                    
+
                     // Update local database with merged tracks
                     for track in &cloud_metadata.tracks {
                         match CloudTrack::select()
@@ -304,7 +381,11 @@ pub async fn sync_cloud_tracks_metadata(
                 }
             }
         }
-        CloudProviderType::GoogleDrive => return Err(SyncudioError::GoogleDrive("Google Drive not implemented yet".to_string())),
+        CloudProviderType::GoogleDrive => {
+            return Err(SyncudioError::GoogleDrive(
+                "Google Drive not implemented yet".to_string(),
+            ))
+        }
     }
 
     Ok(())
