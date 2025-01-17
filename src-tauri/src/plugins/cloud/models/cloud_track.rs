@@ -42,6 +42,18 @@ impl CloudTrackTag {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Model, TS)]
+#[ormlite(table = "cloud_track_paths")]
+#[ts(export, export_to = "../../src/generated/typings/index.ts")]
+pub struct CloudTrackPath {
+    #[ormlite(primary_key)]
+    pub id: Option<String>,
+    pub cloud_track_id: String,
+    pub cloud_folder_id: String,
+    pub relative_path: String,
+}
+
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Model, TS)]
 #[ormlite(table = "cloud_tracks")]
 #[ts(export, export_to = "../../src/generated/typings/index.ts")]
 pub struct CloudTrack {
