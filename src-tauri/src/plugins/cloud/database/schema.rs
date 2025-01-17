@@ -36,7 +36,45 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
             id TEXT PRIMARY KEY NOT NULL,
             cloud_track_id TEXT NOT NULL,
             cloud_folder_id TEXT NOT NULL,
-            relative_path TEXT NOT NULL
+            relative_path TEXT NOT NULL,
+            FOREIGN KEY (cloud_track_id) REFERENCES cloud_tracks(id),
+            FOREIGN KEY (cloud_folder_id) REFERENCES cloud_folders(id)
+        );",
+    )
+    .execute(&mut *connection)
+    .await?;
+
+    // Download queue table
+    ormlite::query(
+        "CREATE TABLE IF NOT EXISTS download_queue (
+            id TEXT PRIMARY KEY NOT NULL,
+            cloud_track_path_id TEXT NOT NULL,
+            provider_type TEXT NOT NULL,
+            size INTEGER NOT NULL,
+            status TEXT NOT NULL,
+            error_message TEXT,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            attempts INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (cloud_track_path_id) REFERENCES cloud_track_paths(id)
+        );",
+    )
+    .execute(&mut *connection)
+    .await?;
+
+    // Upload queue table
+    ormlite::query(
+        "CREATE TABLE IF NOT EXISTS upload_queue (
+            id TEXT PRIMARY KEY NOT NULL,
+            cloud_track_path_id TEXT NOT NULL,
+            provider_type TEXT NOT NULL,
+            size INTEGER NOT NULL,
+            status TEXT NOT NULL,
+            error_message TEXT,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            attempts INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (cloud_track_path_id) REFERENCES cloud_track_paths(id)
         );",
     )
     .execute(&mut *connection)
