@@ -166,8 +166,15 @@ pub async fn discover_cloud_folder_tracks(
                 cloud_track.cloud_file_id = Some(cloud_file.id.clone());
                 cloud_tracks_to_insert.push(cloud_track);
             }
-            // Tracks exists locally but not in cloud - CloudTrack created -> keep existing
-            (None, Some(_)) => {}
+            // Track exists locally but not in cloud - CloudTrack created -> update to remove cloud_file_id
+            (None, Some(cloud_track)) => {
+                info!("Track exists locally but cloud file not found: {}", rel_path);
+                let mut updated_track = cloud_track.clone();
+                if updated_track.cloud_file_id.is_some() {
+                    updated_track.cloud_file_id = None;
+                    cloud_tracks_to_update.push(updated_track);
+                }
+            }
         }
     }
 
