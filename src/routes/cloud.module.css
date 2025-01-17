@@ -265,7 +265,10 @@
   background-color: var(--header-bg);
 }
 
-.queueTabs button {
+.queueTab {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   padding: 0.5rem 1rem;
   background: none;
   border: none;
@@ -275,9 +278,24 @@
   transition: all 0.2s;
 }
 
-.queueTabs button.active {
+.queueTab:hover {
+  color: var(--text);
+}
+
+.queueTab.active {
   color: var(--text);
   border-bottom-color: var(--info-color);
+}
+
+.queueTabIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.queueTabIcon svg {
+  width: 1em;
+  height: 1em;
 }
 
 .queueList {
@@ -306,8 +324,38 @@
 }
 
 .queueItemStatus {
-  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   font-size: 0.9rem;
+}
+
+.queueItemProgress {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--info-color);
+}
+
+.queueItemSuccess {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--success-color);
+}
+
+.queueItemError {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--danger-color);
+}
+
+.queueItemPending {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
 }
 
 .queueEmpty {
@@ -376,15 +424,26 @@
   text-decoration: underline;
 }
 
-.spinningIcon {
-  animation: spin 1s linear infinite;
+/* Queue Item Icons */
+.queueItemName {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.queueItemName svg {
+  width: 1.2em;
+  height: 1.2em;
+}
+
+/* Folder Status Icons */
+.folderStatus {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.folderStatus svg {
+  width: 1em;
+  height: 1em;
 } 

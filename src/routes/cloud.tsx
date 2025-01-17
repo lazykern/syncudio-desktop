@@ -97,7 +97,7 @@ const getFolderStatusDisplay = (status: FolderSyncStatus): { icon: JSX.Element; 
     case 'synced':
       return { icon: <RiCheckLine />, text: 'Synced', color: 'var(--success-color)' };
     case 'syncing':
-      return { icon: <RiRefreshLine className={styles.spinningIcon} />, text: 'Syncing', color: 'var(--info-color)' };
+      return { icon: <RiRefreshLine />, text: 'Syncing', color: 'var(--info-color)' };
     case 'needs_attention':
       return { icon: <RiErrorWarningLine />, text: 'Needs Attention', color: 'var(--warning-color)' };
     case 'empty':
@@ -105,8 +105,11 @@ const getFolderStatusDisplay = (status: FolderSyncStatus): { icon: JSX.Element; 
   }
 };
 
+type QueueTab = 'current' | 'completed' | 'failed';
+
 export default function ViewCloud() {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+  const [activeQueueTab, setActiveQueueTab] = useState<QueueTab>('current');
   
   // Use React Query hooks
   const { data: folders = [] } = useCloudFolders();
@@ -118,6 +121,20 @@ export default function ViewCloud() {
     completed_count: 0,
     failed_count: 0,
   } } = useQueueStats(selectedFolder || undefined);
+
+  // Filter queue items based on active tab
+  const filteredQueueItems = queueItems.filter(item => {
+    switch (activeQueueTab) {
+      case 'current':
+        return item.status === 'in_progress' || item.status === 'pending';
+      case 'completed':
+        return item.status === 'completed';
+      case 'failed':
+        return typeof item.status === 'object' && 'failed' in item.status;
+      default:
+        return false;
+    }
+  });
 
   const handleForceSyncAll = async () => {
     if (selectedFolder) {
@@ -272,25 +289,71 @@ export default function ViewCloud() {
       {/* Queue Status Bar */}
       <div className={styles.queueStatus}>
         <div className={styles.queueTabs}>
-          <button className={styles.active}>
+          <button 
+            className={`${styles.queueTab} ${activeQueueTab === 'current' ? styles.active : ''}`}
+            onClick={() => setActiveQueueTab('current')}
+          >
+            <span className={styles.queueTabIcon}>
+              {queueStats.in_progress_count > 0 ? (
+                <RiRefreshLine />
+              ) : (
+                <RiTimeLine />
+              )}
+            </span>
             Current ({queueStats.in_progress_count + queueStats.pending_count})
           </button>
-          <button>Completed ({queueStats.completed_count})</button>
-          <button>Failed ({queueStats.failed_count})</button>
+          <button 
+            className={`${styles.queueTab} ${activeQueueTab === 'completed' ? styles.active : ''}`}
+            onClick={() => setActiveQueueTab('completed')}
+          >
+            <span className={styles.queueTabIcon}>
+              <RiCheckLine />
+            </span>
+            Completed ({queueStats.completed_count})
+          </button>
+          <button 
+            className={`${styles.queueTab} ${activeQueueTab === 'failed' ? styles.active : ''}`}
+            onClick={() => setActiveQueueTab('failed')}
+          >
+            <span className={styles.queueTabIcon}>
+              <RiCloseLine />
+            </span>
+            Failed ({queueStats.failed_count})
+          </button>
         </div>
         <div className={styles.queueList}>
-          {queueItems.map(item => (
+          {filteredQueueItems.map(item => (
             <div key={item.id} className={styles.queueItem}>
               <span className={styles.queueItemName}>
                 {item.operation === 'upload' ? <RiUploadCloud2Line /> : <RiDownloadCloud2Line />} {item.file_name}
               </span>
               <span className={styles.queueItemStatus}>
-                {item.status === 'in_progress' ? 'In Progress' : 'Queued'}
+                {typeof item.status === 'object' && 'failed' in item.status ? (
+                  <span className={styles.queueItemError}>
+                    Failed: {item.status.failed.error} (Attempts: {item.status.failed.attempts})
+                  </span>
+                ) : item.status === 'in_progress' ? (
+                  <span className={styles.queueItemProgress}>
+                    <RiRefreshLine /> In Progress
+                  </span>
+                ) : item.status === 'completed' ? (
+                  <span className={styles.queueItemSuccess}>
+                    <RiCheckLine /> Completed
+                  </span>
+                ) : (
+                  <span className={styles.queueItemPending}>
+                    <RiTimeLine /> Queued
+                  </span>
+                )}
               </span>
             </div>
           ))}
-          {queueItems.length === 0 && (
-            <div className={styles.queueEmpty}>No active sync operations</div>
+          {filteredQueueItems.length === 0 && (
+            <div className={styles.queueEmpty}>
+              {activeQueueTab === 'current' && 'No active sync operations'}
+              {activeQueueTab === 'completed' && 'No completed sync operations'}
+              {activeQueueTab === 'failed' && 'No failed sync operations'}
+            </div>
           )}
         </div>
       </div>
