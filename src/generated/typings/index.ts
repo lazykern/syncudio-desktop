@@ -4,11 +4,28 @@ export type CloudFile = { id: string, name: string, parent_id: string | null, si
 
 export type CloudFolder = { id: string, provider_type: string, cloud_folder_id: string, cloud_folder_path: string, local_folder_path: string, };
 
+/**
+ * Represents a cloud folder with its sync status and track count
+ */
+export type CloudFolderDTO = { id: string, provider_type: string, cloud_folder_path: string, local_folder_path: string, sync_status: FolderSyncStatus, track_count: number, pending_sync_count: number, };
+
+/**
+ * Represents all data needed for the cloud page
+ */
+export type CloudPageDataDTO = { folders: Array<CloudFolderDTO>, tracks: Array<CloudTrackDTO>, storage: StorageUsageDTO, queue_items: Array<QueueItemDTO>, queue_stats: QueueStatsDTO, selected_folder_id: string | null, };
+
 export type CloudPlaylist = { id: string, name: string, tracks: Array<string>, created_at: bigint, updated_at: bigint, };
 
 export type CloudProviderType = "dropbox" | "gdrive";
 
-export type CloudTrack = { blake3_hash: string | null, cloud_file_id: string | null, old_blake3_hashes: Array<string>, file_name: string, updated_at: bigint, tags: CloudTrackTag | null, };
+export type CloudTrack = { id: string, blake3_hash: string | null, cloud_file_id: string | null, old_blake3_hashes: Array<string>, file_name: string, updated_at: bigint, tags: CloudTrackTag | null, };
+
+/**
+ * Represents a track with its current sync and integrity status
+ */
+export type CloudTrackDTO = { id: string, file_name: string, relative_path: string, integrity_status: TrackIntegrityStatus, sync_operation: SyncOperationType | null, sync_status: SyncStatus | null, updated_at: bigint, tags: CloudTrackTag | null, };
+
+export type CloudTrackMap = { id: string, cloud_track_id: string, cloud_folder_id: string, relative_path: string, };
 
 export type CloudTrackTag = { title: string, album: string, artists: Array<string>, genres: Array<string>, year: number | null, duration: number, track_no: number | null, track_of: number | null, disk_no: number | null, disk_of: number | null, };
 
@@ -18,7 +35,14 @@ export type Config = { theme: string, audio_volume: number, audio_playback_rate:
 
 export type DefaultView = "Library" | "Playlists";
 
+export type DownloadQueueItem = { id: string, cloud_track_map_id: string, provider_type: string, size: number, status: string, error_message: string | null, created_at: bigint, updated_at: bigint, attempts: number, };
+
 export type FileHash = { "Sha1": string } | { "Sha256": string } | { "ContentHash": string };
+
+/**
+ * Represents the sync status of a cloud folder
+ */
+export type FolderSyncStatus = "synced" | "syncing" | "needs_attention" | "empty";
 
 export type IPCEvent = { "Unknown": string } | "PlaybackPlay" | "PlaybackPause" | "PlaybackStop" | "PlaybackPlayPause" | "PlaybackPrevious" | "PlaybackNext" | "PlaybackStart" | "LibraryScanProgress" | "GoToLibrary" | "GoToPlaylists" | "GoToSettings" | "JumpToPlayingTrack";
 
@@ -27,6 +51,16 @@ export type IPCEvent = { "Unknown": string } | "PlaybackPlay" | "PlaybackPause" 
  * represent a playlist, that has a name and a list of tracks
  * -------------------------------------------------------------------------- */
 export type Playlist = { id: string, name: string, tracks: Array<string>, import_path: string | null, };
+
+/**
+ * Represents a sync queue item
+ */
+export type QueueItemDTO = { id: string, cloud_track_id: string, file_name: string, operation: SyncOperationType, status: SyncStatus, created_at: bigint, updated_at: bigint, provider_type: string, };
+
+/**
+ * Represents queue statistics
+ */
+export type QueueStatsDTO = { pending_count: number, in_progress_count: number, completed_count: number, failed_count: number, };
 
 export type Repeat = "All" | "One" | "None";
 
@@ -45,7 +79,41 @@ export type SortBy = "Artist" | "Album" | "Title" | "Duration" | "Genre";
 export type SortOrder = "Asc" | "Dsc";
 
 /**
+ * Represents storage usage information
+ */
+export type StorageUsageDTO = { used_bytes: bigint, total_bytes: bigint, last_sync: bigint, };
+
+/**
+ * Represents a sync history entry
+ */
+export type SyncHistoryEntry = { timestamp: bigint, operation: SyncOperationType, old_hash: string | null, new_hash: string | null, status: SyncStatus, };
+
+/**
+ * Represents operation type for sync operations
+ */
+export type SyncOperationType = "upload" | "download";
+
+export type SyncQueueStatus = "pending" | "in_progress" | "completed" | "failed" | "cancelled";
+
+/**
+ * Represents the status of a sync operation
+ */
+export type SyncStatus = "pending" | "in_progress" | "completed" | { "failed": { error: string, attempts: number, } };
+
+/**
  * Track
  * represent a single track, id and path should be unique
  */
 export type Track = { id: string, blake3_hash: string | null, path: string, title: string, album: string, artists: Array<string>, genres: Array<string>, year: number | null, duration: number, track_no: number | null, track_of: number | null, disk_no: number | null, disk_of: number | null, };
+
+/**
+ * Represents the integrity status of a track by checking both local and cloud existence
+ */
+export type TrackIntegrityStatus = "complete" | "local_only" | "cloud_only" | "out_of_sync" | "missing" | "not_mapped";
+
+/**
+ * Represents detailed sync information for a track
+ */
+export type TrackSyncDetailsDTO = { track: CloudTrackDTO, sync_history: Array<SyncHistoryEntry>, current_operation: QueueItemDTO | null, };
+
+export type UploadQueueItem = { id: string, cloud_track_map_id: string, provider_type: string, size: number, status: string, error_message: string | null, created_at: bigint, updated_at: bigint, attempts: number, };

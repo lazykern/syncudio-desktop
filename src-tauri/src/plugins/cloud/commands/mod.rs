@@ -1,5 +1,6 @@
 mod database;
 mod provider;
+mod sync;
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -9,6 +10,7 @@ use uuid::Uuid;
 pub use database::*;
 use ormlite::Model;
 pub use provider::*;
+pub use sync::*;
 use tauri::State;
 
 use crate::libs::constants::SUPPORTED_TRACKS_EXTENSIONS;
