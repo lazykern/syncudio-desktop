@@ -36,6 +36,7 @@ pub async fn discover_cloud_folder_tracks(
     let cloud_files = cloud_list_files(
         folder.provider_type.clone(),
         folder.cloud_folder_id.clone(),
+        folder.cloud_folder_path.clone(),
         true,
         cloud_state,
     )
@@ -53,17 +54,6 @@ pub async fn discover_cloud_folder_tracks(
                     None => false,
                 }
         })
-        .map(|mut file| {
-            if file.relative_path.is_none() {
-                file.relative_path = file.display_path.clone().and_then(|display_path| {
-                    display_path
-                        .strip_prefix(&folder.cloud_folder_path)
-                        .map(|path| path.to_string())
-                });
-            }
-
-            file
-        })
         .collect();
 
     // Get all local tracks that are in the cloud folder
@@ -80,7 +70,7 @@ pub async fn discover_cloud_folder_tracks(
     // Create a map of relative paths to cloud files for easier lookup
     let cloud_files_map: HashMap<String, CloudFile> = unprocessed_cloud_audio_files
         .into_iter()
-        .filter_map(|file| file.relative_path.clone().map(|path| (path, file)))
+        .map(|file| (file.relative_path.clone(), file))
         .collect();
 
     // Create a map of relative paths to local tracks for easier lookup
@@ -316,6 +306,7 @@ pub async fn discover_cloud_folder_tracks(
     }
 
     for (rel_path, cloud_file) in cloud_files_map.iter() {
+        println!("Processing cloud file: {}", rel_path);
         // Find track by cloud_file_id
         if let Some(cloud_track) = CloudTrack::select()
             .where_("cloud_file_id = ?")
@@ -368,7 +359,7 @@ pub async fn sync_cloud_tracks_metadata(
                     // Update local database with merged tracks
                     for track in &cloud_metadata.tracks {
                         match CloudTrack::select()
-                            .where_("((blake3_hash = ? OR blake3_hash IS NULL) AND (cloud_file_id = ? OR cloud_file_id IS NULL)) OR id = ?")
+                            .where_("blake3_hash = ? OR cloud_file_id = ? OR id = ?")
                             .bind(&track.blake3_hash)
                             .bind(&track.cloud_file_id)
                             .bind(&track.id)

@@ -145,24 +145,6 @@ impl Dropbox {
             folder_id.to_string()
         }
     }
-
-    fn get_parent_id(path: &str) -> Option<String> {
-        if path.is_empty() {
-            None
-        } else {
-            let parent = std::path::Path::new(path)
-                .parent()
-                .and_then(|p| p.to_str())
-                .map(|s| {
-                    if s == "/" {
-                        String::new()
-                    } else {
-                        s.to_string()
-                    }
-                });
-            parent
-        }
-    }
 }
 
 #[async_trait]
@@ -185,7 +167,7 @@ impl CloudProvider for Dropbox {
         let _ = fs::remove_file(Self::get_auth_file_path());
     }
 
-    async fn list_files(&self, folder_id: &str, recursive: bool) -> AnyResult<Vec<CloudFile>> {
+    async fn list_files(&self, folder_id: &str, folder_path: &str, recursive: bool) -> AnyResult<Vec<CloudFile>> {
         let path_or_id = self.amend_path_or_id(folder_id);
         let list_folder_arg = files::ListFolderArg::new(path_or_id)
             .with_recursive(recursive)
@@ -193,57 +175,42 @@ impl CloudProvider for Dropbox {
             .with_include_deleted(false);
 
         let client = self.client.lock().await;
-        let client_ref = client
-            .as_ref()
-            .ok_or(SyncudioError::Dropbox("Not authorized".to_string()))?;
-
+        let client_ref = client.as_ref().ok_or(SyncudioError::Dropbox("Not authorized".to_string()))?;
         let result = files::list_folder(client_ref, &list_folder_arg)?;
 
         info!("Found {} files in Dropbox", result.entries.len());
 
-        let cloud_files = result
-            .entries
-            .par_iter()
-            .filter_map(|entry| match entry {
-                files::Metadata::File(f) => {
-                    let modified_at = DateTime::parse_from_rfc3339(&f.server_modified)
-                        .unwrap_or_default();
-                    Some(CloudFile {
-                        id: f.id.clone(),
-                        name: f.name.clone(),
-                        parent_id: Self::get_parent_id(&f.path_display.clone().unwrap_or_default()),
-                        size: f.size as u64,
-                        is_folder: false,
-                        modified_at: modified_at.into(),
-                        mime_type: Some(from_path(&f.name).first_or_octet_stream().to_string()),
-                        hash: f
-                            .content_hash
-                            .as_ref()
-                            .map(|h| FileHash::ContentHash(h.clone())),
-                        display_path: f.path_display.clone(),
-                        relative_path: None
-                    })
-                }
-                files::Metadata::Folder(f) => Some(CloudFile {
-                    id: f.id.clone(),
-                    name: f.name.clone(),
-                    parent_id: Self::get_parent_id(&f.path_display.clone().unwrap_or_default()),
-                    size: 0,
-                    is_folder: true,
-                    modified_at: DateTime::from_timestamp(0, 0).unwrap_or_default(),
-                    mime_type: None,
-                    hash: None,
-                    display_path: f.path_display.clone(),
-                    relative_path: None,
-                }),
-                _ => None,
-            })
-            .collect::<Vec<CloudFile>>();
+        let cloud_files = result.entries.par_iter().filter_map(|entry| match entry {
+            files::Metadata::File(f) => Some(CloudFile {
+                id: f.id.clone(),
+                name: f.name.clone(),
+                size: f.size as u64,
+                is_folder: false,
+                modified_at: DateTime::parse_from_rfc3339(&f.server_modified).unwrap_or_default().into(),
+                mime_type: Some(from_path(&f.name).first_or_octet_stream().to_string()),
+                hash: f.content_hash.as_ref().map(|h| FileHash::ContentHash(h.clone())),
+                display_path: f.path_display.clone(),
+                relative_path: f.path_display.clone().unwrap_or_default().strip_prefix(folder_path).unwrap_or_default().to_string(),
+            }),
+            files::Metadata::Folder(f) => Some(CloudFile {
+                id: f.id.clone(),
+                name: f.name.clone(),
+                size: 0,
+                is_folder: true,
+                modified_at: DateTime::from_timestamp(0, 0).unwrap_or_default(),
+                mime_type: None,
+                hash: None,
+                display_path: f.path_display.clone(),
+                relative_path: f.path_display.clone().unwrap_or_default().strip_prefix(folder_path).unwrap_or_default().to_string(),
+            }),
+            _ => None,
+        }).collect();
+
         Ok(cloud_files)
     }
 
     async fn list_root_files(&self, recursive: bool) -> AnyResult<Vec<CloudFile>> {
-        self.list_files("", recursive).await
+        self.list_files("", "", recursive).await
     }
 
     async fn create_folder(&self, name: &str, parent_ref: Option<&str>) -> AnyResult<CloudFile> {
@@ -264,14 +231,13 @@ impl CloudProvider for Dropbox {
         Ok(CloudFile {
             id: result.metadata.id,
             name: result.metadata.name,
-            parent_id: Some(folder_path),
             size: 0,
             is_folder: true,
             modified_at: DateTime::from_timestamp(0, 0).unwrap_or_default(),
             mime_type: None,
             hash: None,
             display_path: result.metadata.path_display,
-            relative_path: None,
+            relative_path: format!("/{}", name),
         })
     }
 
@@ -302,7 +268,6 @@ impl CloudProvider for Dropbox {
         Ok(CloudFile {
             id: result.id,
             name: result.name.clone(),
-            parent_id: Some(file_path),
             size: result.size as u64,
             is_folder: false,
             modified_at: modified_at.into(),
@@ -312,7 +277,7 @@ impl CloudProvider for Dropbox {
                 .as_ref()
                 .map(|h| FileHash::ContentHash(h.clone())),
             display_path: result.path_display,
-            relative_path: None,
+            relative_path: format!("/{}", name),
         })
     }
 

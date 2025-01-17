@@ -41,14 +41,13 @@ impl CloudProviderType {
 pub struct CloudFile {
     pub id: String,
     pub name: String,
-    pub parent_id: Option<String>,
     pub size: u64,
     pub is_folder: bool,
     pub modified_at: DateTime<Utc>,
     pub mime_type: Option<String>,
     pub hash: Option<FileHash>,
     pub display_path: Option<String>,
-    pub relative_path: Option<String>,
+    pub relative_path: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -68,7 +67,7 @@ use super::CloudTracksMetadata;
 pub trait CloudProvider {
     async fn is_authorized(&self) -> bool;
     async fn unauthorize(&self);
-    async fn list_files(&self, folder_id: &str, recursive: bool) -> AnyResult<Vec<CloudFile>>;
+    async fn list_files(&self, folder_id: &str, folder_path: &str, recursive: bool) -> AnyResult<Vec<CloudFile>>;
     async fn list_root_files(&self, recursive: bool) -> AnyResult<Vec<CloudFile>>;
     async fn create_folder(&self, name: &str, parent_ref: Option<&str>) -> AnyResult<CloudFile>;
     async fn upload_file(&self, local_path: &PathBuf, name: &str, parent_ref: Option<&str>) -> AnyResult<CloudFile>;
@@ -99,7 +98,7 @@ pub trait CloudProvider {
             };
 
         // Create /Syncudio/metadata if it doesn't exist
-        let metadata = match self.list_files(&syncudio, false).await?.iter()
+        let metadata = match self.list_files(&syncudio, "/Syncudio", false).await?.iter()
             .find(|f| f.is_folder && f.name == "metadata") {
                 Some(f) => Ok(f.id.clone()),
                 None => {
@@ -115,7 +114,7 @@ pub trait CloudProvider {
 
     async fn get_metadata_file_id(&self) -> AnyResult<Option<String>> {
         let metadata_folder = self.ensure_metadata_folder().await?;
-        Ok(self.list_files(&metadata_folder, false).await?
+        Ok(self.list_files(&metadata_folder, "/Syncudio/metadata", false).await?
             .iter()
             .find(|f| !f.is_folder && f.name == "tracks.json")
             .map(|f| f.id.clone()))

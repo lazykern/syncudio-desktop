@@ -53,6 +53,7 @@ pub async fn dropbox_unauthorize(cloud_state: State<'_, CloudState>) -> AnyResul
 pub async fn cloud_list_files(
     provider_type: String,
     folder_id: String,
+    folder_path: String,
     recursive: bool,
     cloud_state: State<'_, CloudState>,
     // Add other providers here when implemented
@@ -60,7 +61,7 @@ pub async fn cloud_list_files(
     let provider = CloudProviderType::from_str(&provider_type)?;
 
     match provider {
-        CloudProviderType::Dropbox => cloud_state.dropbox.list_files(&folder_id, recursive).await,
+        CloudProviderType::Dropbox => cloud_state.dropbox.list_files(&folder_id, &folder_path, recursive).await,
         CloudProviderType::GoogleDrive => Err(SyncudioError::GoogleDrive("Google Drive not implemented yet".to_string())),
     }
 }
