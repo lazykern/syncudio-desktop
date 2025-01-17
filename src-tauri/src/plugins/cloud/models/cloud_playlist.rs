@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use ormlite::model::*;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -11,6 +12,6 @@ pub struct CloudPlaylist {
     pub name: String,
     #[ormlite(json)]
     pub tracks: Vec<String>, // blake3_hash
-    pub created_at: i64,
-    pub updated_at: i64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }

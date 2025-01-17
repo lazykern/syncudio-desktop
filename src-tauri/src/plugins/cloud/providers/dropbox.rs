@@ -207,15 +207,14 @@ impl CloudProvider for Dropbox {
             .filter_map(|entry| match entry {
                 files::Metadata::File(f) => {
                     let modified_at = DateTime::parse_from_rfc3339(&f.server_modified)
-                        .map(|dt| dt.timestamp())
-                        .unwrap_or(0);
+                        .unwrap_or_default();
                     Some(CloudFile {
                         id: f.id.clone(),
                         name: f.name.clone(),
                         parent_id: Self::get_parent_id(&f.path_display.clone().unwrap_or_default()),
                         size: f.size as u64,
                         is_folder: false,
-                        modified_at,
+                        modified_at: modified_at.into(),
                         mime_type: Some(from_path(&f.name).first_or_octet_stream().to_string()),
                         hash: f
                             .content_hash
@@ -231,7 +230,7 @@ impl CloudProvider for Dropbox {
                     parent_id: Self::get_parent_id(&f.path_display.clone().unwrap_or_default()),
                     size: 0,
                     is_folder: true,
-                    modified_at: 0,
+                    modified_at: DateTime::from_timestamp(0, 0).unwrap_or_default(),
                     mime_type: None,
                     hash: None,
                     display_path: f.path_display.clone(),
@@ -268,7 +267,7 @@ impl CloudProvider for Dropbox {
             parent_id: Some(folder_path),
             size: 0,
             is_folder: true,
-            modified_at: 0,
+            modified_at: DateTime::from_timestamp(0, 0).unwrap_or_default(),
             mime_type: None,
             hash: None,
             display_path: result.metadata.path_display,
@@ -298,8 +297,7 @@ impl CloudProvider for Dropbox {
         let result = files::upload(client_ref, &upload_arg, file_content.as_ref())?;
 
         let modified_at = DateTime::parse_from_rfc3339(&result.server_modified)
-            .map(|dt| dt.timestamp())
-            .unwrap_or(0);
+            .unwrap_or_default();
 
         Ok(CloudFile {
             id: result.id,
@@ -307,7 +305,7 @@ impl CloudProvider for Dropbox {
             parent_id: Some(file_path),
             size: result.size as u64,
             is_folder: false,
-            modified_at,
+            modified_at: modified_at.into(),
             mime_type: Some(from_path(&result.name).first_or_octet_stream().to_string()),
             hash: result
                 .content_hash

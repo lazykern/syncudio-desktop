@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use crate::plugins::{cloud::models::{CloudFolder, CloudTrack, CloudTrackMap}, db::DBState};
@@ -71,7 +72,7 @@ pub struct CloudTrackDTO {
     pub integrity_status: TrackIntegrityStatus,
     pub sync_operation: Option<SyncOperationType>,
     pub sync_status: Option<SyncStatus>,
-    pub updated_at: i64,
+    pub updated_at: DateTime<Utc>,
     pub tags: Option<CloudTrackTag>,
 }
 
@@ -94,7 +95,7 @@ pub struct CloudFolderDTO {
 pub struct StorageUsageDTO {
     pub used_bytes: i64,
     pub total_bytes: i64,
-    pub last_sync: i64,
+    pub last_sync: DateTime<Utc>,
 }
 
 /// Represents a sync queue item
@@ -106,8 +107,8 @@ pub struct QueueItemDTO {
     pub file_name: String,
     pub operation: SyncOperationType,
     pub status: SyncStatus,
-    pub created_at: i64,
-    pub updated_at: i64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     pub provider_type: String,
 }
 
@@ -137,7 +138,7 @@ pub struct CloudPageDataDTO {
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/generated/typings/index.ts")]
 pub struct SyncHistoryEntry {
-    pub timestamp: i64,
+    pub timestamp: DateTime<Utc>,
     pub operation: SyncOperationType,
     pub old_hash: Option<String>,
     pub new_hash: Option<String>,

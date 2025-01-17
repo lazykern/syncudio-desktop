@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use ormlite::model::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -64,14 +65,14 @@ pub struct CloudTrack {
     #[ormlite(json)]
     pub old_blake3_hashes: Vec<String>,
     pub file_name: String,
-    pub updated_at: i64,
+    pub updated_at: DateTime<Utc>,
     #[ormlite(json)]
     pub tags: Option<CloudTrackTag>,
 }
 
 impl CloudTrack {
     pub fn from_track(track: Track) -> AnyResult<Self> {
-        let now = chrono::Utc::now().timestamp();
+        let now = chrono::Utc::now();
         Ok(Self {
             id: Uuid::new_v4().to_string(),
             blake3_hash: track.blake3_hash.clone(),

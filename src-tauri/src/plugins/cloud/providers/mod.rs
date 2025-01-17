@@ -1,5 +1,6 @@
 mod dropbox;
 
+use chrono::{DateTime, Utc};
 pub use dropbox::*;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -43,7 +44,7 @@ pub struct CloudFile {
     pub parent_id: Option<String>,
     pub size: u64,
     pub is_folder: bool,
-    pub modified_at: i64,
+    pub modified_at: DateTime<Utc>,
     pub mime_type: Option<String>,
     pub hash: Option<FileHash>,
     pub display_path: Option<String>,

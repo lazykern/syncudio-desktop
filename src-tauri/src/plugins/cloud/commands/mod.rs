@@ -5,6 +5,7 @@ mod sync;
 use std::collections::HashMap;
 use std::fs::File;
 use std::time::UNIX_EPOCH;
+use chrono::{DateTime, NaiveDateTime, Utc};
 use uuid::Uuid;
 
 pub use database::*;
@@ -134,9 +135,13 @@ pub async fn discover_cloud_folder_tracks(
                     let file = File::open(&local_track.path)?;
                     let metadata = file.metadata()?;
                     let local_mtime =
-                        metadata.modified()?.duration_since(UNIX_EPOCH)?.as_secs() as i64;
+                        metadata.modified()?.duration_since(UNIX_EPOCH)?;
+                    let local_updated_at = DateTime::from_timestamp(
+                        local_mtime.as_secs() as i64,
+                        0,
+                    ).unwrap_or_default();
 
-                    if local_mtime > updated_track.updated_at {
+                    if local_updated_at > updated_track.updated_at {
                         info!("Local track is newer, updating from local");
                         if let Some(old_hash) = &updated_track.blake3_hash {
                             if !updated_track.old_blake3_hashes.contains(old_hash) {
@@ -144,7 +149,7 @@ pub async fn discover_cloud_folder_tracks(
                             }
                         }
                         updated_track.blake3_hash = local_track.blake3_hash.clone();
-                        updated_track.updated_at = local_mtime;
+                        updated_track.updated_at = local_updated_at;
                         should_update = true;
                     }
                 }

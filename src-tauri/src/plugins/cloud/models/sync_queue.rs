@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use ormlite::model::*;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -54,8 +55,8 @@ pub struct DownloadQueueItem {
     pub size: u32,
     pub status: String,
     pub error_message: Option<String>,
-    pub created_at: i64,
-    pub updated_at: i64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     pub attempts: i32,
 }
 
@@ -70,7 +71,7 @@ pub struct UploadQueueItem {
     pub size: u32,
     pub status: String,
     pub error_message: Option<String>,
-    pub created_at: i64,
-    pub updated_at: i64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     pub attempts: i32,
 } 
