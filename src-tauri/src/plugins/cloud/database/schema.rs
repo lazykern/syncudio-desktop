@@ -32,7 +32,7 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
 
     // Cloud track paths table
     ormlite::query(
-        "CREATE TABLE IF NOT EXISTS cloud_track_paths (
+        "CREATE TABLE IF NOT EXISTS cloud_track_maps (
             id TEXT PRIMARY KEY NOT NULL,
             cloud_track_id TEXT NOT NULL,
             cloud_folder_id TEXT NOT NULL,
@@ -48,7 +48,7 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
     ormlite::query(
         "CREATE TABLE IF NOT EXISTS download_queue (
             id TEXT PRIMARY KEY NOT NULL,
-            cloud_track_path_id TEXT NOT NULL,
+            cloud_track_map_id TEXT NOT NULL,
             provider_type TEXT NOT NULL,
             size INTEGER NOT NULL,
             status TEXT NOT NULL,
@@ -56,7 +56,7 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL,
             attempts INTEGER NOT NULL DEFAULT 0,
-            FOREIGN KEY (cloud_track_path_id) REFERENCES cloud_track_paths(id)
+            FOREIGN KEY (cloud_track_map_id) REFERENCES cloud_track_maps(id)
         );",
     )
     .execute(&mut *connection)
@@ -66,7 +66,7 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
     ormlite::query(
         "CREATE TABLE IF NOT EXISTS upload_queue (
             id TEXT PRIMARY KEY NOT NULL,
-            cloud_track_path_id TEXT NOT NULL,
+            cloud_track_map_id TEXT NOT NULL,
             provider_type TEXT NOT NULL,
             size INTEGER NOT NULL,
             status TEXT NOT NULL,
@@ -74,7 +74,7 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL,
             attempts INTEGER NOT NULL DEFAULT 0,
-            FOREIGN KEY (cloud_track_path_id) REFERENCES cloud_track_paths(id)
+            FOREIGN KEY (cloud_track_map_id) REFERENCES cloud_track_maps(id)
         );",
     )
     .execute(&mut *connection)

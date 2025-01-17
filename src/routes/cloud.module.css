@@ -1,0 +1,143 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--background);
+  color: var(--text);
+}
+
+.header {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.statusIndicator {
+  color: var(--text-muted);
+  margin-left: 0.5rem;
+}
+
+.main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.sidebar {
+  width: 250px;
+  padding: 1rem;
+  border-right: 1px solid var(--border-color);
+  overflow-y: auto;
+}
+
+.folderList {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+}
+
+.folderItem {
+  padding: 0.75rem;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+  background: var(--sidebar-item-bg);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.folderItem:hover {
+  background: var(--sidebar-item-hover-bg);
+}
+
+.folderInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.folderName {
+  font-weight: 500;
+}
+
+.folderStatus {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.content {
+  flex: 1;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.trackGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.trackGridHeader {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  padding: 0.5rem;
+  font-weight: 500;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.trackList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.trackItem {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  padding: 0.5rem;
+  align-items: center;
+  background: var(--sidebar-item-bg);
+  border-radius: 4px;
+}
+
+.trackItem:hover {
+  background: var(--sidebar-item-hover-bg);
+}
+
+.trackName {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trackStatus {
+  color: var(--success-color);
+}
+
+.trackLastSync {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.queueStatus {
+  padding: 0.75rem;
+  border-top: 1px solid var(--border-color);
+  background: var(--sidebar-item-bg);
+}
+
+.queueInfo {
+  margin-bottom: 0.5rem;
+  color: var(--text-muted);
+}
+
+.queueProgress {
+  height: 4px;
+  background: var(--border-color);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progressBar {
+  height: 100%;
+  background: var(--success-color);
+  transition: width 0.3s ease;
+} 

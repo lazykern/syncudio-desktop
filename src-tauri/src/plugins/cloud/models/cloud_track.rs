@@ -42,11 +42,11 @@ impl CloudTrackTag {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Model, TS)]
-#[ormlite(table = "cloud_track_paths")]
+#[ormlite(table = "cloud_track_maps")]
 #[ts(export, export_to = "../../src/generated/typings/index.ts")]
-pub struct CloudTrackPath {
+pub struct CloudTrackMap {
     #[ormlite(primary_key)]
-    pub id: Option<String>,
+    pub id: String,
     pub cloud_track_id: String,
     pub cloud_folder_id: String,
     pub relative_path: String,
@@ -58,8 +58,7 @@ pub struct CloudTrackPath {
 #[ts(export, export_to = "../../src/generated/typings/index.ts")]
 pub struct CloudTrack {
     #[ormlite(primary_key)]
-    #[serde(skip)]
-    pub id: Option<String>,
+    pub id: String,
     pub blake3_hash: Option<String>,
     pub cloud_file_id: Option<String>,
     #[ormlite(json)]
@@ -74,7 +73,7 @@ impl CloudTrack {
     pub fn from_track(track: Track) -> AnyResult<Self> {
         let now = chrono::Utc::now().timestamp();
         Ok(Self {
-            id: Some(Uuid::new_v4().to_string()),
+            id: Uuid::new_v4().to_string(),
             blake3_hash: track.blake3_hash.clone(),
             cloud_file_id: None,
             old_blake3_hashes: vec![],
@@ -86,7 +85,7 @@ impl CloudTrack {
 
     pub fn from_cloud_file(cloud_file: CloudFile) -> AnyResult<Self> {
         Ok(Self {
-            id: Some(Uuid::new_v4().to_string()),
+            id: Uuid::new_v4().to_string(),
             blake3_hash: None,
             cloud_file_id: Some(cloud_file.id),
             old_blake3_hashes: vec![],

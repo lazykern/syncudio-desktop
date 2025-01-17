@@ -16,7 +16,7 @@ use crate::libs::error::SyncudioError;
 use crate::plugins::cloud::CloudFile;
 use crate::{libs::error::AnyResult, plugins::db::DBState};
 
-use super::models::cloud_track::{CloudTrack, CloudTrackPath};
+use super::models::cloud_track::{CloudTrack, CloudTrackMap};
 use super::{CloudFolder, CloudProvider, CloudProviderType, CloudState, CloudTracksMetadata};
 
 use crate::libs::track::Track;
@@ -272,9 +272,9 @@ pub async fn discover_cloud_folder_tracks(
     info!("Updating cloud track paths");
 
     // Delete existing paths for this folder
-    CloudTrackPath::query(
+    CloudTrackMap::query(
         r#"
-        DELETE FROM cloud_track_paths WHERE cloud_folder_id = ?
+        DELETE FROM cloud_track_maps WHERE cloud_folder_id = ?
     "#,
     )
     .bind(&folder.id)
@@ -292,14 +292,12 @@ pub async fn discover_cloud_folder_tracks(
             .bind(&local_track.blake3_hash)
             .fetch_optional(&mut db.connection)
             .await? {
-            if let Some(id) = cloud_track.id {
-                paths_to_insert.push(CloudTrackPath {
-                    id: Some(Uuid::new_v4().to_string()),
-                    cloud_track_id: id,
+                paths_to_insert.push(CloudTrackMap {
+                    id: Uuid::new_v4().to_string(),
+                    cloud_track_id: cloud_track.id.clone(),
                     cloud_folder_id: folder.id.clone(),
                     relative_path: rel_path.clone(),
                 });
-            }
         }
     }
 
@@ -310,17 +308,15 @@ pub async fn discover_cloud_folder_tracks(
             .bind(&cloud_file.id)
             .fetch_optional(&mut db.connection)
             .await? {
-            if let Some(id) = cloud_track.id {
                 // Only insert if we haven't already added this path
                 if !paths_to_insert.iter().any(|p| p.relative_path == *rel_path) {
-                    paths_to_insert.push(CloudTrackPath {
-                        id: Some(Uuid::new_v4().to_string()),
-                        cloud_track_id: id,
+                    paths_to_insert.push(CloudTrackMap {
+                        id: Uuid::new_v4().to_string(),
+                        cloud_track_id: cloud_track.id.clone(),
                         cloud_folder_id: folder.id.clone(),
                         relative_path: rel_path.clone(),
                     });
                 }
-            }
         }
     }
 
@@ -364,9 +360,11 @@ pub async fn sync_cloud_tracks_metadata(
                             .fetch_optional(&mut db.connection)
                             .await? {
                                 Some(existing) => {
+                                    info!("Updating existing track: {:?}", existing);
                                     existing.update_all_fields(&mut db.connection).await?;
                                 }
                                 None => {
+                                    info!("Inserting new track: {:?}", track);
                                     (*track).clone().insert(&mut db.connection).await?;
                                 }
                             }

@@ -5,5 +5,5 @@ pub(crate) mod sync_queue;
 
 pub use cloud_folder::*;
 pub use cloud_playlist::*;
-pub use cloud_track::{CloudTrack, CloudTrackPath, CloudTrackTag, CloudTracksMetadata};
+pub use cloud_track::{CloudTrack, CloudTrackMap, CloudTrackTag, CloudTracksMetadata};
 pub use sync_queue::*;

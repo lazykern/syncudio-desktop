@@ -49,7 +49,7 @@ impl SyncQueueStatus {
 pub struct DownloadQueueItem {
     #[ormlite(primary_key)]
     pub id: String,
-    pub cloud_track_path_id: String,
+    pub cloud_track_map_id: String,
     pub provider_type: String,
     pub size: u32,
     pub status: String,
@@ -65,7 +65,7 @@ pub struct DownloadQueueItem {
 pub struct UploadQueueItem {
     #[ormlite(primary_key)]
     pub id: String,
-    pub cloud_track_path_id: String,
+    pub cloud_track_map_id: String,
     pub provider_type: String,
     pub size: u32,
     pub status: String,
