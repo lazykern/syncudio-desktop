@@ -22,7 +22,7 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
             blake3_hash TEXT UNIQUE,
             cloud_file_id TEXT UNIQUE,
             old_blake3_hashes JSON NOT NULL, -- JSON array of old hashes
-            updated_at INTEGER NOT NULL,
+            updated_at DATETIME NOT NULL,
             file_name TEXT NOT NULL,
             tags JSON -- JSON object of CloudTrackTag
         );",
@@ -53,8 +53,8 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
             size INTEGER NOT NULL,
             status TEXT NOT NULL,
             error_message TEXT,
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
             attempts INTEGER NOT NULL DEFAULT 0,
             FOREIGN KEY (cloud_track_map_id) REFERENCES cloud_track_maps(id)
         );",
@@ -71,8 +71,8 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
             size INTEGER NOT NULL,
             status TEXT NOT NULL,
             error_message TEXT,
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
             attempts INTEGER NOT NULL DEFAULT 0,
             FOREIGN KEY (cloud_track_map_id) REFERENCES cloud_track_maps(id)
         );",

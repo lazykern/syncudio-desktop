@@ -7,7 +7,7 @@ import type {
   StorageUsageDTO,
   CloudPageDataDTO,
   TrackSyncDetailsDTO,
-  TrackIntegrityStatus,
+  TrackLocationState,
   SyncOperationType,
   SyncStatus,
   FolderSyncStatus,
@@ -27,7 +27,7 @@ type CloudCommands = {
 const mockStorageUsage: StorageUsageDTO = {
   used_bytes: BigInt(12.5 * 1024 * 1024 * 1024),
   total_bytes: BigInt(50 * 1024 * 1024 * 1024),
-  last_sync: BigInt(Date.now() - 5 * 60 * 1000), // 5 minutes ago
+  last_sync: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
 };
 
 const mockFolders: CloudFolderDTO[] = [
@@ -65,10 +65,10 @@ const mockTracks: CloudTrackDTO[] = [
     id: '1',
     file_name: 'song1.mp3',
     relative_path: 'song1.mp3',
-    integrity_status: 'complete',
+    location_state: 'complete',
     sync_operation: null,
     sync_status: null,
-    updated_at: BigInt(Date.now()),
+    updated_at: new Date(Date.now()).toISOString(),
     tags: {
       title: 'Song 1',
       album: 'Album 1',
@@ -86,10 +86,10 @@ const mockTracks: CloudTrackDTO[] = [
     id: '2',
     file_name: 'local_only.mp3',
     relative_path: 'local_only.mp3',
-    integrity_status: 'local_only',
+    location_state: 'local_only',
     sync_operation: 'upload',
     sync_status: 'in_progress',
-    updated_at: BigInt(Date.now() - 3600000),
+    updated_at: new Date(Date.now() - 3600000).toISOString(),
     tags: {
       title: 'Local Only Track',
       album: 'Local Album',
@@ -107,20 +107,20 @@ const mockTracks: CloudTrackDTO[] = [
     id: '3',
     file_name: 'cloud_only.mp3',
     relative_path: 'cloud_only.mp3',
-    integrity_status: 'cloud_only',
+    location_state: 'cloud_only',
     sync_operation: 'download',
     sync_status: 'pending',
-    updated_at: BigInt(Date.now() - 7200000),
+    updated_at: new Date(Date.now() - 7200000).toISOString(),
     tags: null,
   },
   {
     id: '4',
     file_name: 'conflict.mp3',
     relative_path: 'conflict.mp3',
-    integrity_status: 'out_of_sync',
+    location_state: 'out_of_sync',
     sync_operation: null,
     sync_status: null,
-    updated_at: BigInt(Date.now() - 300000),
+    updated_at: new Date(Date.now() - 300000).toISOString(),
     tags: {
       title: 'Conflict Track',
       album: 'Conflict Album',
@@ -143,8 +143,8 @@ const mockQueueItems: QueueItemDTO[] = [
     file_name: 'local_only.mp3',
     operation: 'upload',
     status: 'in_progress',
-    created_at: BigInt(Date.now() - 60000),
-    updated_at: BigInt(Date.now()),
+    created_at: new Date(Date.now() - 60000).toISOString(),
+    updated_at: new Date(Date.now()).toISOString(),
     provider_type: 'dropbox',
   },
   {
@@ -153,8 +153,8 @@ const mockQueueItems: QueueItemDTO[] = [
     file_name: 'cloud_only.mp3',
     operation: 'download',
     status: 'pending',
-    created_at: BigInt(Date.now()),
-    updated_at: BigInt(Date.now()),
+    created_at: new Date(Date.now()).toISOString(),
+    updated_at: new Date(Date.now()).toISOString(),
     provider_type: 'dropbox',
   },
 ];
@@ -194,7 +194,7 @@ const getStatusDisplay = (track: CloudTrackDTO): { icon: string; text: string; c
   }
 
   // Otherwise show integrity status
-  switch (track.integrity_status) {
+  switch (track.location_state) {
     case 'complete':
       return { icon: '✓', text: 'Synced', color: 'var(--success-color)' };
     case 'local_only':
@@ -231,7 +231,7 @@ export default function ViewCloud() {
           <div className={styles.statusText}>
             <div>In Sync</div>
             <div className={styles.lastSync}>
-              Last sync: {new Date(bigintToNumber(mockStorageUsage.last_sync)).toLocaleString()}
+              Last sync: {new Date(mockStorageUsage.last_sync).toLocaleString()}
             </div>
           </div>
         </div>
@@ -300,7 +300,8 @@ export default function ViewCloud() {
             <thead>
               <tr>
                 <th>Name</th>
-                <th>Status</th>
+                <th>Location</th>
+                <th>Sync Status</th>
                 <th>Path</th>
                 <th>Last Updated</th>
                 <th>Actions</th>
@@ -313,12 +314,25 @@ export default function ViewCloud() {
                   <tr key={track.id}>
                     <td>{track.tags?.title || track.file_name}</td>
                     <td>
-                      <span className={styles.syncStatus} style={{ color: status.color }}>
-                        {status.icon} {status.text}
+                      <span style={{ color: track.sync_operation ? 'var(--text-muted)' : status.color }}>
+                        {track.location_state === 'complete' && '✓ Both'}
+                        {track.location_state === 'local_only' && '💻 Local Only'}
+                        {track.location_state === 'cloud_only' && '☁️ Cloud Only'}
+                        {track.location_state === 'out_of_sync' && '⚠️ Out of Sync'}
+                        {track.location_state === 'missing' && '❌ Missing'}
+                        {track.location_state === 'not_mapped' && '❓ Not Mapped'}
                       </span>
                     </td>
+                    <td>
+                      {track.sync_operation && (
+                        <span style={{ color: status.color }}>
+                          {track.sync_operation === 'upload' ? '⬆️' : '⬇️'}{' '}
+                          {track.sync_status === 'in_progress' ? 'In Progress' : 'Queued'}
+                        </span>
+                      )}
+                    </td>
                     <td>{track.relative_path}</td>
-                    <td>{new Date(bigintToNumber(track.updated_at)).toLocaleString()}</td>
+                    <td>{new Date(track.updated_at).toLocaleString()}</td>
                     <td>
                       <button>⋮</button>
                     </td>

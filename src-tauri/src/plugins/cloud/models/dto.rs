@@ -5,11 +5,11 @@ use crate::plugins::{cloud::models::{CloudFolder, CloudTrack, CloudTrackMap}, db
 
 use super::CloudTrackTag;
 
-/// Represents the integrity status of a track by checking both local and cloud existence
+/// Represents the location state of a track by checking both local and cloud existence
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/generated/typings/index.ts")]
 #[serde(rename_all = "snake_case")]
-pub enum TrackIntegrityStatus {
+pub enum TrackLocationState {
     /// Track exists in both local and cloud, and is in sync
     Complete,
     /// Track exists only in local storage
@@ -69,7 +69,7 @@ pub struct CloudTrackDTO {
     pub id: String,
     pub file_name: String,
     pub relative_path: String,
-    pub integrity_status: TrackIntegrityStatus,
+    pub location_state: TrackLocationState,
     pub sync_operation: Option<SyncOperationType>,
     pub sync_status: Option<SyncStatus>,
     pub updated_at: DateTime<Utc>,

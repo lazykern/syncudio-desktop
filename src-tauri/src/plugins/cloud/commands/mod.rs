@@ -361,9 +361,10 @@ pub async fn sync_cloud_tracks_metadata(
                     // Update local database with merged tracks
                     for track in &cloud_metadata.tracks {
                         match CloudTrack::select()
-                            .where_("(blake3_hash = ? OR blake3_hash IS NULL) AND (cloud_file_id = ? OR cloud_file_id IS NULL)")
+                            .where_("((blake3_hash = ? OR blake3_hash IS NULL) AND (cloud_file_id = ? OR cloud_file_id IS NULL)) OR id = ?")
                             .bind(&track.blake3_hash)
                             .bind(&track.cloud_file_id)
+                            .bind(&track.id)
                             .fetch_optional(&mut db.connection)
                             .await? {
                                 Some(existing) => {
