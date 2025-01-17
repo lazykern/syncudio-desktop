@@ -5,14 +5,9 @@ export type CloudFile = { id: string, name: string, parent_id: string | null, si
 export type CloudFolder = { id: string, provider_type: string, cloud_folder_id: string, cloud_folder_path: string, local_folder_path: string, };
 
 /**
- * Represents a cloud folder with its sync status and track count
+ * Represents detailed sync information for a cloud folder
  */
-export type CloudFolderDTO = { id: string, provider_type: string, cloud_folder_path: string, local_folder_path: string, sync_status: FolderSyncStatus, track_count: number, pending_sync_count: number, };
-
-/**
- * Represents all data needed for the cloud page
- */
-export type CloudPageDataDTO = { folders: Array<CloudFolderDTO>, tracks: Array<CloudTrackDTO>, storage: StorageUsageDTO, queue_items: Array<QueueItemDTO>, queue_stats: QueueStatsDTO, selected_folder_id: string | null, };
+export type CloudFolderSyncDetailsDTO = { id: string, cloud_folder_path: string, local_folder_path: string, sync_status: FolderSyncStatus, pending_sync_count: number, tracks: Array<CloudTrackDTO>, };
 
 export type CloudPlaylist = { id: string, name: string, tracks: Array<string>, created_at: string, updated_at: string, };
 
@@ -77,11 +72,6 @@ export type ScanResult = { track_count: number, track_failures: number, playlist
 export type SortBy = "Artist" | "Album" | "Title" | "Duration" | "Genre";
 
 export type SortOrder = "Asc" | "Dsc";
-
-/**
- * Represents storage usage information
- */
-export type StorageUsageDTO = { used_bytes: bigint, total_bytes: bigint, last_sync: string, };
 
 /**
  * Represents a sync history entry

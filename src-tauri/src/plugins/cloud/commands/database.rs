@@ -7,10 +7,10 @@ use crate::plugins::db::DBState;
 
 // Cloud Folder Operations
 #[tauri::command]
-pub async fn get_cloud_folder(id: String, db_state: State<'_, DBState>) -> AnyResult<Option<CloudFolder>> {
-    info!("Getting cloud folder with id: {}", id);
+pub async fn get_cloud_folders(db_state: State<'_, DBState>) -> AnyResult<Vec<CloudFolder>> {
+    info!("Getting all cloud folders");
     let mut db = db_state.get_lock().await;
-    db.get_cloud_folder(&id).await
+    db.get_cloud_folders().await
 }
 
 #[tauri::command]

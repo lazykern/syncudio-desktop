@@ -14,6 +14,13 @@ impl DB {
             .await?;
         Ok(folder)
     }
+    
+    pub async fn get_cloud_folders(&mut self) -> AnyResult<Vec<CloudFolder>> {
+        let folders = CloudFolder::select()
+            .fetch_all(&mut self.connection)
+            .await?;
+        Ok(folders)
+    }
 
     pub async fn get_cloud_folders_by_provider(
         &mut self,

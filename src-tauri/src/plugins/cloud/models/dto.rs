@@ -76,28 +76,6 @@ pub struct CloudTrackDTO {
     pub tags: Option<CloudTrackTag>,
 }
 
-/// Represents a cloud folder with its sync status and track count
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "../../src/generated/typings/index.ts")]
-pub struct CloudFolderDTO {
-    pub id: String,
-    pub provider_type: String,
-    pub cloud_folder_path: String,
-    pub local_folder_path: String,
-    pub sync_status: FolderSyncStatus,
-    pub track_count: i32,
-    pub pending_sync_count: i32,
-}
-
-/// Represents storage usage information
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "../../src/generated/typings/index.ts")]
-pub struct StorageUsageDTO {
-    pub used_bytes: i64,
-    pub total_bytes: i64,
-    pub last_sync: DateTime<Utc>,
-}
-
 /// Represents a sync queue item
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/generated/typings/index.ts")]
@@ -122,18 +100,6 @@ pub struct QueueStatsDTO {
     pub failed_count: i32,
 }
 
-/// Represents all data needed for the cloud page
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "../../src/generated/typings/index.ts")]
-pub struct CloudPageDataDTO {
-    pub folders: Vec<CloudFolderDTO>,
-    pub tracks: Vec<CloudTrackDTO>,
-    pub storage: StorageUsageDTO,
-    pub queue_items: Vec<QueueItemDTO>,
-    pub queue_stats: QueueStatsDTO,
-    pub selected_folder_id: Option<String>,
-}
-
 /// Represents a sync history entry
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/generated/typings/index.ts")]
@@ -152,4 +118,16 @@ pub struct TrackSyncDetailsDTO {
     pub track: CloudTrackDTO,
     pub sync_history: Vec<SyncHistoryEntry>,
     pub current_operation: Option<QueueItemDTO>,
+}
+
+/// Represents detailed sync information for a cloud folder
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/generated/typings/index.ts")]
+pub struct CloudFolderSyncDetailsDTO {
+    pub id: String,
+    pub cloud_folder_path: String,
+    pub local_folder_path: String,
+    pub sync_status: FolderSyncStatus,
+    pub pending_sync_count: i32,
+    pub tracks: Vec<CloudTrackDTO>,
 }

@@ -35,7 +35,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             cloud_download_file,
             cloud_delete_file,
             // Cloud folder database operations
-            get_cloud_folder,
+            get_cloud_folders,
             get_cloud_folders_by_provider,
             get_cloud_folder_by_local_path,
             save_cloud_folder,

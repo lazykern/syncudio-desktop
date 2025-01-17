@@ -3,22 +3,57 @@ use tauri::State;
 use crate::{
     libs::error::AnyResult,
     plugins::{
-        cloud::{CloudPageDataDTO, CloudState, TrackSyncDetailsDTO},
+        cloud::{
+            CloudState, TrackSyncDetailsDTO,
+            CloudTrackDTO, QueueItemDTO, QueueStatsDTO,
+            CloudFolderSyncDetailsDTO, FolderSyncStatus,
+        },
         db::DBState,
     },
 };
 
-/// Command to get cloud page data
+/// Get detailed sync information for a cloud folder
 #[tauri::command]
-pub async fn get_cloud_page_data(
+pub async fn get_cloud_folder_sync_details(
+    folder_id: String,
+    db_state: State<'_, DBState>,
+) -> AnyResult<CloudFolderSyncDetailsDTO> {
+    todo!("Implement get_cloud_folder_sync_details");
+    // 1. Get folder info from database
+    // 2. Get all tracks mapped to this folder
+    // 3. Calculate location state for each track
+    // 4. Get current sync operations for tracks
+    // 5. Calculate folder sync status:
+    //    - If no tracks: Empty
+    //    - If any track has sync operation: Syncing
+    //    - If any track needs attention (out of sync, missing, etc): NeedsAttention
+    //    - Otherwise: Synced
+    // 6. Count pending sync operations
+    // 7. Return folder details with tracks
+}
+
+/// Get active queue items
+#[tauri::command]
+pub async fn get_queue_items(
     folder_id: Option<String>,
     db_state: State<'_, DBState>,
-) -> AnyResult<CloudPageDataDTO> {
-    todo!("Implement get_cloud_page_data");
-    // 1. Get all cloud folders with their sync status
-    // 2. Get tracks for selected folder (or all if none selected)
-    // 3. Get storage usage info
-    // 4. Get active queue items
+) -> AnyResult<Vec<QueueItemDTO>> {
+    todo!("Implement get_queue_items");
+    // 1. Get active items from upload/download queues
+    // 2. Filter by folder if specified
+    // 3. Return queue items
+}
+
+/// Get queue statistics
+#[tauri::command]
+pub async fn get_queue_stats(
+    folder_id: Option<String>,
+    db_state: State<'_, DBState>,
+) -> AnyResult<QueueStatsDTO> {
+    todo!("Implement get_queue_stats");
+    // 1. Count items in each state
+    // 2. Filter by folder if specified
+    // 3. Return stats
 }
 
 /// Command to force sync a folder
@@ -36,7 +71,10 @@ pub async fn force_sync_folder(
 
 /// Command to pause/resume sync operations
 #[tauri::command]
-pub async fn set_sync_paused(paused: bool, cloud_state: State<'_, CloudState>) -> AnyResult<()> {
+pub async fn set_sync_paused(
+    paused: bool,
+    cloud_state: State<'_, CloudState>,
+) -> AnyResult<()> {
     todo!("Implement set_sync_paused");
     // 1. Update sync worker state
     // 2. Pause/resume active transfers
