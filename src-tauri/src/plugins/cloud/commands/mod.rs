@@ -20,8 +20,10 @@ use crate::libs::utils::normalize_relative_path;
 use crate::plugins::cloud::CloudFile;
 use crate::{libs::error::AnyResult, plugins::db::DBState};
 
+use super::cloud_folder::CloudFolder;
+use super::cloud_track::CloudTracksMetadata;
 use super::models::cloud_track::{CloudTrack, CloudTrackMap};
-use super::{CloudFolder, CloudProvider, CloudProviderType, CloudState, CloudTracksMetadata};
+use super::{CloudProvider, CloudProviderType, CloudState};
 
 use crate::libs::track::Track;
 use log::info;

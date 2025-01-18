@@ -22,6 +22,7 @@ use crate::{
                     TrackSyncStatusDTO,
                 },
                 sync_queue::{DownloadQueueItem, UploadQueueItem},
+                query_models::{TrackWithMapRow, QueueOperationRow, QueueStatsRow},
             },
             providers::CloudFile,
             CloudState,
@@ -55,149 +56,125 @@ pub async fn get_cloud_folder_sync_details(
 ) -> AnyResult<CloudFolderSyncDetailsDTO> {
     let mut db = db_state.get_lock().await;
 
-    // 1. Get folder info from database
+    // Get folder info with a single query
     let folder = CloudFolder::select()
         .where_("id = ?")
         .bind(&folder_id)
         .fetch_one(&mut db.connection)
         .await?;
 
-
-    let tracks = CloudTrack::query(r#"SELECT * FROM cloud_tracks WHERE cloud_tracks.id IN (
-        SELECT cloud_track_maps.cloud_track_id FROM cloud_track_maps WHERE cloud_track_maps.cloud_folder_id = ?
-    )"#)
-        .bind(&folder_id)
-        .fetch_all(&mut db.connection)
-        .await?;
-
-    // 3. Get all cloud files recursively
-    let cloud_files = cloud_list_files(
-        folder.provider_type.clone(),
-        folder.cloud_folder_id.clone(),
-        folder.cloud_folder_path.clone(),
-        true,
-        cloud_state,
-    )
+    // Get tracks with their maps in a single query
+    let tracks_with_maps: Vec<TrackWithMapRow> = ormlite::query_as(r#"
+        SELECT 
+            t.id, t.blake3_hash, t.cloud_file_id, t.file_name, t.updated_at, t.tags,
+            m.id as map_id, m.relative_path, m.cloud_folder_id
+        FROM cloud_tracks t
+        INNER JOIN cloud_track_maps m ON t.id = m.cloud_track_id
+        WHERE m.cloud_folder_id = ?
+    "#)
+    .bind(&folder_id)
+    .fetch_all(&mut db.connection)
     .await?;
 
-    // Create a map of relative paths to cloud files
-    let cloud_files_map: HashMap<String, CloudFile> = cloud_files
-        .into_iter()
-        .filter(|file| !file.is_folder)
-        .map(|file| (normalize_relative_path(&file.relative_path), file))
+    // Get active operations in a single query
+    let active_operations: Vec<QueueOperationRow> = ormlite::query_as(r#"
+        SELECT 
+            'upload' as queue_type,
+            u.status,
+            u.cloud_track_map_id
+        FROM upload_queue u
+        INNER JOIN cloud_track_maps m ON u.cloud_track_map_id = m.id
+        WHERE m.cloud_folder_id = ? 
+            AND (u.status = 'pending' OR u.status = 'in_progress')
+        UNION ALL
+        SELECT 
+            'download' as queue_type,
+            d.status,
+            d.cloud_track_map_id
+        FROM download_queue d
+        INNER JOIN cloud_track_maps m ON d.cloud_track_map_id = m.id
+        WHERE m.cloud_folder_id = ?
+            AND (d.status = 'pending' OR d.status = 'in_progress')
+    "#)
+    .bind(&folder_id)
+    .bind(&folder_id)
+    .fetch_all(&mut db.connection)
+    .await?;
+
+    // Create a map for quick operation lookups
+    let operation_map: HashMap<String, (&str, &str)> = active_operations
+        .iter()
+        .map(|op| (
+            op.cloud_track_map_id.clone(),
+            (op.queue_type.as_str(), op.status.as_str())
+        ))
         .collect();
 
-    // 4. Get active sync operations
-    let upload_operations = UploadQueueItem::query(
-        r#"SELECT * FROM upload_queue WHERE upload_queue.cloud_track_map_id IN (
-        SELECT cloud_track_maps.id FROM cloud_track_maps WHERE cloud_track_maps.cloud_folder_id = ?
-    ) AND (upload_queue.status = 'pending' OR upload_queue.status = 'in_progress')"#,
-    )
-    .bind(&folder_id)
-    .fetch_all(&mut db.connection)
-    .await?;
-
-    let download_operations = DownloadQueueItem::query(
-        r#"SELECT * FROM download_queue WHERE download_queue.cloud_track_map_id IN (
-        SELECT cloud_track_maps.id FROM cloud_track_maps WHERE cloud_track_maps.cloud_folder_id = ?
-    ) AND (download_queue.status = 'pending' OR download_queue.status = 'in_progress')"#,
-    )
-    .bind(&folder_id)
-    .fetch_all(&mut db.connection)
-    .await?;
-
-    // 5. Calculate track states and build DTOs
+    // Build track DTOs
     let mut track_dtos = Vec::new();
     let mut has_attention_needed = false;
-    let pending_sync_count = upload_operations.len() + download_operations.len();
-    let is_empty = tracks.is_empty();
 
-    for track in tracks {
-        let map = CloudTrackMap::select()
-            .where_("cloud_track_id = ? AND cloud_folder_id = ?")
-            .bind(&track.id)
-            .bind(&folder_id)
-            .fetch_optional(&mut db.connection)
-            .await?;
-
-        if map.is_none() {
-            // TODO: Handle this case
-            info!("Track map not found: {:?}", track.id);
-            continue;
-        }
-
-        let map = map.unwrap();
-
+    for track in tracks_with_maps {
         // Check file existence in both locations
         let local_path = Path::new(&folder.local_folder_path)
-            .join(normalize_relative_path(map.relative_path.as_str()))
+            .join(&track.relative_path)
             .to_string_lossy()
             .to_string();
         let local_exists = Path::new(&local_path).exists();
-        let cloud_exists = cloud_files_map.contains_key(&normalize_relative_path(map.relative_path.as_str()));
-
-        // Find any active operations
-        let upload_op = upload_operations
-            .iter()
-            .find(|op| op.cloud_track_map_id == map.id);
-        let download_op = download_operations
-            .iter()
-            .find(|op| op.cloud_track_map_id == map.id);
 
         // Calculate location state
         let location_state = match (
             local_exists,
-            cloud_exists,
-            track.blake3_hash.as_ref(),
-            track.cloud_file_id.as_ref(),
+            track.cloud_file_id.is_some(),
+            track.blake3_hash.is_some(),
         ) {
-            (true, true, Some(_), Some(_)) => TrackLocationState::Complete,
-            (true, false, Some(_), _) => {
-                info!("Track local only: {:?} {:?} {:?}", folder.local_folder_path, folder.cloud_folder_path, local_path);
+            (true, true, true) => TrackLocationState::Complete,
+            (true, false, _) => {
                 has_attention_needed = true;
                 TrackLocationState::LocalOnly
             }
-            (false, true, _, Some(_)) => {
+            (false, true, _) => {
                 has_attention_needed = true;
                 TrackLocationState::CloudOnly
             }
-            (false, false, _, _) => {
-                info!("Track missing: {:?} {:?}", folder.local_folder_path, local_path);
-                info!("Track map: {:?}", map);
+            _ => {
                 has_attention_needed = true;
                 TrackLocationState::Missing
             }
-            _ => {
-                has_attention_needed = true;
-                TrackLocationState::NotMapped
-            }
         };
 
-        // Build track DTO
+        // Get sync operation if any
+        let (sync_operation, sync_status) = if let Some((op_type, status)) = operation_map.get(&track.map_id) {
+            (
+                Some(match *op_type {
+                    "upload" => SyncOperationType::Upload,
+                    "download" => SyncOperationType::Download,
+                    _ => unreachable!(),
+                }),
+                Some(SyncStatus::from_str(status).unwrap()),
+            )
+        } else {
+            (None, None)
+        };
+
         track_dtos.push(CloudTrackDTO {
             id: track.id,
             cloud_folder_id: folder.id.clone(),
-            cloud_track_map_id: map.id,
+            cloud_track_map_id: track.map_id,
             file_name: track.file_name,
-            relative_path: map.relative_path.clone(),
+            relative_path: track.relative_path,
             location_state,
-            sync_operation: upload_op
-                .map(|_| SyncOperationType::Upload)
-                .or_else(|| download_op.map(|_| SyncOperationType::Download)),
-            sync_status: match (upload_op, download_op) {
-                (Some(op), _) => Some(SyncStatus::from_str(&op.status).unwrap()),
-                (None, Some(op)) => Some(SyncStatus::from_str(&op.status).unwrap()),
-                (None, None) => None,
-            },
+            sync_operation,
+            sync_status,
             updated_at: track.updated_at,
             tags: track.tags,
         });
     }
 
-    // 6. Calculate folder status
-    let sync_status = if is_empty {
+    // Calculate folder status
+    let sync_status = if track_dtos.is_empty() {
         FolderSyncStatus::Empty
-    } else if pending_sync_count > 0 {
+    } else if !active_operations.is_empty() {
         FolderSyncStatus::Syncing
     } else if has_attention_needed {
         FolderSyncStatus::NeedsAttention
@@ -205,13 +182,12 @@ pub async fn get_cloud_folder_sync_details(
         FolderSyncStatus::Synced
     };
 
-    // 7. Return final DTO
     Ok(CloudFolderSyncDetailsDTO {
         id: folder.id,
         cloud_folder_path: folder.cloud_folder_path,
         local_folder_path: folder.local_folder_path,
         sync_status,
-        pending_sync_count: pending_sync_count as i32,
+        pending_sync_count: active_operations.len() as i32,
         tracks: track_dtos,
     })
 }
@@ -347,62 +323,49 @@ pub async fn get_queue_stats(
 ) -> AnyResult<QueueStatsDTO> {
     let mut db = db_state.get_lock().await;
 
-    // Get all queue items and filter by folder if specified
-    let mut download_items = if let Some(folder_id) = &folder_id {
-        DownloadQueueItem::query(
-            "SELECT q.* FROM download_queue q 
-            JOIN cloud_track_maps m ON q.cloud_track_map_id = m.id 
-            WHERE m.cloud_folder_id = ?",
-        )
-        .bind(folder_id)
+    let stats: Vec<QueueStatsRow> = if let Some(folder_id) = folder_id {
+        ormlite::query_as(r#"
+            SELECT status, COUNT(*) as count
+            FROM (
+                SELECT status FROM upload_queue u
+                INNER JOIN cloud_track_maps m ON u.cloud_track_map_id = m.id
+                WHERE m.cloud_folder_id = ?
+                UNION ALL
+                SELECT status FROM download_queue d
+                INNER JOIN cloud_track_maps m ON d.cloud_track_map_id = m.id
+                WHERE m.cloud_folder_id = ?
+            ) combined
+            GROUP BY status
+        "#)
+        .bind(&folder_id)
+        .bind(&folder_id)
         .fetch_all(&mut db.connection)
         .await?
     } else {
-        DownloadQueueItem::query("SELECT * FROM download_queue")
+        ormlite::query_as(r#"
+            SELECT status, COUNT(*) as count
+            FROM (
+                SELECT status FROM upload_queue
+                UNION ALL
+                SELECT status FROM download_queue
+            ) combined
+            GROUP BY status
+        "#)
             .fetch_all(&mut db.connection)
             .await?
     };
 
-    let mut upload_items = if let Some(folder_id) = &folder_id {
-        UploadQueueItem::query(
-            "SELECT q.* FROM upload_queue q 
-            JOIN cloud_track_maps m ON q.cloud_track_map_id = m.id 
-            WHERE m.cloud_folder_id = ?",
-        )
-        .bind(folder_id)
-        .fetch_all(&mut db.connection)
-        .await?
-    } else {
-        UploadQueueItem::query("SELECT * FROM upload_queue")
-            .fetch_all(&mut db.connection)
-            .await?
-    };
-
-    // Count items in each state
     let mut pending_count = 0;
     let mut in_progress_count = 0;
     let mut completed_count = 0;
     let mut failed_count = 0;
 
-    // Count download queue items
-    for item in download_items {
-        let status = SyncStatus::from_str(&item.status)?;
-        match status {
-            SyncStatus::Pending => pending_count += 1,
-            SyncStatus::InProgress => in_progress_count += 1,
-            SyncStatus::Completed => completed_count += 1,
-            SyncStatus::Failed { .. } => failed_count += 1,
-        }
-    }
-
-    // Count upload queue items
-    for item in upload_items {
-        let status = SyncStatus::from_str(&item.status)?;
-        match status {
-            SyncStatus::Pending => pending_count += 1,
-            SyncStatus::InProgress => in_progress_count += 1,
-            SyncStatus::Completed => completed_count += 1,
-            SyncStatus::Failed { .. } => failed_count += 1,
+    for stat in stats {
+        match stat.status.as_str() {
+            "pending" => pending_count = stat.count,
+            "in_progress" => in_progress_count = stat.count,
+            "completed" => completed_count = stat.count,
+            _ => failed_count += stat.count,
         }
     }
 

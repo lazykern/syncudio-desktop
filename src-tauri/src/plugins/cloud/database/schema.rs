@@ -39,7 +39,10 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
             relative_path TEXT NOT NULL,
             FOREIGN KEY (cloud_track_id) REFERENCES cloud_tracks(id),
             FOREIGN KEY (cloud_folder_id) REFERENCES cloud_folders(id)
-        );",
+        );
+        CREATE INDEX IF NOT EXISTS idx_cloud_track_maps_cloud_track_id ON cloud_track_maps(cloud_track_id);
+        CREATE INDEX IF NOT EXISTS idx_cloud_track_maps_cloud_folder_id ON cloud_track_maps(cloud_folder_id);
+        CREATE INDEX IF NOT EXISTS idx_cloud_track_maps_folder_track ON cloud_track_maps(cloud_folder_id, cloud_track_id);",
     )
     .execute(&mut *connection)
     .await?;
@@ -56,7 +59,10 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
             updated_at DATETIME NOT NULL,
             attempts INTEGER NOT NULL DEFAULT 0,
             FOREIGN KEY (cloud_track_map_id) REFERENCES cloud_track_maps(id)
-        );",
+        );
+        CREATE INDEX IF NOT EXISTS idx_download_queue_cloud_track_map_id ON download_queue(cloud_track_map_id);
+        CREATE INDEX IF NOT EXISTS idx_download_queue_status ON download_queue(status);
+        CREATE INDEX IF NOT EXISTS idx_download_queue_map_status ON download_queue(cloud_track_map_id, status);",
     )
     .execute(&mut *connection)
     .await?;
@@ -73,7 +79,10 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
             updated_at DATETIME NOT NULL,
             attempts INTEGER NOT NULL DEFAULT 0,
             FOREIGN KEY (cloud_track_map_id) REFERENCES cloud_track_maps(id)
-        );",
+        );
+        CREATE INDEX IF NOT EXISTS idx_upload_queue_cloud_track_map_id ON upload_queue(cloud_track_map_id);
+        CREATE INDEX IF NOT EXISTS idx_upload_queue_status ON upload_queue(status);
+        CREATE INDEX IF NOT EXISTS idx_upload_queue_map_status ON upload_queue(cloud_track_map_id, status);",
     )
     .execute(&mut *connection)
     .await?;

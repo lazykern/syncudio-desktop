@@ -1,8 +1,9 @@
 use chrono::{DateTime, Utc};
+use ormlite::FromRow;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use super::CloudTrackTag;
+use super::cloud_track::CloudTrackTag;
 
 /// Represents the location state of a track by checking both local and cloud existence by blake3_hash, cloud_file_id and relative_path (should be in local storage and cloud storage)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -132,4 +133,11 @@ pub struct CloudFolderSyncDetailsDTO {
     pub sync_status: FolderSyncStatus,
     pub pending_sync_count: i32,
     pub tracks: Vec<CloudTrackDTO>,
+}
+
+/// DTO for queue statistics
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct QueueStatsGroupDTO {
+    pub status: String,
+    pub count: i32,
 }

@@ -58,7 +58,7 @@ pub enum FileHash {
 use async_trait::async_trait;
 use std::path::PathBuf;
 
-use super::CloudTracksMetadata;
+use super::cloud_track::CloudTracksMetadata;
 
 #[async_trait]
 pub trait CloudProvider {
