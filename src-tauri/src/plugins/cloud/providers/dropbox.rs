@@ -209,7 +209,7 @@ impl CloudProvider for Dropbox {
     }
 
     async fn list_root_files(&self, recursive: bool) -> AnyResult<Vec<CloudFile>> {
-        self.list_files("", "", recursive).await
+        self.list_files("", "/", recursive).await
     }
 
     async fn create_folder(&self, name: &str, parent_ref: Option<&str>) -> AnyResult<CloudFile> {
@@ -236,7 +236,7 @@ impl CloudProvider for Dropbox {
             mime_type: None,
             hash: None,
             display_path: result.metadata.path_display,
-            relative_path: format!("/{}", name),
+            relative_path: name.to_string(),
         })
     }
 
@@ -276,7 +276,7 @@ impl CloudProvider for Dropbox {
                 .as_ref()
                 .map(|h| FileHash::ContentHash(h.clone())),
             display_path: result.path_display,
-            relative_path: format!("/{}", name),
+            relative_path: name.to_string(),
         })
     }
 

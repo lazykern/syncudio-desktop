@@ -5,7 +5,10 @@ use std::path::Path;
 use tauri::State;
 
 use crate::{
-    libs::error::AnyResult,
+    libs::{
+        error::AnyResult,
+        utils::normalize_relative_path,
+    },
     plugins::{
         cloud::{
             models::{
@@ -124,11 +127,11 @@ pub async fn get_cloud_folder_sync_details(
 
         // Check file existence in both locations
         let local_path = Path::new(&folder.local_folder_path)
-            .join(map.relative_path.trim_start_matches('/'))
+            .join(normalize_relative_path(map.relative_path.as_str()))
             .to_string_lossy()
             .to_string();
         let local_exists = Path::new(&local_path).exists();
-        let cloud_exists = cloud_files_map.contains_key(&map.relative_path);
+        let cloud_exists = cloud_files_map.contains_key(&normalize_relative_path(map.relative_path.as_str()));
 
         // Find any active operations
         let upload_op = upload_operations

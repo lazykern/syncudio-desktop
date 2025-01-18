@@ -95,3 +95,8 @@ pub fn blake3_hash(path: &PathBuf) -> Result<String, SyncudioError> {
     hasher.update_mmap_rayon(path)?;
     Ok(hasher.finalize().to_string())
 }
+
+/// Normalize a relative path by removing leading slashes
+pub fn normalize_relative_path(path: &str) -> String {
+    path.trim_start_matches('/').to_string()
+}
