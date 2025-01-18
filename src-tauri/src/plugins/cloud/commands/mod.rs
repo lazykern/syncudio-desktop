@@ -297,16 +297,6 @@ pub async fn discover_cloud_folder_tracks(
     // Update cloud track paths
     info!("Updating cloud track paths");
 
-    // Delete existing paths for this folder
-    CloudTrackMap::query(
-        r#"
-        DELETE FROM cloud_track_maps WHERE cloud_folder_id = ?
-    "#,
-    )
-    .bind(&folder.id)
-    .fetch_all(&mut db.connection)
-    .await?;
-
     // Insert new paths
     let mut paths_to_insert = Vec::new();
 
@@ -353,7 +343,19 @@ pub async fn discover_cloud_folder_tracks(
 
     // Insert all paths
     for path in paths_to_insert {
-        path.insert(&mut db.connection).await?;
+        let existing = CloudTrackMap::select()
+            .where_("cloud_track_id = ? AND cloud_folder_id = ?")
+            .bind(&path.cloud_track_id)
+            .bind(&path.cloud_folder_id)
+            .fetch_optional(&mut db.connection)
+            .await?;
+        if let Some(existing) = existing {
+            info!("Updating existing path: {}", path.relative_path);
+            existing.update_all_fields(&mut db.connection).await?;
+        } else {
+            info!("Inserting new path: {}", path.relative_path);
+            path.insert(&mut db.connection).await?;
+        }
     }
 
     Ok(())
