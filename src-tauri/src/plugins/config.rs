@@ -64,6 +64,12 @@ pub struct Config {
     pub minimize_to_tray: bool,
     pub notifications: bool,
     pub track_view_density: String,
+    // Sync worker config
+    pub sync_worker_enabled: bool,
+    pub sync_concurrent_uploads: u32,
+    pub sync_concurrent_downloads: u32,
+    pub sync_retry_limit: u32,
+    pub sync_retry_delay_seconds: u32,
 }
 
 pub const SYSTEM_THEME: &str = "__system";
@@ -88,6 +94,12 @@ impl Config {
             minimize_to_tray: false,
             notifications: false,
             track_view_density: "normal".to_owned(),
+            // Sync worker defaults
+            sync_worker_enabled: true,
+            sync_concurrent_uploads: 3,
+            sync_concurrent_downloads: 3,
+            sync_retry_limit: 3,
+            sync_retry_delay_seconds: 30,
         }
     }
 }
