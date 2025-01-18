@@ -206,11 +206,11 @@ pub async fn get_queue_items(
         UploadQueueItem::query(
             r#"SELECT * FROM upload_queue WHERE upload_queue.cloud_track_map_id IN (
                 SELECT cloud_track_maps.id FROM cloud_track_maps WHERE cloud_track_maps.cloud_folder_id = ?
-            ) ORDER BY created_at DESC"#,
+            ) ORDER BY created_at ASC"#,
         )
         .bind(folder_id)
     } else {
-        UploadQueueItem::query("SELECT * FROM upload_queue ORDER BY created_at DESC")
+        UploadQueueItem::query("SELECT * FROM upload_queue ORDER BY created_at ASC")
     };
 
     let upload_items = upload_query.fetch_all(&mut db.connection).await?;
@@ -220,11 +220,11 @@ pub async fn get_queue_items(
         DownloadQueueItem::query(
             r#"SELECT * FROM download_queue WHERE download_queue.cloud_track_map_id IN (
                 SELECT cloud_track_maps.id FROM cloud_track_maps WHERE cloud_track_maps.cloud_folder_id = ?
-            ) ORDER BY created_at DESC"#,
+            ) ORDER BY created_at ASC"#,
         )
         .bind(folder_id)
     } else {
-        DownloadQueueItem::query("SELECT * FROM download_queue ORDER BY created_at DESC")
+        DownloadQueueItem::query("SELECT * FROM download_queue ORDER BY created_at ASC")
     };
 
     let download_items = download_query.fetch_all(&mut db.connection).await?;
