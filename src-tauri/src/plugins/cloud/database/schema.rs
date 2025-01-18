@@ -59,10 +59,24 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
             updated_at DATETIME NOT NULL,
             attempts INTEGER NOT NULL DEFAULT 0,
             FOREIGN KEY (cloud_track_map_id) REFERENCES cloud_track_maps(id)
-        );
-        CREATE INDEX IF NOT EXISTS idx_download_queue_cloud_track_map_id ON download_queue(cloud_track_map_id);
-        CREATE INDEX IF NOT EXISTS idx_download_queue_status ON download_queue(status);
-        CREATE INDEX IF NOT EXISTS idx_download_queue_map_status ON download_queue(cloud_track_map_id, status);",
+        );"
+    )
+    .execute(&mut *connection)
+    .await?;
+
+    // Create indexes for download queue
+    ormlite::query(
+        "CREATE INDEX IF NOT EXISTS idx_download_queue_cloud_track_map_id ON download_queue(cloud_track_map_id);
+         CREATE INDEX IF NOT EXISTS idx_download_queue_status ON download_queue(status);
+         CREATE INDEX IF NOT EXISTS idx_download_queue_map_status ON download_queue(cloud_track_map_id, status);"
+    )
+    .execute(&mut *connection)
+    .await?;
+
+    // Add partial unique index for active download operations
+    ormlite::query(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_download_queue_active_ops ON download_queue(cloud_track_map_id) 
+         WHERE status IN ('pending', 'in_progress');"
     )
     .execute(&mut *connection)
     .await?;
@@ -79,10 +93,24 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
             updated_at DATETIME NOT NULL,
             attempts INTEGER NOT NULL DEFAULT 0,
             FOREIGN KEY (cloud_track_map_id) REFERENCES cloud_track_maps(id)
-        );
-        CREATE INDEX IF NOT EXISTS idx_upload_queue_cloud_track_map_id ON upload_queue(cloud_track_map_id);
-        CREATE INDEX IF NOT EXISTS idx_upload_queue_status ON upload_queue(status);
-        CREATE INDEX IF NOT EXISTS idx_upload_queue_map_status ON upload_queue(cloud_track_map_id, status);",
+        );"
+    )
+    .execute(&mut *connection)
+    .await?;
+
+    // Create indexes for upload queue
+    ormlite::query(
+        "CREATE INDEX IF NOT EXISTS idx_upload_queue_cloud_track_map_id ON upload_queue(cloud_track_map_id);
+         CREATE INDEX IF NOT EXISTS idx_upload_queue_status ON upload_queue(status);
+         CREATE INDEX IF NOT EXISTS idx_upload_queue_map_status ON upload_queue(cloud_track_map_id, status);"
+    )
+    .execute(&mut *connection)
+    .await?;
+
+    // Add partial unique index for active upload operations
+    ormlite::query(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_upload_queue_active_ops ON upload_queue(cloud_track_map_id) 
+         WHERE status IN ('pending', 'in_progress');"
     )
     .execute(&mut *connection)
     .await?;

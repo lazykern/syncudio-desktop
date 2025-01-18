@@ -496,6 +496,27 @@ pub async fn add_to_upload_queue(
             .fetch_one(&mut db.connection)
             .await?;
 
+        // Check for existing active operations
+        let has_active_upload = UploadQueueItem::select()
+            .where_("cloud_track_map_id = ? AND (status = 'pending' OR status = 'in_progress')")
+            .bind(&track_map.id)
+            .fetch_optional(&mut db.connection)
+            .await?
+            .is_some();
+
+        let has_active_download = DownloadQueueItem::select()
+            .where_("cloud_track_map_id = ? AND (status = 'pending' OR status = 'in_progress')")
+            .bind(&track_map.id)
+            .fetch_optional(&mut db.connection)
+            .await?
+            .is_some();
+
+        if has_active_upload || has_active_download {
+            // Skip this track as it already has an active operation
+            info!("Skipping track {} as it already has an active sync operation", track_id);
+            continue;
+        }
+
         // Get folder to determine provider type
         let folder = CloudFolder::select()
             .where_("id = ?")
@@ -543,6 +564,27 @@ pub async fn add_to_download_queue(
             .bind(&track_id)
             .fetch_one(&mut db.connection)
             .await?;
+
+        // Check for existing active operations
+        let has_active_upload = UploadQueueItem::select()
+            .where_("cloud_track_map_id = ? AND (status = 'pending' OR status = 'in_progress')")
+            .bind(&track_map.id)
+            .fetch_optional(&mut db.connection)
+            .await?
+            .is_some();
+
+        let has_active_download = DownloadQueueItem::select()
+            .where_("cloud_track_map_id = ? AND (status = 'pending' OR status = 'in_progress')")
+            .bind(&track_map.id)
+            .fetch_optional(&mut db.connection)
+            .await?
+            .is_some();
+
+        if has_active_upload || has_active_download {
+            // Skip this track as it already has an active operation
+            info!("Skipping track {} as it already has an active sync operation", track_id);
+            continue;
+        }
 
         // Get folder to determine provider type
         let folder = CloudFolder::select()

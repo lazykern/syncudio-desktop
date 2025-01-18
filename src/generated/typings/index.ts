@@ -9,8 +9,6 @@ export type CloudFolder = { id: string, provider_type: string, cloud_folder_id: 
  */
 export type CloudFolderSyncDetailsDTO = { id: string, cloud_folder_path: string, local_folder_path: string, sync_status: FolderSyncStatus, pending_sync_count: number, tracks: Array<CloudTrackDTO>, };
 
-export type CloudPlaylist = { id: string, name: string, tracks: Array<string>, created_at: string, updated_at: string, };
-
 export type CloudProviderType = "dropbox" | "gdrive";
 
 export type CloudTrack = { id: string, blake3_hash: string | null, cloud_file_id: string | null, old_blake3_hashes: Array<string>, file_name: string, updated_at: string, tags: CloudTrackTag | null, };
@@ -104,11 +102,6 @@ export type TrackLocationState = "complete" | "local_only" | "cloud_only" | "out
 /**
  * Represents detailed sync information for a track
  */
-export type TrackSyncStatusDTO = {
-  location_state: TrackLocationState;
-  sync_operation: SyncOperationType | null;
-  sync_status: SyncStatus | null;
-  updated_at: string;
-};
+export type TrackSyncStatusDTO = { location_state: TrackLocationState, sync_operation: SyncOperationType | null, sync_status: SyncStatus | null, updated_at: string, };
 
 export type UploadQueueItem = { id: string, cloud_track_map_id: string, provider_type: string, status: string, error_message: string | null, created_at: string, updated_at: string, attempts: number, };
