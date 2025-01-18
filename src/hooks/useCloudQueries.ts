@@ -75,23 +75,31 @@ export function useTrackSyncStatus(trackId: string) {
     queryKey: cloudKeys.trackSyncStatus(trackId),
     queryFn: () => cloudSync.getTrackSyncStatus(trackId),
     enabled: !!trackId,
+    refetchInterval: 5000, // Poll every 5 seconds to match queue polling
   });
 }
 
 export function useSyncMutations(folderId?: string) {
   const queryClient = useQueryClient();
 
-  // Keys that need to be invalidated after sync operations
-  const invalidateKeys = [
-    ['cloudFolderDetails', folderId],
-    ['queueItems', folderId],
-    ['queueStats', folderId],
-  ];
-
   const invalidateQueries = async () => {
-    await Promise.all(
-      invalidateKeys.map(key => queryClient.invalidateQueries({ queryKey: key }))
-    );
+    // Invalidate folder details
+    await queryClient.invalidateQueries({ 
+      queryKey: cloudKeys.folderDetails(folderId || null)
+    });
+    
+    // Invalidate queue items and stats
+    await queryClient.invalidateQueries({ 
+      queryKey: cloudKeys.queueItems(folderId)
+    });
+    await queryClient.invalidateQueries({ 
+      queryKey: cloudKeys.queueStats(folderId)
+    });
+
+    // Invalidate all track sync statuses as they might have changed
+    await queryClient.invalidateQueries({
+      queryKey: ['cloud', 'track', 'sync']
+    });
   };
 
   const uploadMutation = useMutation({

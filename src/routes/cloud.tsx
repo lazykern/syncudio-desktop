@@ -81,7 +81,7 @@ const getSyncDisplay = (operation: SyncOperationType | null, status: SyncStatus 
   if (status === 'pending') {
     return {
       icon: <RiTimeLine />,
-      text: 'Queued',
+      text: 'Pending',
       color: 'var(--text-muted)',
     };
   }
@@ -167,6 +167,7 @@ export default function ViewCloud() {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [activeQueueTab, setActiveQueueTab] = useState<QueueTab>('current');
   const [locationFilter, setLocationFilter] = useState<TrackLocationState | 'all'>('all');
+  const [syncStatusFilter, setSyncStatusFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed' | 'failed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTracks, setSelectedTracks] = useState<Set<string>>(new Set());
   
@@ -182,11 +183,24 @@ export default function ViewCloud() {
   } } = useQueueStats(selectedFolder || undefined);
   const { uploadMutation, downloadMutation, isLoading: isSyncing } = useSyncMutations(selectedFolder || undefined);
 
-  // Filter tracks based on location state and search query
+  // Filter tracks based on location state, sync status, and search query
   const filteredTracks = folderDetails?.tracks.filter(track => {
     // Apply location filter
     if (locationFilter !== 'all' && track.location_state !== locationFilter) {
       return false;
+    }
+
+    // Apply sync status filter
+    if (syncStatusFilter !== 'all') {
+      if (!track.sync_status) return false;
+      
+      if (syncStatusFilter === 'failed') {
+        if (typeof track.sync_status !== 'object' || !('failed' in track.sync_status)) {
+          return false;
+        }
+      } else if (track.sync_status !== syncStatusFilter) {
+        return false;
+      }
     }
 
     // Apply search filter
@@ -422,6 +436,16 @@ export default function ViewCloud() {
                     <option value="missing">Missing</option>
                     <option value="not_mapped">Not Mapped</option>
               </select>
+                  <select
+                    value={syncStatusFilter}
+                    onChange={(e) => setSyncStatusFilter(e.target.value as typeof syncStatusFilter)}
+                  >
+                    <option value="all">All Sync Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                    <option value="failed">Failed</option>
+                  </select>
                   <input 
                     type="text" 
                     placeholder="Search files..." 
@@ -564,7 +588,7 @@ export default function ViewCloud() {
                   </span>
                 ) : (
                   <span className={styles.queueItemPending}>
-                    <RiTimeLine /> Queued
+                    <RiTimeLine /> Pending
                   </span>
                 )}
               </span>
