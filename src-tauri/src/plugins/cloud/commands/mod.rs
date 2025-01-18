@@ -263,7 +263,8 @@ pub async fn discover_cloud_folder_tracks(
 
         match existing_cloud_track {
             Some(mut existing) => {
-                info!("Updating existing track");
+                info!("Updating existing track, {:?}", existing);
+                info!("Track: {:?}", track);
 
                 if existing.cloud_file_id.is_none() && track.cloud_file_id.is_some() {
                     existing.cloud_file_id = track.cloud_file_id.clone();

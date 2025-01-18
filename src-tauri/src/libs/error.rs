@@ -66,6 +66,9 @@ pub enum SyncudioError {
 
     #[error("Invalid queue status")]
     InvalidQueueStatus,
+
+    #[error("{0} not found")]
+    NotFound(String),
 }
 
 /**
