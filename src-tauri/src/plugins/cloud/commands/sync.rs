@@ -8,17 +8,21 @@ use tauri::State;
 
 use crate::{
     libs::{
-        error::{AnyResult, SyncudioError},
+        error::AnyResult,
         utils::normalize_relative_path,
     },
     plugins::{
         cloud::{
             models::{
-                cloud_folder::CloudFolder, cloud_track::{CloudTrack, CloudTrackMap}, dto::{
+                cloud_folder::CloudFolder,
+                cloud_track::{CloudTrack, CloudTrackMap},
+                dto::{
                     CloudFolderSyncDetailsDTO, CloudTrackDTO, FolderSyncStatus, QueueItemDTO,
                     QueueStatsDTO, SyncOperationType, SyncStatus, TrackLocationState,
                     TrackSyncStatusDTO,
-                }, query_models::{QueueOperationRow, QueueStatsRow, TrackWithMapRow}, sync_queue::{DownloadQueueItem, UploadQueueItem}
+                },
+                sync_queue::{DownloadQueueItem, UploadQueueItem},
+                query_models::{TrackWithMapRow, QueueOperationRow, QueueStatsRow},
             },
             providers::CloudFile,
             CloudState,
@@ -53,7 +57,11 @@ pub async fn get_cloud_folder_sync_details(
     let mut db = db_state.get_lock().await;
 
     // Get folder info with a single query
-    let folder = db.get_cloud_folder(&folder_id).await?.ok_or(SyncudioError::NotFound("Cloud folder".into()))?;
+    let folder = CloudFolder::select()
+        .where_("id = ?")
+        .bind(&folder_id)
+        .fetch_one(&mut db.connection)
+        .await?;
 
     // Get tracks with their maps in a single query
     let tracks_with_maps: Vec<TrackWithMapRow> = ormlite::query_as(r#"
@@ -194,25 +202,48 @@ pub async fn get_queue_items(
     let mut items = Vec::new();
 
     // Get upload queue items
-    let upload_items = if let Some(folder_id) = &folder_id {
-        db.get_upload_queue_items_by_folder_id(&folder_id).await?
+    let upload_query = if let Some(folder_id) = &folder_id {
+        UploadQueueItem::query(
+            r#"SELECT * FROM upload_queue WHERE upload_queue.cloud_track_map_id IN (
+                SELECT cloud_track_maps.id FROM cloud_track_maps WHERE cloud_track_maps.cloud_folder_id = ?
+            ) ORDER BY created_at ASC"#,
+        )
+        .bind(folder_id)
     } else {
-        db.get_upload_queue_items().await?
+        UploadQueueItem::query("SELECT * FROM upload_queue ORDER BY created_at ASC")
     };
 
+    let upload_items = upload_query.fetch_all(&mut db.connection).await?;
+
     // Get download queue items
-    let download_items = if let Some(folder_id) = &folder_id {
-        db.get_download_queue_items_by_folder_id(&folder_id).await?
+    let download_query = if let Some(folder_id) = &folder_id {
+        DownloadQueueItem::query(
+            r#"SELECT * FROM download_queue WHERE download_queue.cloud_track_map_id IN (
+                SELECT cloud_track_maps.id FROM cloud_track_maps WHERE cloud_track_maps.cloud_folder_id = ?
+            ) ORDER BY created_at ASC"#,
+        )
+        .bind(folder_id)
     } else {
-        db.get_download_queue_items().await?
+        DownloadQueueItem::query("SELECT * FROM download_queue ORDER BY created_at ASC")
     };
+
+    let download_items = download_query.fetch_all(&mut db.connection).await?;
 
     // Convert upload items to DTOs
     for item in upload_items {
         // Get track info
-        let track_map = db.get_cloud_track_map(&item.cloud_track_map_id).await?;
+        let track_map = CloudTrackMap::select()
+            .where_("id = ?")
+            .bind(&item.cloud_track_map_id)
+            .fetch_optional(&mut db.connection)
+            .await?;
+
         let track = if let Some(map) = track_map {
-            db.get_cloud_track(&map.cloud_track_id).await?
+            CloudTrack::select()
+                .where_("id = ?")
+                .bind(&map.cloud_track_id)
+                .fetch_optional(&mut db.connection)
+                .await?
         } else {
             None
         };
@@ -241,9 +272,18 @@ pub async fn get_queue_items(
     // Convert download items to DTOs
     for item in download_items {
         // Get track info
-        let track_map = db.get_cloud_track_map(&item.cloud_track_map_id).await?;
+        let track_map = CloudTrackMap::select()
+            .where_("id = ?")
+            .bind(&item.cloud_track_map_id)
+            .fetch_optional(&mut db.connection)
+            .await?;
+
         let track = if let Some(map) = track_map {
-            db.get_cloud_track(&map.cloud_track_id).await?
+            CloudTrack::select()
+                .where_("id = ?")
+                .bind(&map.cloud_track_id)
+                .fetch_optional(&mut db.connection)
+                .await?
         } else {
             None
         };
@@ -282,28 +322,59 @@ pub async fn get_queue_stats(
     db_state: State<'_, DBState>,
 ) -> AnyResult<QueueStatsDTO> {
     let mut db = db_state.get_lock().await;
-    let folder_id_ref = folder_id.as_deref();
-    
-    let stats = db.get_queue_stats(folder_id_ref).await?;
-    
-    let mut dto = QueueStatsDTO {
-        pending_count: 0,
-        in_progress_count: 0,
-        completed_count: 0,
-        failed_count: 0,
+
+    let stats: Vec<QueueStatsRow> = if let Some(folder_id) = folder_id {
+        ormlite::query_as(r#"
+            SELECT status, COUNT(*) as count
+            FROM (
+                SELECT status FROM upload_queue u
+                INNER JOIN cloud_track_maps m ON u.cloud_track_map_id = m.id
+                WHERE m.cloud_folder_id = ?
+                UNION ALL
+                SELECT status FROM download_queue d
+                INNER JOIN cloud_track_maps m ON d.cloud_track_map_id = m.id
+                WHERE m.cloud_folder_id = ?
+            ) combined
+            GROUP BY status
+        "#)
+        .bind(&folder_id)
+        .bind(&folder_id)
+        .fetch_all(&mut db.connection)
+        .await?
+    } else {
+        ormlite::query_as(r#"
+            SELECT status, COUNT(*) as count
+            FROM (
+                SELECT status FROM upload_queue
+                UNION ALL
+                SELECT status FROM download_queue
+            ) combined
+            GROUP BY status
+        "#)
+            .fetch_all(&mut db.connection)
+            .await?
     };
+
+    let mut pending_count = 0;
+    let mut in_progress_count = 0;
+    let mut completed_count = 0;
+    let mut failed_count = 0;
 
     for stat in stats {
         match stat.status.as_str() {
-            "pending" => dto.pending_count = stat.count,
-            "in_progress" => dto.in_progress_count = stat.count,
-            "completed" => dto.completed_count = stat.count,
-            "failed" => dto.failed_count = stat.count,
-            _ => {}
+            "pending" => pending_count = stat.count,
+            "in_progress" => in_progress_count = stat.count,
+            "completed" => completed_count = stat.count,
+            _ => failed_count += stat.count,
         }
     }
 
-    Ok(dto)
+    Ok(QueueStatsDTO {
+        pending_count,
+        in_progress_count,
+        completed_count,
+        failed_count,
+    })
 }
 
 /// Command to pause/resume sync operations
@@ -335,12 +406,24 @@ pub async fn get_track_sync_status(
     let mut db = db_state.get_lock().await;
 
     // Get track and its map
-    let track = db.get_cloud_track(&track_id).await?.ok_or(SyncudioError::NotFound("Cloud track".into()))?;
+    let track = CloudTrack::select()
+        .where_("id = ?")
+        .bind(&track_id)
+        .fetch_one(&mut db.connection)
+        .await?;
 
-    let track_map = db.get_cloud_track_map_by_track_id(&track_id).await?.ok_or(SyncudioError::NotFound("Cloud track map".into()))?;
+    let track_map = CloudTrackMap::select()
+        .where_("cloud_track_id = ?")
+        .bind(&track_id)
+        .fetch_one(&mut db.connection)
+        .await?;
 
     // Get folder to check file existence
-    let folder = db.get_cloud_folder(&track_map.cloud_folder_id).await?.ok_or(SyncudioError::NotFound("Cloud folder".into()))?;
+    let folder = CloudFolder::select()
+        .where_("id = ?")
+        .bind(&track_map.cloud_folder_id)
+        .fetch_one(&mut db.connection)
+        .await?;
 
     // Check file existence
     let local_path = Path::new(&folder.local_folder_path)
@@ -350,8 +433,17 @@ pub async fn get_track_sync_status(
     let local_exists = Path::new(&local_path).exists();
 
     // Get active operations
-    let upload_op = db.get_active_upload_queue_item(&track_map.id).await?;
-    let download_op = db.get_active_download_queue_item(&track_map.id).await?;
+    let upload_op = UploadQueueItem::select()
+        .where_("cloud_track_map_id = ? AND (status = 'pending' OR status = 'in_progress')")
+        .bind(&track_map.id)
+        .fetch_optional(&mut db.connection)
+        .await?;
+
+    let download_op = DownloadQueueItem::select()
+        .where_("cloud_track_map_id = ? AND (status = 'pending' OR status = 'in_progress')")
+        .bind(&track_map.id)
+        .fetch_optional(&mut db.connection)
+        .await?;
 
     // Calculate location state
     let location_state = match (
@@ -385,7 +477,6 @@ pub async fn get_track_sync_status(
 #[tauri::command]
 pub async fn add_to_upload_queue(
     track_ids: Vec<String>,
-    folder_id: String,
     priority: Option<i32>,
     db_state: State<'_, DBState>,
 ) -> AnyResult<()> {
@@ -394,11 +485,32 @@ pub async fn add_to_upload_queue(
 
     for track_id in track_ids {
         // Get track and its map
-        let track_map = db.get_cloud_track_map_by_track_and_folder(&track_id, &folder_id).await?.ok_or(SyncudioError::NotFound("Cloud track map".into()))?;
+        let track = CloudTrack::select()
+            .where_("id = ?")
+            .bind(&track_id)
+            .fetch_one(&mut db.connection)
+            .await?;
+
+        let track_map = CloudTrackMap::select()
+            .where_("cloud_track_id = ?")
+            .bind(&track_id)
+            .fetch_one(&mut db.connection)
+            .await?;
 
         // Check for existing active operations
-        let has_active_upload = db.get_active_upload_queue_item(&track_map.id).await?.is_some();
-        let has_active_download = db.get_active_download_queue_item(&track_map.id).await?.is_some();
+        let has_active_upload = UploadQueueItem::select()
+            .where_("cloud_track_map_id = ? AND (status = 'pending' OR status = 'in_progress')")
+            .bind(&track_map.id)
+            .fetch_optional(&mut db.connection)
+            .await?
+            .is_some();
+
+        let has_active_download = DownloadQueueItem::select()
+            .where_("cloud_track_map_id = ? AND (status = 'pending' OR status = 'in_progress')")
+            .bind(&track_map.id)
+            .fetch_optional(&mut db.connection)
+            .await?
+            .is_some();
 
         if has_active_upload || has_active_download {
             // Skip this track as it already has an active operation
@@ -407,12 +519,16 @@ pub async fn add_to_upload_queue(
         }
 
         // Get folder to determine provider type
-        let folder = db.get_cloud_folder(&track_map.cloud_folder_id).await?.ok_or(SyncudioError::NotFound("Cloud folder".into()))?;
+        let folder = CloudFolder::select()
+            .where_("id = ?")
+            .bind(&track_map.cloud_folder_id)
+            .fetch_one(&mut db.connection)
+            .await?;
 
         // Create upload queue item
         let upload_item = UploadQueueItem {
             id: Uuid::new_v4().to_string(),
-            priority: priority.unwrap_or(0),
+            priority: 0,
             cloud_track_map_id: track_map.id,
             provider_type: folder.provider_type,
             status: "pending".to_string(),
@@ -432,7 +548,6 @@ pub async fn add_to_upload_queue(
 #[tauri::command]
 pub async fn add_to_download_queue(
     track_ids: Vec<String>,
-    folder_id: String,
     priority: Option<i32>,
     db_state: State<'_, DBState>,
 ) -> AnyResult<()> {
@@ -441,31 +556,56 @@ pub async fn add_to_download_queue(
 
     for track_id in track_ids {
         // Get track and its map
-        let track = db.get_cloud_track(&track_id).await?.ok_or(SyncudioError::NotFound("Cloud track".into()))?;
+        let track = CloudTrack::select()
+            .where_("id = ?")
+            .bind(&track_id)
+            .fetch_one(&mut db.connection)
+            .await?;
 
-        let track_map = db.get_cloud_track_map_by_track_and_folder(&track_id, &folder_id).await?.ok_or(SyncudioError::NotFound("Cloud track map".into()))?;
+        let track_map = CloudTrackMap::select()
+            .where_("cloud_track_id = ?")
+            .bind(&track_id)
+            .fetch_one(&mut db.connection)
+            .await?;
 
         // Check for existing active operations
-        let has_active_upload = db.get_active_upload_queue_item(&track_map.id).await?.is_some();
-        let has_active_download = db.get_active_download_queue_item(&track_map.id).await?.is_some();
+        let has_active_upload = UploadQueueItem::select()
+            .where_("cloud_track_map_id = ? AND (status = 'pending' OR status = 'in_progress')")
+            .bind(&track_map.id)
+            .fetch_optional(&mut db.connection)
+            .await?
+            .is_some();
+
+        let has_active_download = DownloadQueueItem::select()
+            .where_("cloud_track_map_id = ? AND (status = 'pending' OR status = 'in_progress')")
+            .bind(&track_map.id)
+            .fetch_optional(&mut db.connection)
+            .await?
+            .is_some();
 
         if has_active_upload || has_active_download {
+            // Skip this track as it already has an active operation
+            info!("Skipping track {} as it already has an active sync operation", track_id);
             continue;
         }
 
         // Get folder to determine provider type
-        let folder = db.get_cloud_folder(&track_map.cloud_folder_id).await?.ok_or(SyncudioError::NotFound("Cloud folder".into()))?;
+        let folder = CloudFolder::select()
+            .where_("id = ?")
+            .bind(&track_map.cloud_folder_id)
+            .fetch_one(&mut db.connection)
+            .await?;
 
-        // Add to download queue
+        // Create download queue item
         let download_item = DownloadQueueItem {
             id: Uuid::new_v4().to_string(),
-            cloud_track_map_id: track_map.id.clone(),
+            priority: 0,
+            cloud_track_map_id: track_map.id,
             provider_type: folder.provider_type,
-            priority: priority.unwrap_or(0),
             status: "pending".to_string(),
             error_message: None,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+            created_at: now,
+            updated_at: now,
             attempts: 0,
         };
 
