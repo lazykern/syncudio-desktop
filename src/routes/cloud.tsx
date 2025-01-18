@@ -110,6 +110,8 @@ type QueueTab = 'current' | 'completed' | 'failed';
 export default function ViewCloud() {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [activeQueueTab, setActiveQueueTab] = useState<QueueTab>('current');
+  const [locationFilter, setLocationFilter] = useState<TrackLocationState | 'all'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Use React Query hooks
   const { data: folders = [] } = useCloudFolders();
@@ -121,6 +123,32 @@ export default function ViewCloud() {
     completed_count: 0,
     failed_count: 0,
   } } = useQueueStats(selectedFolder || undefined);
+
+  // Filter tracks based on location state and search query
+  const filteredTracks = folderDetails?.tracks.filter(track => {
+    // Apply location filter
+    if (locationFilter !== 'all' && track.location_state !== locationFilter) {
+      return false;
+    }
+
+    // Apply search filter
+    if (searchQuery) {
+      const searchLower = searchQuery.toLowerCase();
+      const fileName = track.file_name.toLowerCase();
+      const relativePath = track.relative_path.toLowerCase();
+      const title = track.tags?.title?.toLowerCase() || '';
+      const album = track.tags?.album?.toLowerCase() || '';
+      const artists = track.tags?.artists?.join(' ').toLowerCase() || '';
+
+      return fileName.includes(searchLower) ||
+        relativePath.includes(searchLower) ||
+        title.includes(searchLower) ||
+        album.includes(searchLower) ||
+        artists.includes(searchLower);
+    }
+
+    return true;
+  }) || [];
 
   // Filter queue items based on active tab
   const filteredQueueItems = queueItems.filter(item => {
@@ -212,62 +240,79 @@ export default function ViewCloud() {
         <div className={styles.main}>
           {selectedFolder && folderDetails ? (
             <>
-          <div className={styles.toolbar}>
-            <div className={styles.filters}>
-              <select>
-                <option>All Files</option>
-                <option>Local Only</option>
-                <option>Cloud Only</option>
-                <option>Out of Sync</option>
-                <option>Syncing</option>
-              </select>
-              <input type="text" placeholder="Search files..." />
-            </div>
-          </div>
+              <div className={styles.toolbar}>
+                <div className={styles.filters}>
+                  <select 
+                    value={locationFilter}
+                    onChange={(e) => setLocationFilter(e.target.value as TrackLocationState | 'all')}
+                  >
+                    <option value="all">All Files</option>
+                    <option value="complete">Synced</option>
+                    <option value="local_only">Local Only</option>
+                    <option value="cloud_only">Cloud Only</option>
+                    <option value="out_of_sync">Out of Sync</option>
+                    <option value="missing">Missing</option>
+                    <option value="not_mapped">Not Mapped</option>
+                  </select>
+                  <input 
+                    type="text" 
+                    placeholder="Search files..." 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+              </div>
 
-          <table className={styles.trackList}>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Location</th>
-                <th>Sync Status</th>
-                <th>Path</th>
-                <th>Last Updated</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-                  {folderDetails.tracks.map(track => {
-                const status = getStatusDisplay(track);
-                return (
-                  <tr key={track.id}>
-                    <td>{track.tags?.title || track.file_name}</td>
-                    <td>
-                      <span style={{ color: track.sync_operation ? 'var(--text-muted)' : status.color }}>
-                        <span className={styles.statusIcon}>{status.icon}</span>
-                        {status.text}
-                      </span>
-                    </td>
-                    <td>
-                      {track.sync_operation && (
-                        <span style={{ color: status.color }}>
-                          <span className={styles.statusIcon}>{status.icon}</span>
-                          {status.text}
-                        </span>
-                      )}
-                    </td>
-                    <td>{track.relative_path}</td>
-                    <td>{new Date(track.updated_at).toLocaleString()}</td>
-                    <td>
+              <table className={styles.trackList}>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Location</th>
+                    <th>Sync Status</th>
+                    <th>Path</th>
+                    <th>Last Updated</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTracks.map(track => {
+                    const status = getStatusDisplay(track);
+                    return (
+                      <tr key={track.id}>
+                        <td>{track.tags?.title || track.file_name}</td>
+                        <td>
+                          <span style={{ color: track.sync_operation ? 'var(--text-muted)' : status.color }}>
+                            <span className={styles.statusIcon}>{status.icon}</span>
+                            {status.text}
+                          </span>
+                        </td>
+                        <td>
+                          {track.sync_operation && (
+                            <span style={{ color: status.color }}>
+                              <span className={styles.statusIcon}>{status.icon}</span>
+                              {status.text}
+                            </span>
+                          )}
+                        </td>
+                        <td>{track.relative_path}</td>
+                        <td>{new Date(track.updated_at).toLocaleString()}</td>
+                        <td>
                           <button className={styles.actionButton}>
                             <FaEllipsisVertical />
                           </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filteredTracks.length === 0 && (
+                    <tr>
+                      <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                        No tracks match the current filters
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </>
           ) : (
             <div className={styles.noSelection}>
