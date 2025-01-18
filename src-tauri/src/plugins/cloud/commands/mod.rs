@@ -18,6 +18,7 @@ use crate::libs::constants::SUPPORTED_TRACKS_EXTENSIONS;
 use crate::libs::error::SyncudioError;
 use crate::plugins::cloud::CloudFile;
 use crate::{libs::error::AnyResult, plugins::db::DBState};
+use crate::libs::utils::normalize_relative_path;
 
 use super::models::cloud_track::{CloudTrack, CloudTrackMap};
 use super::{CloudFolder, CloudProvider, CloudProviderType, CloudState, CloudTracksMetadata};
@@ -70,7 +71,7 @@ pub async fn discover_cloud_folder_tracks(
     // Create a map of relative paths to cloud files for easier lookup
     let cloud_files_map: HashMap<String, CloudFile> = unprocessed_cloud_audio_files
         .into_iter()
-        .map(|file| (file.relative_path.clone(), file))
+        .map(|file| (normalize_relative_path(&file.relative_path), file))
         .collect();
 
     // Create a map of relative paths to local tracks for easier lookup
@@ -81,7 +82,7 @@ pub async fn discover_cloud_folder_tracks(
                 .path
                 .clone()
                 .strip_prefix(&folder.local_folder_path)
-                .map(|rel_path| (rel_path.to_string(), track))
+                .map(|rel_path| (normalize_relative_path(rel_path), track))
         })
         .collect();
 

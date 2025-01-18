@@ -33,7 +33,7 @@ export default function CloudFolderSelect({ providerType, onSelect, onCancel }: 
       setSelectedFolder(null);
 
       const files = folder 
-        ? await cloud.listFiles(providerType, folder.id, false)
+        ? await cloud.listFiles(providerType, folder.id, getFullPath(folder), false)
         : await cloud.listRootFiles(providerType, false);
 
       const folderFiles = files.filter(file => file.is_folder);

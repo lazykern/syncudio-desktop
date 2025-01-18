@@ -82,7 +82,7 @@ pub async fn get_cloud_folder_sync_details(
     let cloud_files_map: HashMap<String, CloudFile> = cloud_files
         .into_iter()
         .filter(|file| !file.is_folder)
-        .map(|file| (file.relative_path.clone(), file))
+        .map(|file| (normalize_relative_path(&file.relative_path), file))
         .collect();
 
     // 4. Get active sync operations
@@ -150,6 +150,7 @@ pub async fn get_cloud_folder_sync_details(
         ) {
             (true, true, Some(_), Some(_)) => TrackLocationState::Complete,
             (true, false, Some(_), _) => {
+                info!("Track local only: {:?} {:?} {:?}", folder.local_folder_path, folder.cloud_folder_path, local_path);
                 has_attention_needed = true;
                 TrackLocationState::LocalOnly
             }

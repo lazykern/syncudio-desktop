@@ -20,8 +20,8 @@ export const cloud = {
   },
 
   // Generic cloud operations
-  async listFiles(providerType: CloudProviderType, folderId: string, recursive = false): Promise<CloudFile[]> {
-    return invoke('plugin:cloud|cloud_list_files', { providerType, folderId, recursive });
+  async listFiles(providerType: CloudProviderType, folderId: string, folderPath: string, recursive = false): Promise<CloudFile[]> {
+    return invoke('plugin:cloud|cloud_list_files', { providerType, folderId, folderPath, recursive });
   },
 
   async listRootFiles(providerType: CloudProviderType, recursive = false): Promise<CloudFile[]> {
