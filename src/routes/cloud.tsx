@@ -18,6 +18,7 @@ import {
   RiCloudOffLine,
   RiRefreshLine,
 } from 'react-icons/ri';
+import * as Checkbox from '@radix-ui/react-checkbox';
 import type {
   CloudTrackDTO,
   CloudFolder,
@@ -30,7 +31,7 @@ import type {
   FolderSyncStatus,
 } from '../generated/typings';
 import { cloudSync } from '../lib/cloud-sync';
-import { useCloudFolders, useCloudFolderDetails, useQueueItems, useQueueStats, type FolderWithDetails } from '../hooks/useCloudQueries';
+import { useCloudFolders, useCloudFolderDetails, useQueueItems, useQueueStats, useSyncMutations, type FolderWithDetails } from '../hooks/useCloudQueries';
 import styles from './cloud.module.css';
 
 // Helper function to get provider icon
@@ -45,35 +46,9 @@ const getProviderIcon = (providerType: string) => {
   }
 };
 
-// Helper function to get status display info
-const getStatusDisplay = (track: CloudTrackDTO): { icon: JSX.Element; text: string; color: string } => {
-  // If track is currently syncing, show sync status
-  if (track.sync_operation && track.sync_status) {
-    if (track.sync_status === 'in_progress') {
-      return {
-        icon: track.sync_operation === 'upload' ? <RiUploadCloud2Line /> : <RiDownloadCloud2Line />,
-        text: track.sync_operation === 'upload' ? 'Uploading' : 'Downloading',
-        color: 'var(--info-color)',
-      };
-    }
-    if (track.sync_status === 'pending') {
-      return {
-        icon: <RiTimeLine />,
-        text: 'Queued',
-        color: 'var(--text-muted)',
-      };
-    }
-    if (typeof track.sync_status === 'object' && 'failed' in track.sync_status) {
-      return {
-        icon: <RiCloseLine />,
-        text: 'Failed',
-        color: 'var(--danger-color)',
-      };
-    }
-  }
-
-  // Otherwise show integrity status
-  switch (track.location_state) {
+// Helper function to get location display info
+const getLocationDisplay = (locationState: TrackLocationState): { icon: JSX.Element; text: string; color: string } => {
+  switch (locationState) {
     case 'complete':
       return { icon: <RiCheckLine />, text: 'Synced', color: 'var(--success-color)' };
     case 'local_only':
@@ -89,6 +64,34 @@ const getStatusDisplay = (track: CloudTrackDTO): { icon: JSX.Element; text: stri
     default:
       return { icon: <RiQuestionLine />, text: 'Unknown', color: 'var(--danger-color)' };
   }
+};
+
+// Helper function to get sync display info
+const getSyncDisplay = (operation: SyncOperationType | null, status: SyncStatus | null): { icon: JSX.Element; text: string; color: string } | null => {
+  if (!operation || !status) return null;
+
+  if (status === 'in_progress') {
+    return {
+      icon: operation === 'upload' ? <RiUploadCloud2Line /> : <RiDownloadCloud2Line />,
+      text: operation === 'upload' ? 'Uploading' : 'Downloading',
+      color: 'var(--info-color)',
+    };
+  }
+  if (status === 'pending') {
+    return {
+      icon: <RiTimeLine />,
+      text: 'Queued',
+      color: 'var(--text-muted)',
+    };
+  }
+  if (typeof status === 'object' && 'failed' in status) {
+    return {
+      icon: <RiCloseLine />,
+      text: 'Failed',
+      color: 'var(--danger-color)',
+    };
+  }
+  return null;
 };
 
 // Helper function to get folder status display
@@ -112,6 +115,7 @@ export default function ViewCloud() {
   const [activeQueueTab, setActiveQueueTab] = useState<QueueTab>('current');
   const [locationFilter, setLocationFilter] = useState<TrackLocationState | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTracks, setSelectedTracks] = useState<Set<string>>(new Set());
   
   // Use React Query hooks
   const { data: folders = [] } = useCloudFolders();
@@ -123,6 +127,7 @@ export default function ViewCloud() {
     completed_count: 0,
     failed_count: 0,
   } } = useQueueStats(selectedFolder || undefined);
+  const { uploadMutation, downloadMutation, isLoading: isSyncing } = useSyncMutations(selectedFolder || undefined);
 
   // Filter tracks based on location state and search query
   const filteredTracks = folderDetails?.tracks.filter(track => {
@@ -150,6 +155,105 @@ export default function ViewCloud() {
     return true;
   }) || [];
 
+  const handleTrackSelect = (trackId: string) => {
+    setSelectedTracks(prev => {
+      const next = new Set(prev);
+      if (next.has(trackId)) {
+        next.delete(trackId);
+      } else {
+        next.add(trackId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedTracks.size === filteredTracks.length) {
+      setSelectedTracks(new Set());
+    } else {
+      setSelectedTracks(new Set(filteredTracks.map(t => t.id)));
+    }
+  };
+
+  const handleSyncSelected = async () => {
+    if (selectedTracks.size === 0) return;
+    
+    // Group tracks by sync direction
+    const uploadTracks: string[] = [];
+    const downloadTracks: string[] = [];
+
+    // Get selected tracks from filteredTracks
+    const selectedTrackObjects = filteredTracks.filter(track => selectedTracks.has(track.id));
+
+    // Determine direction based on location_state
+    for (const track of selectedTrackObjects) {
+      switch (track.location_state) {
+        case 'local_only':
+          uploadTracks.push(track.id);
+          break;
+        case 'cloud_only':
+          downloadTracks.push(track.id);
+          break;
+        case 'out_of_sync':
+          // For out of sync, we prioritize local version
+          uploadTracks.push(track.id);
+          break;
+        // Skip complete, missing, and not_mapped states
+      }
+    }
+
+    try {
+      // Add tracks to appropriate queues
+      if (uploadTracks.length > 0) {
+        await uploadMutation.mutateAsync(uploadTracks);
+      }
+      if (downloadTracks.length > 0) {
+        await downloadMutation.mutateAsync(downloadTracks);
+      }
+      setSelectedTracks(new Set());
+    } catch (error) {
+      console.error('Failed to sync tracks:', error);
+      // Here you could add a toast notification for the error
+    }
+  };
+
+  const handleForceSyncAll = async () => {
+    if (selectedFolder && folderDetails) {
+      const uploadTracks: string[] = [];
+      const downloadTracks: string[] = [];
+
+      // Determine direction for all tracks
+      for (const track of folderDetails.tracks) {
+        switch (track.location_state) {
+          case 'local_only':
+            uploadTracks.push(track.id);
+            break;
+          case 'cloud_only':
+            downloadTracks.push(track.id);
+            break;
+          case 'out_of_sync':
+            // For out of sync, we prioritize local version
+            uploadTracks.push(track.id);
+            break;
+          // Skip complete, missing, and not_mapped states
+        }
+      }
+
+      try {
+        // Add tracks to appropriate queues
+        if (uploadTracks.length > 0) {
+          await uploadMutation.mutateAsync(uploadTracks);
+        }
+        if (downloadTracks.length > 0) {
+          await downloadMutation.mutateAsync(downloadTracks);
+        }
+      } catch (error) {
+        console.error('Failed to sync all tracks:', error);
+        // Here you could add a toast notification for the error
+      }
+    }
+  };
+
   // Filter queue items based on active tab
   const filteredQueueItems = queueItems.filter(item => {
     switch (activeQueueTab) {
@@ -163,13 +267,6 @@ export default function ViewCloud() {
         return false;
     }
   });
-
-  const handleForceSyncAll = async () => {
-    if (selectedFolder) {
-      await cloudSync.forceSyncFolder(selectedFolder);
-      // React Query will automatically refetch the data
-    }
-  };
 
   // Get the selected folder's status display
   const selectedFolderStatus = folderDetails 
@@ -194,12 +291,21 @@ export default function ViewCloud() {
           </div>
         </div>
         <div className={styles.actions}>
+          {selectedTracks.size > 0 && (
+            <button 
+              onClick={handleSyncSelected}
+              className={styles.syncButton}
+              disabled={isSyncing}
+            >
+              {isSyncing ? 'Syncing...' : `Sync Selected (${selectedTracks.size})`}
+            </button>
+          )}
           <button 
             onClick={handleForceSyncAll}
-            disabled={!selectedFolder}
+            disabled={!selectedFolder || isSyncing}
             className={styles.syncButton}
           >
-            Force Sync All
+            {isSyncing ? 'Syncing...' : 'Force Sync All'}
           </button>
         </div>
       </div>
@@ -240,8 +346,8 @@ export default function ViewCloud() {
         <div className={styles.main}>
           {selectedFolder && folderDetails ? (
             <>
-              <div className={styles.toolbar}>
-                <div className={styles.filters}>
+          <div className={styles.toolbar}>
+            <div className={styles.filters}>
                   <select 
                     value={locationFilter}
                     onChange={(e) => setLocationFilter(e.target.value as TrackLocationState | 'all')}
@@ -253,57 +359,80 @@ export default function ViewCloud() {
                     <option value="out_of_sync">Out of Sync</option>
                     <option value="missing">Missing</option>
                     <option value="not_mapped">Not Mapped</option>
-                  </select>
+              </select>
                   <input 
                     type="text" 
                     placeholder="Search files..." 
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
-                </div>
-              </div>
+            </div>
+          </div>
 
-              <table className={styles.trackList}>
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Location</th>
-                    <th>Sync Status</th>
-                    <th>Path</th>
-                    <th>Last Updated</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+          <table className={styles.trackList}>
+            <thead>
+              <tr>
+                <th>
+                  <Checkbox.Root
+                    className={styles.checkbox}
+                    checked={selectedTracks.size === filteredTracks.length && filteredTracks.length > 0}
+                    onCheckedChange={handleSelectAll}
+                  >
+                    <Checkbox.Indicator className={styles.checkboxIndicator}>
+                      <RiCheckLine />
+                    </Checkbox.Indicator>
+                  </Checkbox.Root>
+                </th>
+                <th>Name</th>
+                <th>Location</th>
+                <th>Sync Status</th>
+                <th>Path</th>
+                <th>Last Updated</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
                   {filteredTracks.map(track => {
-                    const status = getStatusDisplay(track);
-                    return (
-                      <tr key={track.id}>
-                        <td>{track.tags?.title || track.file_name}</td>
-                        <td>
-                          <span style={{ color: track.sync_operation ? 'var(--text-muted)' : status.color }}>
-                            <span className={styles.statusIcon}>{status.icon}</span>
-                            {status.text}
-                          </span>
-                        </td>
-                        <td>
-                          {track.sync_operation && (
-                            <span style={{ color: status.color }}>
-                              <span className={styles.statusIcon}>{status.icon}</span>
-                              {status.text}
-                            </span>
-                          )}
-                        </td>
-                        <td>{track.relative_path}</td>
-                        <td>{new Date(track.updated_at).toLocaleString()}</td>
-                        <td>
-                          <button className={styles.actionButton}>
-                            <FaEllipsisVertical />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                const locationDisplay = getLocationDisplay(track.location_state);
+                const syncDisplay = getSyncDisplay(track.sync_operation, track.sync_status);
+                return (
+                  <tr key={track.id}>
+                    <td>
+                      <Checkbox.Root
+                        className={styles.checkbox}
+                        checked={selectedTracks.has(track.id)}
+                        onCheckedChange={() => handleTrackSelect(track.id)}
+                      >
+                        <Checkbox.Indicator className={styles.checkboxIndicator}>
+                          <RiCheckLine />
+                        </Checkbox.Indicator>
+                      </Checkbox.Root>
+                    </td>
+                    <td>{track.tags?.title || track.file_name}</td>
+                    <td>
+                      <span style={{ color: locationDisplay.color }}>
+                        <span className={styles.statusIcon}>{locationDisplay.icon}</span>
+                        {locationDisplay.text}
+                      </span>
+                    </td>
+                    <td>
+                      {syncDisplay && (
+                        <span style={{ color: syncDisplay.color }}>
+                          <span className={styles.statusIcon}>{syncDisplay.icon}</span>
+                          {syncDisplay.text}
+                        </span>
+                      )}
+                    </td>
+                    <td>{track.relative_path}</td>
+                    <td>{new Date(track.updated_at).toLocaleString()}</td>
+                    <td>
+                      <button className={styles.actionButton}>
+                        <FaEllipsisVertical />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
                   {filteredTracks.length === 0 && (
                     <tr>
                       <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
@@ -311,8 +440,8 @@ export default function ViewCloud() {
                       </td>
                     </tr>
                   )}
-                </tbody>
-              </table>
+            </tbody>
+          </table>
             </>
           ) : (
             <div className={styles.noSelection}>

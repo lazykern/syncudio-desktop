@@ -446,4 +446,33 @@
 .folderStatus svg {
   width: 1em;
   height: 1em;
+}
+
+.checkbox {
+  all: unset;
+  background-color: var(--input-bg);
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+}
+
+.checkbox:hover {
+  background-color: var(--input-hover-bg);
+}
+
+.checkbox[data-state="checked"] {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.checkboxIndicator {
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 } 

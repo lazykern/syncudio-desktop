@@ -18,7 +18,7 @@ export type CloudTrack = { id: string, blake3_hash: string | null, cloud_file_id
 /**
  * Represents a track with its current sync and integrity status
  */
-export type CloudTrackDTO = { id: string, file_name: string, relative_path: string, location_state: TrackLocationState, sync_operation: SyncOperationType | null, sync_status: SyncStatus | null, updated_at: string, tags: CloudTrackTag | null, };
+export type CloudTrackDTO = { id: string, cloud_folder_id: string, cloud_track_map_id: string, file_name: string, relative_path: string, location_state: TrackLocationState, sync_operation: SyncOperationType | null, sync_status: SyncStatus | null, updated_at: string, tags: CloudTrackTag | null, };
 
 export type CloudTrackMap = { id: string, cloud_track_id: string, cloud_folder_id: string, relative_path: string, };
 
@@ -30,7 +30,7 @@ export type Config = { theme: string, audio_volume: number, audio_playback_rate:
 
 export type DefaultView = "Library" | "Playlists";
 
-export type DownloadQueueItem = { id: string, cloud_track_map_id: string, provider_type: string, size: number, status: string, error_message: string | null, created_at: string, updated_at: string, attempts: number, };
+export type DownloadQueueItem = { id: string, cloud_track_map_id: string, provider_type: string, status: string, error_message: string | null, created_at: string, updated_at: string, attempts: number, };
 
 export type FileHash = { "Sha1": string } | { "Sha256": string } | { "ContentHash": string };
 
@@ -104,6 +104,11 @@ export type TrackLocationState = "complete" | "local_only" | "cloud_only" | "out
 /**
  * Represents detailed sync information for a track
  */
-export type TrackSyncDetailsDTO = { track: CloudTrackDTO, sync_history: Array<SyncHistoryEntry>, current_operation: QueueItemDTO | null, };
+export type TrackSyncStatusDTO = {
+  location_state: TrackLocationState;
+  sync_operation: SyncOperationType | null;
+  sync_status: SyncStatus | null;
+  updated_at: string;
+};
 
-export type UploadQueueItem = { id: string, cloud_track_map_id: string, provider_type: string, size: number, status: string, error_message: string | null, created_at: string, updated_at: string, attempts: number, };
+export type UploadQueueItem = { id: string, cloud_track_map_id: string, provider_type: string, status: string, error_message: string | null, created_at: string, updated_at: string, attempts: number, };

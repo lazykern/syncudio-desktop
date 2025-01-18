@@ -66,6 +66,8 @@ pub enum FolderSyncStatus {
 #[ts(export, export_to = "../../src/generated/typings/index.ts")]
 pub struct CloudTrackDTO {
     pub id: String,
+    pub cloud_folder_id: String,
+    pub cloud_track_map_id: String,
     pub file_name: String,
     pub relative_path: String,
     pub location_state: TrackLocationState,
@@ -111,12 +113,13 @@ pub struct SyncHistoryEntry {
 }
 
 /// Represents detailed sync information for a track
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/generated/typings/index.ts")]
-pub struct TrackSyncDetailsDTO {
-    pub track: CloudTrackDTO,
-    pub sync_history: Vec<SyncHistoryEntry>,
-    pub current_operation: Option<QueueItemDTO>,
+pub struct TrackSyncStatusDTO {
+    pub location_state: TrackLocationState,
+    pub sync_operation: Option<SyncOperationType>,
+    pub sync_status: Option<SyncStatus>,
+    pub updated_at: DateTime<Utc>,
 }
 
 /// Represents detailed sync information for a cloud folder

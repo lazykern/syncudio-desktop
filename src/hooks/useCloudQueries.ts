@@ -1,6 +1,6 @@
-import { useQuery, useQueries } from '@tanstack/react-query';
+import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { cloudSync } from '../lib/cloud-sync';
-import type { CloudFolder, CloudFolderSyncDetailsDTO, QueueItemDTO, QueueStatsDTO } from '../generated/typings';
+import type { CloudFolder, CloudFolderSyncDetailsDTO, QueueItemDTO, QueueStatsDTO, TrackSyncStatusDTO } from '../generated/typings';
 import { cloudDatabase } from '../lib/cloud-database';
 
 // Query keys
@@ -9,6 +9,7 @@ export const cloudKeys = {
   folderDetails: (folderId: string | null) => ['cloud', 'folder', 'details', folderId] as const,
   queueItems: (folderId: string | undefined) => ['cloud', 'queue', 'items', folderId] as const,
   queueStats: (folderId: string | undefined) => ['cloud', 'queue', 'stats', folderId] as const,
+  trackSyncStatus: (trackId: string) => ['cloud', 'track', 'sync', trackId] as const,
 };
 
 // Types
@@ -67,4 +68,45 @@ export function useQueueStats(folderId: string | undefined) {
     queryFn: () => cloudSync.getQueueStats(folderId),
     refetchInterval: 5000, // Poll every 5 seconds
   });
+}
+
+export function useTrackSyncStatus(trackId: string) {
+  return useQuery<TrackSyncStatusDTO>({
+    queryKey: cloudKeys.trackSyncStatus(trackId),
+    queryFn: () => cloudSync.getTrackSyncStatus(trackId),
+    enabled: !!trackId,
+  });
+}
+
+export function useSyncMutations(folderId?: string) {
+  const queryClient = useQueryClient();
+
+  // Keys that need to be invalidated after sync operations
+  const invalidateKeys = [
+    ['cloudFolderDetails', folderId],
+    ['queueItems', folderId],
+    ['queueStats', folderId],
+  ];
+
+  const invalidateQueries = async () => {
+    await Promise.all(
+      invalidateKeys.map(key => queryClient.invalidateQueries({ queryKey: key }))
+    );
+  };
+
+  const uploadMutation = useMutation({
+    mutationFn: (trackIds: string[]) => cloudSync.addToUploadQueue(trackIds),
+    onSuccess: () => invalidateQueries(),
+  });
+
+  const downloadMutation = useMutation({
+    mutationFn: (trackIds: string[]) => cloudSync.addToDownloadQueue(trackIds),
+    onSuccess: () => invalidateQueries(),
+  });
+
+  return {
+    uploadMutation,
+    downloadMutation,
+    isLoading: uploadMutation.isPending || downloadMutation.isPending,
+  };
 } 

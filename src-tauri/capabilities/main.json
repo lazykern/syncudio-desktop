@@ -65,7 +65,14 @@
     "cloud:allow-delete-cloud-folder",
     "cloud:allow-discover-cloud-folder-tracks",
     "cloud:allow-sync-cloud-tracks-metadata",
-    "cloud:allow-get-cloud-folder-sync-details"
+    "cloud:allow-get-cloud-folder-sync-details",
+    "cloud:allow-get-queue-items",
+    "cloud:allow-get-queue-stats",
+    "cloud:allow-set-sync-paused",
+    "cloud:allow-retry-failed-items",
+    "cloud:allow-add-to-upload-queue",
+    "cloud:allow-add-to-download-queue",
+    "cloud:allow-get-track-sync-status"
   ],
   "platforms": [
     "linux",

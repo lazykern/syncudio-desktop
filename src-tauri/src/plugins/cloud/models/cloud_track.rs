@@ -53,7 +53,6 @@ pub struct CloudTrackMap {
     pub relative_path: String,
 }
 
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Model, TS)]
 #[ormlite(table = "cloud_tracks")]
 #[ts(export, export_to = "../../src/generated/typings/index.ts")]
