@@ -349,6 +349,14 @@ export default function ViewCloud() {
     overscan: 5,
   });
 
+  const handleCancelQueueItems = async (queueItemIds: string[]) => {
+    try {
+      await cloudSync.cancelQueueItems(queueItemIds);
+    } catch (error) {
+      console.error('Failed to cancel queue items:', error);
+    }
+  };
+
   return (
     <div className={styles.container}>
       {/* Header */}
@@ -381,7 +389,7 @@ export default function ViewCloud() {
             disabled={!selectedFolder || isSyncing}
             className={styles.syncButton}
           >
-            {isSyncing ? 'Syncing...' : 'Force Sync All'}
+            {isSyncing ? 'Syncing...' : 'Sync All'}
           </button>
         </div>
       </div>
@@ -445,7 +453,7 @@ export default function ViewCloud() {
                     <option value="in_progress">In Progress</option>
                     <option value="completed">Completed</option>
                     <option value="failed">Failed</option>
-                  </select>
+              </select>
                   <input 
                     type="text" 
                     placeholder="Search files..." 
@@ -491,7 +499,7 @@ export default function ViewCloud() {
                 >
                   {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                     const track = filteredTracks[virtualRow.index];
-                    return (
+                return (
                       <div
                         key={track.id}
                         style={{
@@ -508,8 +516,8 @@ export default function ViewCloud() {
                           onSelect={handleTrackSelect}
                         />
                       </div>
-                    );
-                  })}
+                );
+              })}
                 </div>
               </div>
             )}
@@ -540,11 +548,7 @@ export default function ViewCloud() {
             onClick={() => setActiveQueueTab('current')}
           >
             <span className={styles.queueTabIcon}>
-              {queueStats.in_progress_count > 0 ? (
-                <RiRefreshLine />
-              ) : (
-                <RiTimeLine />
-              )}
+              {queueStats.in_progress_count > 0 ? <RiRefreshLine /> : <RiTimeLine />}
             </span>
             Current ({queueStats.in_progress_count + queueStats.pending_count})
           </button>
@@ -552,55 +556,167 @@ export default function ViewCloud() {
             className={`${styles.queueTab} ${activeQueueTab === 'completed' ? styles.active : ''}`}
             onClick={() => setActiveQueueTab('completed')}
           >
-            <span className={styles.queueTabIcon}>
-              <RiCheckLine />
-            </span>
+            <span className={styles.queueTabIcon}><RiCheckLine /></span>
             Completed ({queueStats.completed_count})
           </button>
           <button 
             className={`${styles.queueTab} ${activeQueueTab === 'failed' ? styles.active : ''}`}
             onClick={() => setActiveQueueTab('failed')}
           >
-            <span className={styles.queueTabIcon}>
-              <RiCloseLine />
-            </span>
+            <span className={styles.queueTabIcon}><RiCloseLine /></span>
             Failed ({queueStats.failed_count})
           </button>
         </div>
-        <div className={styles.queueList}>
-          {filteredQueueItems.map(item => (
-            <div key={item.id} className={styles.queueItem}>
-              <span className={styles.queueItemName}>
-                {item.operation === 'upload' ? <RiUploadCloud2Line /> : <RiDownloadCloud2Line />} {item.file_name}
-              </span>
-              <span className={styles.queueItemStatus}>
-                {typeof item.status === 'object' && 'failed' in item.status ? (
-                  <span className={styles.queueItemError}>
-                    Failed: {item.status.failed.error} (Attempts: {item.status.failed.attempts})
-                  </span>
-                ) : item.status === 'in_progress' ? (
-                  <span className={styles.queueItemProgress}>
-                    <RiRefreshLine /> In Progress
-                  </span>
-                ) : item.status === 'completed' ? (
-                  <span className={styles.queueItemSuccess}>
-                    <RiCheckLine /> Completed
-                  </span>
-                ) : (
-                  <span className={styles.queueItemPending}>
-                    <RiTimeLine /> Pending
-                  </span>
-                )}
-              </span>
-            </div>
-          ))}
-          {filteredQueueItems.length === 0 && (
-            <div className={styles.queueEmpty}>
-              {activeQueueTab === 'current' && 'No active sync operations'}
-              {activeQueueTab === 'completed' && 'No completed sync operations'}
-              {activeQueueTab === 'failed' && 'No failed sync operations'}
-            </div>
+        <div className={styles.queueActions}>
+          {activeQueueTab === 'completed' && queueStats.completed_count > 0 && (
+            <button 
+              className={styles.queueActionButton}
+              onClick={() => cloudSync.clearCompletedQueue(selectedFolder || undefined)}
+            >
+              <RiCloseLine />
+              Clear Completed
+            </button>
           )}
+          {activeQueueTab === 'failed' && queueStats.failed_count > 0 && (
+            <>
+              <button 
+                className={styles.queueActionButton}
+                onClick={() => cloudSync.clearFailedQueue(selectedFolder || undefined)}
+              >
+                <RiCloseLine />
+                Clear Failed
+              </button>
+              <button 
+                className={styles.queueActionButton}
+                onClick={() => cloudSync.retryFailedQueue(selectedFolder || undefined)}
+              >
+                <RiRefreshLine />
+                Retry Failed
+              </button>
+            </>
+          )}
+        </div>
+        <div className={styles.queueList}>
+          <div className={styles.queueColumns}>
+            <div className={styles.queueColumn}>
+              <div className={styles.queueColumnHeader}>
+                <RiUploadCloud2Line /> Uploads
+              </div>
+              <div className={styles.queueColumnContent}>
+                {filteredQueueItems
+                  .filter(item => item.operation === 'upload')
+                  .map(item => (
+                    <div key={item.id} className={styles.queueItem}>
+                      <span className={styles.queueItemName}>
+                        <RiUploadCloud2Line /> {item.file_name}
+                        <span className={styles.queueItemDate} title="Created at">
+                          {new Date(item.created_at).toLocaleString()}
+                        </span>
+                      </span>
+                      <span className={styles.queueItemStatus}>
+                        {typeof item.status === 'object' && 'failed' in item.status ? (
+                          <span className={styles.queueItemError}>
+                            Failed: {item.status.failed.error} (Attempts: {item.status.failed.attempts})
+                          </span>
+                        ) : item.status === 'in_progress' ? (
+                          <span className={styles.queueItemProgress}>
+                            <RiRefreshLine /> In Progress
+                            <button 
+                              onClick={() => handleCancelQueueItems([item.id])}
+                              className={styles.cancelButton}
+                              title="Cancel sync"
+                            >
+                              <RiCloseLine />
+                            </button>
+                          </span>
+                        ) : item.status === 'completed' ? (
+                          <span className={styles.queueItemSuccess}>
+                            <RiCheckLine /> Completed
+                          </span>
+                        ) : (
+                          <span className={styles.queueItemPending}>
+                            <RiTimeLine /> Pending
+                            <button 
+                              onClick={() => handleCancelQueueItems([item.id])}
+                              className={styles.cancelButton}
+                              title="Cancel sync"
+                            >
+                              <RiCloseLine />
+                            </button>
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                {filteredQueueItems.filter(item => item.operation === 'upload').length === 0 && (
+                  <div className={styles.queueEmpty}>
+                    {activeQueueTab === 'current' && 'No active uploads'}
+                    {activeQueueTab === 'completed' && 'No completed uploads'}
+                    {activeQueueTab === 'failed' && 'No failed uploads'}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className={styles.queueColumn}>
+              <div className={styles.queueColumnHeader}>
+                <RiDownloadCloud2Line /> Downloads
+              </div>
+              <div className={styles.queueColumnContent}>
+                {filteredQueueItems
+                  .filter(item => item.operation === 'download')
+                  .map(item => (
+                    <div key={item.id} className={styles.queueItem}>
+                      <span className={styles.queueItemName}>
+                        <RiDownloadCloud2Line /> {item.file_name}
+                        <span className={styles.queueItemDate} title="Created at">
+                          {new Date(item.created_at).toLocaleString()}
+                        </span>
+                      </span>
+                      <span className={styles.queueItemStatus}>
+                        {typeof item.status === 'object' && 'failed' in item.status ? (
+                          <span className={styles.queueItemError}>
+                            Failed: {item.status.failed.error} (Attempts: {item.status.failed.attempts})
+                          </span>
+                        ) : item.status === 'in_progress' ? (
+                          <span className={styles.queueItemProgress}>
+                            <RiRefreshLine /> In Progress
+                            <button 
+                              onClick={() => handleCancelQueueItems([item.id])}
+                              className={styles.cancelButton}
+                              title="Cancel sync"
+                            >
+                              <RiCloseLine />
+                            </button>
+                          </span>
+                        ) : item.status === 'completed' ? (
+                          <span className={styles.queueItemSuccess}>
+                            <RiCheckLine /> Completed
+                          </span>
+                        ) : (
+                          <span className={styles.queueItemPending}>
+                            <RiTimeLine /> Pending
+                            <button 
+                              onClick={() => handleCancelQueueItems([item.id])}
+                              className={styles.cancelButton}
+                              title="Cancel sync"
+                            >
+                              <RiCloseLine />
+                            </button>
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                {filteredQueueItems.filter(item => item.operation === 'download').length === 0 && (
+                  <div className={styles.queueEmpty}>
+                    {activeQueueTab === 'current' && 'No active downloads'}
+                    {activeQueueTab === 'completed' && 'No completed downloads'}
+                    {activeQueueTab === 'failed' && 'No failed downloads'}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
