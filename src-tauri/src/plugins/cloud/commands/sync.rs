@@ -112,8 +112,9 @@ pub async fn get_cloud_folder_sync_details(
 
     for track in tracks {
         let map = CloudTrackMap::select()
-            .where_("cloud_track_id = ?")
+            .where_("cloud_track_id = ? AND cloud_folder_id = ?")
             .bind(&track.id)
+            .bind(&folder_id)
             .fetch_optional(&mut db.connection)
             .await?;
 
