@@ -3,7 +3,6 @@ use lofty::error::LoftyError;
 use serde::{ser::Serializer, Serialize};
 use thiserror::Error;
 use std::path::StripPrefixError;
-use tracing::{error as log_error, warn};
 
 /**
  * Create the error type that represents all errors possible in our program
@@ -92,16 +91,5 @@ impl<T: std::fmt::Debug> From<dropbox_sdk::Error<T>> for SyncudioError {
 impl From<StripPrefixError> for SyncudioError {
     fn from(error: StripPrefixError) -> Self {
         SyncudioError::Path(error.to_string())
-    }
-}
-
-impl From<anyhow::Error> for SyncudioError {
-    fn from(error: anyhow::Error) -> Self {
-        // Log the full error chain to console
-        log_error!("Error occurred: {:#}", error);
-        if let Some(bt) = error.backtrace() {
-            log_error!("Backtrace:\n{}", bt);
-        }
-        SyncudioError::Unknown(error)
     }
 }
