@@ -238,16 +238,16 @@ export default function SettingsCloud() {
                       onClick={async () => {
                         try {
                           await cloudDatabase.discoverCloudFolderTracks(folder);
-                          await cloudDatabase.syncCloudTracksMetadata(folder.provider_type as CloudProviderType);
-                          toastsAPI.add('success', 'Folder sync completed successfully');
+                          // await cloudDatabase.syncCloudTracksMetadata(folder.provider_type as CloudProviderType);
+                          toastsAPI.add('success', 'Folder fetch  completed successfully');
                         } catch (error) {
-                          console.error('Failed to sync folder:', error);
-                          toastsAPI.add('danger', 'Failed to sync folder. Please try again.');
+                          console.error('Failed to fetch folder:', error);
+                          toastsAPI.add('danger', 'Failed to fetch folder. Please try again.');
                         }
                       }}
                       bSize="small"
                     >
-                      Sync
+                      Fetch
                     </Button>
                   </Flexbox>
                 </li>
