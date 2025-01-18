@@ -477,6 +477,7 @@ pub async fn get_track_sync_status(
 #[tauri::command]
 pub async fn add_to_upload_queue(
     track_ids: Vec<String>,
+    priority: Option<i32>,
     db_state: State<'_, DBState>,
 ) -> AnyResult<()> {
     let mut db = db_state.get_lock().await;
@@ -527,6 +528,7 @@ pub async fn add_to_upload_queue(
         // Create upload queue item
         let upload_item = UploadQueueItem {
             id: Uuid::new_v4().to_string(),
+            priority: 0,
             cloud_track_map_id: track_map.id,
             provider_type: folder.provider_type,
             status: "pending".to_string(),
@@ -546,6 +548,7 @@ pub async fn add_to_upload_queue(
 #[tauri::command]
 pub async fn add_to_download_queue(
     track_ids: Vec<String>,
+    priority: Option<i32>,
     db_state: State<'_, DBState>,
 ) -> AnyResult<()> {
     let mut db = db_state.get_lock().await;
@@ -596,6 +599,7 @@ pub async fn add_to_download_queue(
         // Create download queue item
         let download_item = DownloadQueueItem {
             id: Uuid::new_v4().to_string(),
+            priority: 0,
             cloud_track_map_id: track_map.id,
             provider_type: folder.provider_type,
             status: "pending".to_string(),

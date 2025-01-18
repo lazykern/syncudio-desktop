@@ -37,15 +37,15 @@ export const cloudSync = {
   /**
    * Add tracks to the upload queue
    */
-  async addToUploadQueue(trackIds: string[]): Promise<void> {
-    return invoke('plugin:cloud|add_to_upload_queue', { trackIds });
+  async addToUploadQueue(trackIds: string[], priority?: number): Promise<void> {
+    return invoke('plugin:cloud|add_to_upload_queue', { trackIds, priority });
   },
 
   /**
    * Add tracks to the download queue
    */
-  async addToDownloadQueue(trackIds: string[]): Promise<void> {
-    return invoke('plugin:cloud|add_to_download_queue', { trackIds });
+  async addToDownloadQueue(trackIds: string[], priority?: number): Promise<void> {
+    return invoke('plugin:cloud|add_to_download_queue', { trackIds, priority });
   },
 
   /**
@@ -67,5 +67,33 @@ export const cloudSync = {
    */
   async getTrackSyncStatus(trackId: string): Promise<TrackSyncStatusDTO> {
     return invoke('plugin:cloud|get_track_sync_status', { trackId });
+  },
+
+  /**
+   * Clear completed queue items
+   */
+  async clearCompletedQueue(folderId?: string): Promise<void> {
+    return invoke('plugin:cloud|clear_completed_queue', { folderId });
+  },
+
+  /**
+   * Clear failed queue items
+   */
+  async clearFailedQueue(folderId?: string): Promise<void> {
+    return invoke('plugin:cloud|clear_failed_queue', { folderId });
+  },
+
+  /**
+   * Retry failed queue items
+   */
+  async retryFailedQueue(folderId?: string): Promise<void> {
+    return invoke('plugin:cloud|retry_failed_queue', { folderId });
+  },
+
+  /**
+   * Cancel sync queue items
+   */
+  async cancelQueueItems(queueItemIds: string[]): Promise<void> {
+    return invoke('plugin:cloud|cancel_queue_items', { queueItemIds });
   },
 };
