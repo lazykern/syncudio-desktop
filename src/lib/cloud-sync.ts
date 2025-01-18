@@ -37,15 +37,15 @@ export const cloudSync = {
   /**
    * Add tracks to the upload queue
    */
-  async addToUploadQueue(trackIds: string[], priority?: number): Promise<void> {
-    return invoke('plugin:cloud|add_to_upload_queue', { trackIds, priority });
+  async addToUploadQueue(trackIds: string[], folderId: string, priority?: number): Promise<void> {
+    return invoke('plugin:cloud|add_to_upload_queue', { trackIds, folderId, priority });
   },
 
   /**
    * Add tracks to the download queue
    */
-  async addToDownloadQueue(trackIds: string[], priority?: number): Promise<void> {
-    return invoke('plugin:cloud|add_to_download_queue', { trackIds, priority });
+  async addToDownloadQueue(trackIds: string[], folderId: string, priority?: number): Promise<void> {
+    return invoke('plugin:cloud|add_to_download_queue', { trackIds, folderId, priority });
   },
 
   /**

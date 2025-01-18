@@ -49,8 +49,8 @@ export function useCloudFolders() {
 export function useCloudFolderDetails(folderId: string | null) {
   return useQuery<CloudFolderSyncDetailsDTO>({
     queryKey: cloudKeys.folderDetails(folderId),
-    queryFn: () => (folderId ? cloudSync.getCloudFolderSyncDetails(folderId) : Promise.reject('No folder selected')),
-    enabled: !!folderId,
+    queryFn: () => folderId ? cloudSync.getCloudFolderSyncDetails(folderId) : Promise.reject('No folder selected'),
+    enabled: Boolean(folderId),
   });
 }
 
@@ -103,12 +103,14 @@ export function useSyncMutations(folderId?: string) {
   };
 
   const uploadMutation = useMutation({
-    mutationFn: (trackIds: string[]) => cloudSync.addToUploadQueue(trackIds),
+    mutationFn: ({ trackIds, folderId, priority }: { trackIds: string[], folderId: string, priority?: number }) => 
+      cloudSync.addToUploadQueue(trackIds, folderId, priority),
     onSuccess: () => invalidateQueries(),
   });
 
   const downloadMutation = useMutation({
-    mutationFn: (trackIds: string[]) => cloudSync.addToDownloadQueue(trackIds),
+    mutationFn: ({ trackIds, folderId, priority }: { trackIds: string[], folderId: string, priority?: number }) => 
+      cloudSync.addToDownloadQueue(trackIds, folderId, priority),
     onSuccess: () => invalidateQueries(),
   });
 
