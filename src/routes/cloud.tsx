@@ -169,7 +169,7 @@ export default function ViewCloud() {
   const [locationFilter, setLocationFilter] = useState<TrackLocationState | 'all'>('all');
   const [syncStatusFilter, setSyncStatusFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed' | 'failed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTracks, setSelectedTracks] = useState<Set<string>>(new Set());
+  const [selectedTracks, setSelectedTracks] = useState<Map<string, Set<string>>>(new Map());
   
   // Use React Query hooks
   const { data: folders = [] } = useCloudFolders();
@@ -183,74 +183,101 @@ export default function ViewCloud() {
   } } = useQueueStats(selectedFolder || undefined);
   const { uploadMutation, downloadMutation, isLoading: isSyncing } = useSyncMutations(selectedFolder || undefined);
 
-  // Filter tracks based on location state, sync status, and search query
-  const filteredTracks = folderDetails?.tracks.filter(track => {
-    // Apply location filter
-    if (locationFilter !== 'all' && track.location_state !== locationFilter) {
-      return false;
-    }
+  // Get current folder's selected tracks
+  const currentSelectedTracks = useMemo(() => 
+    selectedFolder ? selectedTracks.get(selectedFolder) || new Set() : new Set(),
+    [selectedFolder, selectedTracks]
+  );
 
-    // Apply sync status filter
-    if (syncStatusFilter !== 'all') {
-      if (!track.sync_status) return false;
-      
-      if (syncStatusFilter === 'failed') {
-        if (typeof track.sync_status !== 'object' || !('failed' in track.sync_status)) {
-          return false;
-        }
-      } else if (track.sync_status !== syncStatusFilter) {
+  // Filter tracks based on location state, sync status, and search query
+  const filteredTracks = useMemo(() => 
+    folderDetails?.tracks.filter(track => {
+      // Apply location filter
+      if (locationFilter !== 'all' && track.location_state !== locationFilter) {
         return false;
       }
-    }
 
-    // Apply search filter
-    if (searchQuery) {
-      const searchLower = searchQuery.toLowerCase();
-      const fileName = track.file_name.toLowerCase();
-      const relativePath = track.relative_path.toLowerCase();
-      const title = track.tags?.title?.toLowerCase() || '';
-      const album = track.tags?.album?.toLowerCase() || '';
-      const artists = track.tags?.artists?.join(' ').toLowerCase() || '';
+      // Apply sync status filter
+      if (syncStatusFilter !== 'all') {
+        if (!track.sync_status) return false;
+        
+        if (syncStatusFilter === 'failed') {
+          if (typeof track.sync_status !== 'object' || !('failed' in track.sync_status)) {
+            return false;
+          }
+        } else if (track.sync_status !== syncStatusFilter) {
+          return false;
+        }
+      }
 
-      return fileName.includes(searchLower) ||
-        relativePath.includes(searchLower) ||
-        title.includes(searchLower) ||
-        album.includes(searchLower) ||
-        artists.includes(searchLower);
-    }
+      // Apply search filter
+      if (searchQuery) {
+        const searchLower = searchQuery.toLowerCase();
+        const fileName = track.file_name.toLowerCase();
+        const relativePath = track.relative_path.toLowerCase();
+        const title = track.tags?.title?.toLowerCase() || '';
+        const album = track.tags?.album?.toLowerCase() || '';
+        const artists = track.tags?.artists?.join(' ').toLowerCase() || '';
 
-    return true;
-  }) || [];
+        return fileName.includes(searchLower) ||
+          relativePath.includes(searchLower) ||
+          title.includes(searchLower) ||
+          album.includes(searchLower) ||
+          artists.includes(searchLower);
+      }
+
+      return true;
+    }) || [],
+    [folderDetails?.tracks, locationFilter, syncStatusFilter, searchQuery]
+  );
 
   const handleTrackSelect = (trackId: string) => {
+    if (!selectedFolder) return;
+    
     setSelectedTracks(prev => {
-      const next = new Set(prev);
-      if (next.has(trackId)) {
-        next.delete(trackId);
+      const next = new Map(prev);
+      const folderTracks = new Set(prev.get(selectedFolder) || []);
+      
+      if (folderTracks.has(trackId)) {
+        folderTracks.delete(trackId);
       } else {
-        next.add(trackId);
+        folderTracks.add(trackId);
+      }
+      
+      if (folderTracks.size > 0) {
+        next.set(selectedFolder, folderTracks);
+      } else {
+        next.delete(selectedFolder);
       }
       return next;
     });
   };
 
   const handleSelectAll = () => {
-    if (selectedTracks.size === filteredTracks.length) {
-      setSelectedTracks(new Set());
-    } else {
-      setSelectedTracks(new Set(filteredTracks.map(t => t.id)));
-    }
+    if (!selectedFolder || !filteredTracks) return;
+    
+    setSelectedTracks(prev => {
+      const next = new Map(prev);
+      const folderTracks = prev.get(selectedFolder);
+      
+      if (folderTracks?.size === filteredTracks.length) {
+        next.delete(selectedFolder);
+      } else {
+        next.set(selectedFolder, new Set(filteredTracks.map(t => t.id)));
+      }
+      return next;
+    });
   };
 
   const handleSyncSelected = async () => {
-    if (selectedTracks.size === 0) return;
+    if (!selectedFolder || currentSelectedTracks.size === 0) return;
     
     // Group tracks by sync direction
     const uploadTracks: string[] = [];
     const downloadTracks: string[] = [];
 
     // Get selected tracks from filteredTracks
-    const selectedTrackObjects = filteredTracks.filter(track => selectedTracks.has(track.id));
+    const selectedTrackObjects = filteredTracks.filter(track => currentSelectedTracks.has(track.id));
 
     // Determine direction based on location_state
     for (const track of selectedTrackObjects) {
@@ -272,12 +299,12 @@ export default function ViewCloud() {
     try {
       // Add tracks to appropriate queues
       if (uploadTracks.length > 0) {
-        await uploadMutation.mutateAsync(uploadTracks);
+        await uploadMutation.mutateAsync({ trackIds: uploadTracks, folderId: selectedFolder, priority: 0 });
       }
       if (downloadTracks.length > 0) {
-        await downloadMutation.mutateAsync(downloadTracks);
+        await downloadMutation.mutateAsync({ trackIds: downloadTracks, folderId: selectedFolder, priority: 0 });
       }
-      setSelectedTracks(new Set());
+      setSelectedTracks(new Map());
     } catch (error) {
       console.error('Failed to sync tracks:', error);
       // Here you could add a toast notification for the error
@@ -309,10 +336,10 @@ export default function ViewCloud() {
       try {
         // Add tracks to appropriate queues
         if (uploadTracks.length > 0) {
-          await uploadMutation.mutateAsync(uploadTracks);
+          await uploadMutation.mutateAsync({ trackIds: uploadTracks, folderId: selectedFolder, priority: 0 });
         }
         if (downloadTracks.length > 0) {
-          await downloadMutation.mutateAsync(downloadTracks);
+          await downloadMutation.mutateAsync({ trackIds: downloadTracks, folderId: selectedFolder, priority: 0 });
         }
       } catch (error) {
         console.error('Failed to sync all tracks:', error);
@@ -357,6 +384,11 @@ export default function ViewCloud() {
     }
   };
 
+  // Update folder selection to clear selection when changing folders
+  const handleFolderSelect = (folderId: string) => {
+    setSelectedFolder(folderId);
+  };
+
   return (
     <div className={styles.container}>
       {/* Header */}
@@ -375,13 +407,13 @@ export default function ViewCloud() {
           </div>
         </div>
         <div className={styles.actions}>
-          {selectedTracks.size > 0 && (
+          {currentSelectedTracks.size > 0 && (
             <button 
               onClick={handleSyncSelected}
               className={styles.syncButton}
               disabled={isSyncing}
             >
-              {isSyncing ? 'Syncing...' : `Sync Selected (${selectedTracks.size})`}
+              {isSyncing ? 'Syncing...' : `Sync Selected (${currentSelectedTracks.size})`}
             </button>
           )}
           <button 
@@ -406,7 +438,7 @@ export default function ViewCloud() {
               <li
                 key={folder.id}
                   className={`${styles.folderItem} ${selectedFolder === folder.id ? styles.selected : ''}`}
-                onClick={() => setSelectedFolder(folder.id)}
+                onClick={() => handleFolderSelect(folder.id)}
               >
                   <span className={styles.folderIcon}>
                     {getProviderIcon(folder.provider_type)}
@@ -468,7 +500,7 @@ export default function ViewCloud() {
               <div className={styles.headerCell}>
                 <Checkbox.Root
                   className={styles.checkbox}
-                  checked={selectedTracks.size === filteredTracks.length && filteredTracks.length > 0}
+                  checked={currentSelectedTracks.size === filteredTracks.length && filteredTracks.length > 0}
                   onCheckedChange={handleSelectAll}
                 >
                   <Checkbox.Indicator className={styles.checkboxIndicator}>
@@ -512,7 +544,7 @@ export default function ViewCloud() {
                       >
                         <VirtualRow
                           track={track}
-                          isSelected={selectedTracks.has(track.id)}
+                          isSelected={currentSelectedTracks.has(track.id)}
                           onSelect={handleTrackSelect}
                         />
                       </div>
