@@ -1,4 +1,4 @@
-import React, { JSX, useState } from 'react';
+import React, { JSX, useState, useCallback, useRef, memo, useMemo } from 'react';
 import {
   FaDropbox,
   FaGoogleDrive,
@@ -33,6 +33,7 @@ import type {
 import { cloudSync } from '../lib/cloud-sync';
 import { useCloudFolders, useCloudFolderDetails, useQueueItems, useQueueStats, useSyncMutations, type FolderWithDetails } from '../hooks/useCloudQueries';
 import styles from './cloud.module.css';
+import { useVirtualizer } from '@tanstack/react-virtual';
 
 // Helper function to get provider icon
 const getProviderIcon = (providerType: string) => {
@@ -109,6 +110,58 @@ const getFolderStatusDisplay = (status: FolderSyncStatus): { icon: JSX.Element; 
 };
 
 type QueueTab = 'current' | 'completed' | 'failed';
+
+// Create a virtualized row component
+const VirtualRow = memo(function VirtualRow({ 
+  track, 
+  isSelected, 
+  onSelect 
+}: { 
+  track: CloudTrackDTO; 
+  isSelected: boolean; 
+  onSelect: (id: string) => void;
+}) {
+  const locationDisplay = useMemo(() => getLocationDisplay(track.location_state), [track.location_state]);
+  const syncDisplay = useMemo(() => getSyncDisplay(track.sync_operation, track.sync_status), [track.sync_operation, track.sync_status]);
+
+  return (
+    <div className={styles.virtualRow}>
+      <div className={styles.cell}>
+        <Checkbox.Root
+          className={styles.checkbox}
+          checked={isSelected}
+          onCheckedChange={() => onSelect(track.id)}
+        >
+          <Checkbox.Indicator className={styles.checkboxIndicator}>
+            <RiCheckLine />
+          </Checkbox.Indicator>
+        </Checkbox.Root>
+      </div>
+      <div className={styles.cell}>{track.tags?.title || track.file_name}</div>
+      <div className={styles.cell}>
+        <span style={{ color: locationDisplay.color }}>
+          <span className={styles.statusIcon}>{locationDisplay.icon}</span>
+          {locationDisplay.text}
+        </span>
+      </div>
+      <div className={styles.cell}>
+        {syncDisplay && (
+          <span style={{ color: syncDisplay.color }}>
+            <span className={styles.statusIcon}>{syncDisplay.icon}</span>
+            {syncDisplay.text}
+          </span>
+        )}
+      </div>
+      <div className={styles.cell}>{track.relative_path}</div>
+      <div className={styles.cell}>{new Date(track.updated_at).toLocaleString()}</div>
+      <div className={styles.cell}>
+        <button className={styles.actionButton}>
+          <FaEllipsisVertical />
+        </button>
+      </div>
+    </div>
+  );
+});
 
 export default function ViewCloud() {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
@@ -273,6 +326,15 @@ export default function ViewCloud() {
     ? getFolderStatusDisplay(folderDetails.sync_status)
     : { icon: '', text: 'Select a folder', color: 'var(--text-muted)' };
 
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const rowVirtualizer = useVirtualizer({
+    count: filteredTracks.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 48,
+    overscan: 5,
+  });
+
   return (
     <div className={styles.container}>
       {/* Header */}
@@ -369,79 +431,65 @@ export default function ViewCloud() {
             </div>
           </div>
 
-          <table className={styles.trackList}>
-            <thead>
-              <tr>
-                <th>
-                  <Checkbox.Root
-                    className={styles.checkbox}
-                    checked={selectedTracks.size === filteredTracks.length && filteredTracks.length > 0}
-                    onCheckedChange={handleSelectAll}
-                  >
-                    <Checkbox.Indicator className={styles.checkboxIndicator}>
-                      <RiCheckLine />
-                    </Checkbox.Indicator>
-                  </Checkbox.Root>
-                </th>
-                <th>Name</th>
-                <th>Location</th>
-                <th>Sync Status</th>
-                <th>Path</th>
-                <th>Last Updated</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-                  {filteredTracks.map(track => {
-                const locationDisplay = getLocationDisplay(track.location_state);
-                const syncDisplay = getSyncDisplay(track.sync_operation, track.sync_status);
-                return (
-                  <tr key={track.id}>
-                    <td>
-                      <Checkbox.Root
-                        className={styles.checkbox}
-                        checked={selectedTracks.has(track.id)}
-                        onCheckedChange={() => handleTrackSelect(track.id)}
+          <div className={styles.trackList}>
+            <div className={styles.tableHeader}>
+              <div className={styles.headerCell}>
+                <Checkbox.Root
+                  className={styles.checkbox}
+                  checked={selectedTracks.size === filteredTracks.length && filteredTracks.length > 0}
+                  onCheckedChange={handleSelectAll}
+                >
+                  <Checkbox.Indicator className={styles.checkboxIndicator}>
+                    <RiCheckLine />
+                  </Checkbox.Indicator>
+                </Checkbox.Root>
+              </div>
+              <div className={styles.headerCell}>Name</div>
+              <div className={styles.headerCell}>Location</div>
+              <div className={styles.headerCell}>Sync Status</div>
+              <div className={styles.headerCell}>Path</div>
+              <div className={styles.headerCell}>Last Updated</div>
+              <div className={styles.headerCell}>Actions</div>
+            </div>
+
+            {filteredTracks.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                No tracks match the current filters
+              </div>
+            ) : (
+              <div className={styles.trackListContainer} ref={parentRef}>
+                <div
+                  style={{
+                    height: `${rowVirtualizer.getTotalSize()}px`,
+                    width: '100%',
+                    position: 'relative',
+                  }}
+                >
+                  {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                    const track = filteredTracks[virtualRow.index];
+                    return (
+                      <div
+                        key={track.id}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          transform: `translateY(${virtualRow.start}px)`,
+                        }}
                       >
-                        <Checkbox.Indicator className={styles.checkboxIndicator}>
-                          <RiCheckLine />
-                        </Checkbox.Indicator>
-                      </Checkbox.Root>
-                    </td>
-                    <td>{track.tags?.title || track.file_name}</td>
-                    <td>
-                      <span style={{ color: locationDisplay.color }}>
-                        <span className={styles.statusIcon}>{locationDisplay.icon}</span>
-                        {locationDisplay.text}
-                      </span>
-                    </td>
-                    <td>
-                      {syncDisplay && (
-                        <span style={{ color: syncDisplay.color }}>
-                          <span className={styles.statusIcon}>{syncDisplay.icon}</span>
-                          {syncDisplay.text}
-                        </span>
-                      )}
-                    </td>
-                    <td>{track.relative_path}</td>
-                    <td>{new Date(track.updated_at).toLocaleString()}</td>
-                    <td>
-                      <button className={styles.actionButton}>
-                        <FaEllipsisVertical />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-                  {filteredTracks.length === 0 && (
-                    <tr>
-                      <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                        No tracks match the current filters
-                      </td>
-                    </tr>
-                  )}
-            </tbody>
-          </table>
+                        <VirtualRow
+                          track={track}
+                          isSelected={selectedTracks.has(track.id)}
+                          onSelect={handleTrackSelect}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
             </>
           ) : (
             <div className={styles.noSelection}>
