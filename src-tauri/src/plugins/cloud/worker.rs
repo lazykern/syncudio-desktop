@@ -20,8 +20,8 @@ pub enum WorkerState {
 pub struct SyncWorker<R: Runtime> {
     app_handle: Arc<AppHandle<R>>,
     state: Arc<Mutex<WorkerState>>,
-    upload_handle: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
-    download_handle: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
+    upload_handle: Arc<Mutex<Option<tauri::async_runtime::JoinHandle<()>>>>,
+    download_handle: Arc<Mutex<Option<tauri::async_runtime::JoinHandle<()>>>>,
 }
 
 impl<R: Runtime> SyncWorker<R> {
@@ -84,7 +84,7 @@ impl<R: Runtime> SyncWorker<R> {
         let upload_worker = {
             let app_handle = app_handle.clone();
             let state = state.clone();
-            tokio::spawn(async move {
+            tauri::async_runtime::spawn(async move {
                 loop {
                     if *state.lock().await == WorkerState::Stopped {
                         break;
@@ -108,7 +108,7 @@ impl<R: Runtime> SyncWorker<R> {
         let download_worker = {
             let app_handle = app_handle.clone();
             let state = state.clone();
-            tokio::spawn(async move {
+            tauri::async_runtime::spawn(async move {
                 loop {
                     if *state.lock().await == WorkerState::Stopped {
                         break;
