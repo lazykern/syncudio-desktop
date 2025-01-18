@@ -5,10 +5,7 @@ pub use dropbox::*;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::libs::{
-    error::{AnyResult, SyncudioError},
-    track::Track,
-};
+use crate::libs::error::{AnyResult, SyncudioError};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "lowercase")]

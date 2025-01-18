@@ -2,12 +2,10 @@
  * Small utility to display time metrics with a log message
  */
 use log::info;
-use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::{ffi::OsStr, time::Instant};
 use tauri::Theme;
 use walkdir::WalkDir;
-use blake3::Hash;
 
 use crate::plugins::config::SYSTEM_THEME;
 

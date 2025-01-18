@@ -1,6 +1,6 @@
 use log::{error, info};
 use ormlite::sqlite::{SqliteConnectOptions, SqliteConnection};
-use ormlite::{Connection, Model, TableMeta};
+use ormlite::{Connection, TableMeta};
 use tauri::plugin::{Builder, TauriPlugin};
 use tauri::{Manager, Runtime, State};
 use tokio::sync::{Mutex, MutexGuard};

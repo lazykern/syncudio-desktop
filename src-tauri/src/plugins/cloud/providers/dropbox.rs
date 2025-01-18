@@ -1,18 +1,17 @@
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::DateTime;
 use dropbox_sdk::{
     default_client::{NoauthDefaultClient, UserAuthDefaultClient},
-    files::{self, CreateFolderArg, FileMetadata, FolderMetadata, ListFolderArg, ListFolderResult},
+    files::{self},
     oauth2::{Authorization, AuthorizeUrlBuilder, Oauth2Type, PkceCode},
 };
-use log::{error, info, warn};
+use log::info;
 use mime_guess::from_path;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
 use tokio::sync::Mutex;
-use uuid::Uuid;
 
 use crate::plugins::cloud::providers::CloudProviderType;
 use crate::plugins::cloud::CloudProvider;

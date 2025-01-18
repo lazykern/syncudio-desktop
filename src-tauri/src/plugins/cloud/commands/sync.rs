@@ -1,11 +1,11 @@
 use log::info;
 use ormlite::Model;
-use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use std::collections::HashMap;
+use std::path::Path;
 use tauri::State;
 
 use crate::{
-    libs::error::{AnyResult, SyncudioError},
+    libs::error::AnyResult,
     plugins::{
         cloud::{
             models::{

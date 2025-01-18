@@ -1,13 +1,6 @@
-use ormlite::model::ModelBuilder;
 use ormlite::sqlite::SqliteConnection;
-use ormlite::Model;
-use std::collections::HashMap;
-use std::path::PathBuf;
 
 use crate::libs::error::AnyResult;
-use crate::libs::playlist::Playlist;
-use crate::libs::track::Track;
-use crate::libs::utils::TimeLogger;
 
 /// Core database struct that holds the SQLite connection
 pub struct DB {

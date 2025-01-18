@@ -5,7 +5,7 @@ mod sync;
 use std::collections::HashMap;
 use std::fs::File;
 use std::time::UNIX_EPOCH;
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::DateTime;
 use uuid::Uuid;
 
 pub use database::*;

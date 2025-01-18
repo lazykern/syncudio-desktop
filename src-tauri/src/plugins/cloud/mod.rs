@@ -2,7 +2,6 @@ mod commands;
 mod models;
 mod providers;
 mod database;
-use log::error;
 use tauri::plugin::{Builder, TauriPlugin};
 use tauri::{Manager, Runtime};
 
