@@ -10,6 +10,7 @@ use tauri::AppHandle;
 use tauri::Error;
 
 use crate::libs::error::SyncudioError;
+use crate::libs::utils::blake3_hash;
 use crate::plugins::cloud;
 use crate::plugins::cloud::CloudProvider;
 use crate::plugins::cloud::CloudProviderType;
@@ -660,6 +661,7 @@ pub async fn add_to_download_queue(
 pub async fn reset_in_progress_items(
     db_state: State<'_, DBState>,
 ) -> AnyResult<()> {
+    info!("Resetting in-progress items to pending state");
     let mut db = db_state.get_lock().await;
 
     // Reset any items stuck in "in_progress" state back to "pending"
@@ -668,7 +670,9 @@ pub async fn reset_in_progress_items(
         .fetch_all(&mut db.connection)
         .await?;
 
+    info!("Found {} upload items in progress", upload_items.len());
     for mut item in upload_items {
+        info!("Resetting upload item {} to pending", item.id);
         item.retry();
         item.update_all_fields(&mut db.connection).await?;
     }
@@ -678,11 +682,14 @@ pub async fn reset_in_progress_items(
         .fetch_all(&mut db.connection)
         .await?;
 
+    info!("Found {} download items in progress", download_items.len());
     for mut item in download_items {
+        info!("Resetting download item {} to pending", item.id);
         item.retry();
         item.update_all_fields(&mut db.connection).await?;
     }
 
+    info!("Successfully reset all in-progress items");
     Ok(())
 }
 
@@ -695,6 +702,12 @@ pub async fn get_next_upload_item(
     let item = UploadQueueItem::query("SELECT * FROM upload_queue WHERE status = 'pending' ORDER BY created_at ASC LIMIT 1")
         .fetch_optional(&mut db.connection)
         .await?;
+
+    if let Some(ref item) = item {
+        info!("Found next upload item: {}", item.id);
+    } else {
+        info!("No pending upload items found");
+    }
 
     Ok(item)
 }
@@ -709,6 +722,12 @@ pub async fn get_next_download_item(
         .fetch_optional(&mut db.connection)
         .await?;
 
+    if let Some(ref item) = item {
+        info!("Found next download item: {}", item.id);
+    } else {
+        info!("No pending download items found");
+    }
+
     Ok(item)
 }
 
@@ -718,6 +737,7 @@ pub async fn start_upload(
     db_state: State<'_, DBState>,
     cloud_state: State<'_, CloudState>,
 ) -> AnyResult<()> {
+    info!("Starting upload for item: {}", item_id);
     // Get all necessary data under a short-lived lock
     let (item, track_map, cloud_folder, local_path) = {
         let mut db = db_state.get_lock().await;
@@ -745,6 +765,7 @@ pub async fn start_upload(
             .to_string_lossy()
             .to_string();
 
+        info!("Updating item {} status to in_progress", item_id);
         // Update status to in_progress
         let mut item_to_update = item.clone();
         item_to_update.start_processing();
@@ -754,35 +775,46 @@ pub async fn start_upload(
     }; // Lock is released here
 
     if !Path::new(&local_path).exists() {
+        info!("File not found at {}", local_path);
         return Err(SyncudioError::Path(format!("File not found at {}", local_path)));
     }
 
     // Perform the upload without holding the lock
-    match CloudProviderType::from_str(&cloud_folder.provider_type)? {
-        CloudProviderType::Dropbox => {
-            let file_name = Path::new(&track_map.relative_path)
-                .file_name()
-                .ok_or_else(|| SyncudioError::Path("Invalid file name".to_string()))?
-                .to_string_lossy()
-                .to_string();
-            let parent_path = Path::new(&track_map.relative_path)
-                .parent()
-                .map(|p| p.to_string_lossy().to_string());
-            cloud_state.dropbox.upload_file(&PathBuf::from(&local_path), &file_name, parent_path.as_deref()).await?;
-        }
-        CloudProviderType::GoogleDrive => {
-            return Err(SyncudioError::GoogleDrive("Google Drive not implemented yet".to_string()));
-        }
-    }
-
-    // Re-acquire lock briefly to update status
     {
+        let cloud_file = match CloudProviderType::from_str(&cloud_folder.provider_type)? {
+            CloudProviderType::Dropbox => {
+                info!("Starting Dropbox upload for {}", local_path);
+                // get parent path and file name
+                let cloud_path = Path::new(&cloud_folder.cloud_folder_path).join(&track_map.relative_path);
+                let file_name = cloud_path.file_name().unwrap().to_string_lossy().to_string();
+                let parent_path = cloud_path.parent().unwrap().to_string_lossy().to_string();
+                let cloud_file = cloud_state.dropbox.upload_file(&PathBuf::from(&local_path), &file_name, Some(&parent_path)).await?;
+                info!("Successfully uploaded file to Dropbox: {}", cloud_path.display());
+                cloud_file
+            }
+            CloudProviderType::GoogleDrive => {
+                info!("Google Drive upload not implemented");
+                return Err(SyncudioError::GoogleDrive("Google Drive not implemented yet".to_string()));
+            }
+        };
+
+        // Re-acquire lock briefly to update status and cloud file ID
         let mut db = db_state.get_lock().await;
         let mut item_to_update = item;
         item_to_update.complete();
+        info!("Marking upload item {} as completed", item_id);
         item_to_update.update_all_fields(&mut db.connection).await?;
+
+        let mut cloud_track = CloudTrack::select()
+            .where_("id = ?")
+            .bind(&track_map.cloud_track_id)
+            .fetch_one(&mut db.connection)
+            .await?;
+        cloud_track.cloud_file_id = Some(cloud_file.id);
+        cloud_track.update_all_fields(&mut db.connection).await?;
     }
 
+    info!("Upload completed successfully for item: {}", item_id);
     Ok(())
 }
 
@@ -792,6 +824,7 @@ pub async fn start_download(
     db_state: State<'_, DBState>,
     cloud_state: State<'_, CloudState>,
 ) -> AnyResult<()> {
+    info!("Starting download for item: {}", item_id);
     // Get all necessary data under a short-lived lock
     let (item, track_map, cloud_track, cloud_folder, local_path) = {
         let mut db = db_state.get_lock().await;
@@ -825,6 +858,7 @@ pub async fn start_download(
             .to_string_lossy()
             .to_string();
 
+        info!("Updating item {} status to in_progress", item_id);
         // Update status to in_progress
         let mut item_to_update = item.clone();
         item_to_update.start_processing();
@@ -835,15 +869,19 @@ pub async fn start_download(
 
     // Create parent directory if it doesn't exist
     if let Some(parent) = Path::new(&local_path).parent() {
+        info!("Creating parent directory: {}", parent.display());
         std::fs::create_dir_all(parent)?;
     }
 
     // Perform the download without holding the lock
     match CloudProviderType::from_str(&cloud_folder.provider_type)? {
         CloudProviderType::Dropbox => {
+            info!("Starting Dropbox download to {}", local_path);
             cloud_state.dropbox.download_file(&cloud_track.cloud_file_id.unwrap(), &PathBuf::from(&local_path)).await?;
+            info!("Successfully downloaded file from Dropbox");
         }
         CloudProviderType::GoogleDrive => {
+            info!("Google Drive download not implemented");
             return Err(SyncudioError::GoogleDrive("Google Drive not implemented yet".to_string()));
         }
     }
@@ -853,9 +891,19 @@ pub async fn start_download(
         let mut db = db_state.get_lock().await;
         let mut item_to_update = item;
         item_to_update.complete();
+        info!("Marking download item {} as completed", item_id);
         item_to_update.update_all_fields(&mut db.connection).await?;
+
+        let mut cloud_track = CloudTrack::select()
+            .where_("id = ?")
+            .bind(&track_map.cloud_track_id)
+            .fetch_one(&mut db.connection)
+            .await?;
+        cloud_track.blake3_hash = blake3_hash(&PathBuf::from(&local_path)).ok();
+        cloud_track.update_all_fields(&mut db.connection).await?;
     }
 
+    info!("Download completed successfully for item: {}", item_id);
     Ok(())
 }
 
@@ -865,6 +913,7 @@ pub async fn fail_upload(
     error: String,
     db_state: State<'_, DBState>,
 ) -> AnyResult<()> {
+    info!("Marking upload item {} as failed: {}", item_id, error);
     let mut db = db_state.get_lock().await;
 
     let mut item = UploadQueueItem::select()
@@ -875,6 +924,7 @@ pub async fn fail_upload(
 
     item.fail(error);
     item.update_all_fields(&mut db.connection).await?;
+    info!("Upload item {} marked as failed", item_id);
 
     Ok(())
 }
@@ -885,6 +935,7 @@ pub async fn fail_download(
     error: String,
     db_state: State<'_, DBState>,
 ) -> AnyResult<()> {
+    info!("Marking download item {} as failed: {}", item_id, error);
     let mut db = db_state.get_lock().await;
 
     let mut item = DownloadQueueItem::select()
@@ -895,6 +946,7 @@ pub async fn fail_download(
 
     item.fail(error);
     item.update_all_fields(&mut db.connection).await?;
+    info!("Download item {} marked as failed", item_id);
 
     Ok(())
 }

@@ -12,6 +12,8 @@ use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
 use tokio::sync::Mutex;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 use crate::plugins::cloud::providers::CloudProviderType;
 use crate::plugins::cloud::CloudProvider;
@@ -29,7 +31,7 @@ type DropboxAuthData = Option<String>;
 pub struct Dropbox {
     pkce_code: Mutex<Option<PkceCode>>,
     authorization: Mutex<Option<Authorization>>,
-    client: Mutex<Option<UserAuthDefaultClient>>,
+    client: Arc<RwLock<Option<UserAuthDefaultClient>>>,
 }
 
 impl Dropbox {
@@ -44,7 +46,7 @@ impl Dropbox {
         Self {
             pkce_code: Mutex::new(None),
             authorization: Mutex::new(None),
-            client: Mutex::new(None),
+            client: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -79,7 +81,7 @@ impl Dropbox {
                 Some(Self {
                     pkce_code: Mutex::new(None),
                     authorization: Mutex::new(Some(auth)),
-                    client: Mutex::new(Some(client)),
+                    client: Arc::new(RwLock::new(Some(client))),
                 })
             }
             None => None,
@@ -124,7 +126,8 @@ impl Dropbox {
         *auth_guard = Some(auth.clone());
 
         let client = UserAuthDefaultClient::new(auth.clone());
-        self.client.lock().await.replace(client);
+        let mut write_guard = self.client.write().await;
+        *write_guard = Some(client);
 
         let auth_data = auth.save();
         info!("Authorization data saved successfully: {:?}", auth_data);
@@ -153,14 +156,14 @@ impl CloudProvider for Dropbox {
     }
 
     async fn is_authorized(&self) -> bool {
-        self.authorization.lock().await.is_some() && self.client.lock().await.is_some()
+        self.authorization.lock().await.is_some() && self.client.read().await.is_some()
     }
 
     async fn unauthorize(&self) {
         let mut auth_guard = self.authorization.lock().await;
         *auth_guard = None;
-        let mut client_guard = self.client.lock().await;
-        *client_guard = None;
+        let mut write_guard = self.client.write().await;
+        *write_guard = None;
 
         // Remove auth file
         let _ = fs::remove_file(Self::get_auth_file_path());
@@ -173,7 +176,7 @@ impl CloudProvider for Dropbox {
             .with_include_media_info(true)
             .with_include_deleted(false);
 
-        let client = self.client.lock().await;
+        let client = self.client.read().await;
         let client_ref = client.as_ref().ok_or(SyncudioError::Dropbox("Not authorized".to_string()))?;
         let result = files::list_folder(client_ref, &list_folder_arg)?;
 
@@ -213,7 +216,7 @@ impl CloudProvider for Dropbox {
     }
 
     async fn create_folder(&self, name: &str, parent_ref: Option<&str>) -> AnyResult<CloudFile> {
-        let client = self.client.lock().await;
+        let client = self.client.read().await;
         let client_ref = client
             .as_ref()
             .ok_or(SyncudioError::Dropbox("Not authorized".to_string()))?;
@@ -246,7 +249,7 @@ impl CloudProvider for Dropbox {
         name: &str,
         parent_ref: Option<&str>,
     ) -> AnyResult<CloudFile> {
-        let client = self.client.lock().await;
+        let client = self.client.read().await;
         let client_ref = client
             .as_ref()
             .ok_or(SyncudioError::Dropbox("Not authorized".to_string()))?;
@@ -259,7 +262,9 @@ impl CloudProvider for Dropbox {
 
         let file_content = std::fs::read(local_path)?;
         let upload_arg = files::UploadArg::new(file_path.clone()).with_mode(files::WriteMode::Overwrite);
+        info!("Uploading file to Dropbox: {} -> {}", local_path.display(), file_path);
         let result = files::upload(client_ref, &upload_arg, file_content.as_ref())?;
+        info!("Uploaded file to Dropbox: {} -> {}", local_path.display(), file_path);
 
         let modified_at = DateTime::parse_from_rfc3339(&result.server_modified)
             .unwrap_or_default();
@@ -281,13 +286,16 @@ impl CloudProvider for Dropbox {
     }
 
     async fn download_file(&self, file_id: &str, local_path: &PathBuf) -> AnyResult<()> {
-        let client = self.client.lock().await;
+        let client = self.client.read().await;
         let client_ref = client
             .as_ref()
             .ok_or(SyncudioError::Dropbox("Not authorized".to_string()))?;
 
         let download_arg = files::DownloadArg::new(file_id.to_string());
+        info!("Downloading file from Dropbox: {} -> {}", file_id, local_path.display());
         let result = files::download(client_ref, &download_arg, None, None)?;
+
+        info!("Downloaded file from Dropbox: {} -> {}", file_id, local_path.display());
 
         let mut buffer = Vec::new();
         result
@@ -306,7 +314,7 @@ impl CloudProvider for Dropbox {
     }
 
     async fn delete_file(&self, file_id: &str) -> AnyResult<()> {
-        let client = self.client.lock().await;
+        let client = self.client.read().await;
         let client_ref = client
             .as_ref()
             .ok_or(SyncudioError::Dropbox("Not authorized".to_string()))?;

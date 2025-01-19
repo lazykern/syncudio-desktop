@@ -13,14 +13,28 @@ import MediaSessionEvents from '../components/MediaSessionEvents';
 import PlayerEvents from '../components/PlayerEvents';
 import Toasts from '../components/Toasts';
 import useInvalidate from '../hooks/useInvalidate';
+import { useCloudSyncWorker } from '../hooks/useCloudSyncWorker';
 import SettingsAPI from '../stores/SettingsAPI';
 import type { LoaderData } from '../types/syncudio';
 
 import styles from './Root.module.css';
 
+// Create a persistent background worker component
+function BackgroundWorker() {
+  const { startWorker } = useCloudSyncWorker();
+
+  useEffect(() => {
+    // Start the worker immediately
+    startWorker();
+    // No cleanup function - we want this to run for the entire app lifecycle
+  }, []);
+
+  return null;
+}
+
 export default function ViewRoot() {
   const invalidate = useInvalidate();
-
+  
   useEffect(() => {
     // If the app imported tracks, we need to refresh route data, but it seems invalidate is not super stable
     SettingsAPI.init(invalidate);
@@ -36,6 +50,8 @@ export default function ViewRoot() {
       <PlayerEvents />
       <MediaSessionEvents />
       <GlobalKeyBindings />
+      {/** Background processes */}
+      <BackgroundWorker />
       {/** The actual app */}
       <Header />
       <main className={styles.mainContent}>

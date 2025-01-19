@@ -34,6 +34,7 @@ import { cloudSync } from '../lib/cloud-sync';
 import { useCloudFolders, useCloudFolderDetails, useQueueItems, useQueueStats, useSyncMutations, type FolderWithDetails } from '../hooks/useCloudQueries';
 import styles from './cloud.module.css';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { useCloudSyncWorker } from '../hooks/useCloudSyncWorker';
 
 // Helper function to get provider icon
 const getProviderIcon = (providerType: string) => {
@@ -182,6 +183,9 @@ export default function ViewCloud() {
     failed_count: 0,
   } } = useQueueStats(selectedFolder || undefined);
   const { uploadMutation, downloadMutation, isLoading: isSyncing } = useSyncMutations(selectedFolder || undefined);
+
+  // Use cloud sync worker
+  const { state: workerState, pauseWorker, resumeWorker } = useCloudSyncWorker();
 
   // Get current folder's selected tracks
   const currentSelectedTracks = useMemo(() => 
@@ -402,7 +406,7 @@ export default function ViewCloud() {
             {folderDetails && folderDetails.pending_sync_count > 0 && (
               <div className={styles.pendingCount}>
                 {folderDetails.pending_sync_count} items pending sync
-            </div>
+              </div>
             )}
           </div>
         </div>
@@ -422,6 +426,13 @@ export default function ViewCloud() {
             className={styles.syncButton}
           >
             {isSyncing ? 'Syncing...' : 'Sync All'}
+          </button>
+          <button
+            onClick={() => workerState.isPaused ? resumeWorker() : pauseWorker()}
+            className={styles.syncButton}
+            title={workerState.isPaused ? 'Resume sync worker' : 'Pause sync worker'}
+          >
+            {workerState.isPaused ? 'Resume Sync' : 'Pause Sync'}
           </button>
         </div>
       </div>
