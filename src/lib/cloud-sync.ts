@@ -89,4 +89,53 @@ export const cloudSync = {
   async cancelQueueItems(queueItemIds: string[]): Promise<void> {
     return invoke('plugin:cloud|cancel_queue_items', { queueItemIds });
   },
+
+  /**
+   * Reset in-progress items to pending
+   */
+  async resetInProgressItems(): Promise<void> {
+    return invoke('plugin:cloud|reset_in_progress_items');
+  },
+
+  /**
+   * Get next pending upload item
+   */
+  async getNextUploadItem(): Promise<QueueItemDTO | null> {
+    return invoke('plugin:cloud|get_next_upload_item');
+  },
+
+  /**
+   * Get next pending download item
+   */
+  async getNextDownloadItem(): Promise<QueueItemDTO | null> {
+    return invoke('plugin:cloud|get_next_download_item');
+  },
+
+  /**
+   * Start upload for an item
+   */
+  async startUpload(itemId: string): Promise<void> {
+    return invoke('plugin:cloud|start_upload', { itemId });
+  },
+
+  /**
+   * Start download for an item
+   */
+  async startDownload(itemId: string): Promise<void> {
+    return invoke('plugin:cloud|start_download', { itemId });
+  },
+
+  /**
+   * Mark upload as failed
+   */
+  async failUpload(itemId: string, error: string): Promise<void> {
+    return invoke('plugin:cloud|fail_upload', { itemId, error });
+  },
+
+  /**
+   * Mark download as failed
+   */
+  async failDownload(itemId: string, error: string): Promise<void> {
+    return invoke('plugin:cloud|fail_download', { itemId, error });
+  },
 };
