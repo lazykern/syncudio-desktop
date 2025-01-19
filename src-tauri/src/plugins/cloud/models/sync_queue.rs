@@ -165,6 +165,7 @@ impl UploadQueueItem {
         self.status = status.as_str().to_string();
         self.updated_at = Utc::now();
     }
+    
 
     pub fn start_processing(&mut self) {
         self.set_status(SyncQueueStatus::InProgress);

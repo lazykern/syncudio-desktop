@@ -4,8 +4,15 @@ use log::info;
 use ormlite::Model;
 use std::collections::HashMap;
 use std::path::Path;
+use std::path::PathBuf;
 use tauri::State;
+use tauri::AppHandle;
+use tauri::Error;
 
+use crate::libs::error::SyncudioError;
+use crate::plugins::cloud;
+use crate::plugins::cloud::CloudProvider;
+use crate::plugins::cloud::CloudProviderType;
 use crate::{
     libs::{
         error::AnyResult,
@@ -383,10 +390,52 @@ pub async fn retry_failed_items(
     folder_id: Option<String>,
     db_state: State<'_, DBState>,
 ) -> AnyResult<()> {
-    todo!("Implement retry_failed_items");
-    // 1. Get failed items for folder (or all if none specified)
-    // 2. Reset status and attempt count
-    // 3. Requeue items
+    let mut db = db_state.get_lock().await;
+
+    // Get failed upload items
+    let upload_query = if let Some(folder_id) = &folder_id {
+        UploadQueueItem::query(
+            r#"SELECT * FROM upload_queue 
+            WHERE status = 'failed' 
+            AND cloud_track_map_id IN (
+                SELECT id FROM cloud_track_maps WHERE cloud_folder_id = ?
+            )"#,
+        )
+        .bind(folder_id)
+    } else {
+        UploadQueueItem::query("SELECT * FROM upload_queue WHERE status = 'failed'")
+    };
+
+    let upload_items = upload_query.fetch_all(&mut db.connection).await?;
+
+    // Get failed download items
+    let download_query = if let Some(folder_id) = &folder_id {
+        DownloadQueueItem::query(
+            r#"SELECT * FROM download_queue 
+            WHERE status = 'failed' 
+            AND cloud_track_map_id IN (
+                SELECT id FROM cloud_track_maps WHERE cloud_folder_id = ?
+            )"#,
+        )
+        .bind(folder_id)
+    } else {
+        DownloadQueueItem::query("SELECT * FROM download_queue WHERE status = 'failed'")
+    };
+
+    let download_items = download_query.fetch_all(&mut db.connection).await?;
+
+    // Reset failed items to pending
+    for mut item in upload_items {
+        item.retry();
+        item.update_all_fields(&mut db.connection).await?;
+    }
+
+    for mut item in download_items {
+        item.retry();
+        item.update_all_fields(&mut db.connection).await?;
+    }
+
+    Ok(())
 }
 
 /// Command to get sync status for a track
@@ -603,6 +652,249 @@ pub async fn add_to_download_queue(
 
         download_item.insert(&mut db.connection).await?;
     }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn reset_in_progress_items(
+    db_state: State<'_, DBState>,
+) -> AnyResult<()> {
+    let mut db = db_state.get_lock().await;
+
+    // Reset any items stuck in "in_progress" state back to "pending"
+    let upload_items = UploadQueueItem::select()
+        .where_("status = 'in_progress'")
+        .fetch_all(&mut db.connection)
+        .await?;
+
+    for mut item in upload_items {
+        item.retry();
+        item.update_all_fields(&mut db.connection).await?;
+    }
+
+    let download_items = DownloadQueueItem::select()
+        .where_("status = 'in_progress'")
+        .fetch_all(&mut db.connection)
+        .await?;
+
+    for mut item in download_items {
+        item.retry();
+        item.update_all_fields(&mut db.connection).await?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_next_upload_item(
+    db_state: State<'_, DBState>,
+) -> AnyResult<Option<UploadQueueItem>> {
+    let mut db = db_state.get_lock().await;
+
+    let item = UploadQueueItem::query("SELECT * FROM upload_queue WHERE status = 'pending' ORDER BY created_at ASC LIMIT 1")
+        .fetch_optional(&mut db.connection)
+        .await?;
+
+    Ok(item)
+}
+
+#[tauri::command]
+pub async fn get_next_download_item(
+    db_state: State<'_, DBState>,
+) -> AnyResult<Option<DownloadQueueItem>> {
+    let mut db = db_state.get_lock().await;
+
+    let item = DownloadQueueItem::query("SELECT * FROM download_queue WHERE status = 'pending' ORDER BY created_at ASC LIMIT 1")
+        .fetch_optional(&mut db.connection)
+        .await?;
+
+    Ok(item)
+}
+
+#[tauri::command]
+pub async fn start_upload(
+    item_id: String,
+    db_state: State<'_, DBState>,
+    cloud_state: State<'_, CloudState>,
+) -> AnyResult<()> {
+    // Get all necessary data under a short-lived lock
+    let (item, track_map, cloud_folder, local_path) = {
+        let mut db = db_state.get_lock().await;
+
+        let item = UploadQueueItem::select()
+            .where_("id = ?")
+            .bind(&item_id)
+            .fetch_one(&mut db.connection)
+            .await?;
+
+        let track_map = CloudTrackMap::select()
+            .where_("id = ?")
+            .bind(&item.cloud_track_map_id)
+            .fetch_one(&mut db.connection)
+            .await?;
+
+        let cloud_folder = CloudFolder::select()
+            .where_("id = ?")
+            .bind(&track_map.cloud_folder_id)
+            .fetch_one(&mut db.connection)
+            .await?;
+
+        let local_path = Path::new(&cloud_folder.local_folder_path)
+            .join(&track_map.relative_path)
+            .to_string_lossy()
+            .to_string();
+
+        // Update status to in_progress
+        let mut item_to_update = item.clone();
+        item_to_update.start_processing();
+        item_to_update = item_to_update.update_all_fields(&mut db.connection).await?;
+
+        (item_to_update, track_map, cloud_folder, local_path)
+    }; // Lock is released here
+
+    if !Path::new(&local_path).exists() {
+        return Err(SyncudioError::Path(format!("File not found at {}", local_path)));
+    }
+
+    // Perform the upload without holding the lock
+    match CloudProviderType::from_str(&cloud_folder.provider_type)? {
+        CloudProviderType::Dropbox => {
+            let file_name = Path::new(&track_map.relative_path)
+                .file_name()
+                .ok_or_else(|| SyncudioError::Path("Invalid file name".to_string()))?
+                .to_string_lossy()
+                .to_string();
+            let parent_path = Path::new(&track_map.relative_path)
+                .parent()
+                .map(|p| p.to_string_lossy().to_string());
+            cloud_state.dropbox.upload_file(&PathBuf::from(&local_path), &file_name, parent_path.as_deref()).await?;
+        }
+        CloudProviderType::GoogleDrive => {
+            return Err(SyncudioError::GoogleDrive("Google Drive not implemented yet".to_string()));
+        }
+    }
+
+    // Re-acquire lock briefly to update status
+    {
+        let mut db = db_state.get_lock().await;
+        let mut item_to_update = item;
+        item_to_update.complete();
+        item_to_update.update_all_fields(&mut db.connection).await?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn start_download(
+    item_id: String,
+    db_state: State<'_, DBState>,
+    cloud_state: State<'_, CloudState>,
+) -> AnyResult<()> {
+    // Get all necessary data under a short-lived lock
+    let (item, track_map, cloud_track, cloud_folder, local_path) = {
+        let mut db = db_state.get_lock().await;
+
+        let item = DownloadQueueItem::select()
+            .where_("id = ?")
+            .bind(&item_id)
+            .fetch_one(&mut db.connection)
+            .await?;
+
+        let track_map = CloudTrackMap::select()
+            .where_("id = ?")
+            .bind(&item.cloud_track_map_id)
+            .fetch_one(&mut db.connection)
+            .await?;
+
+        let cloud_track = CloudTrack::select()
+            .where_("id = ? AND cloud_file_id IS NOT NULL")
+            .bind(&track_map.cloud_track_id)
+            .fetch_one(&mut db.connection)
+            .await?;
+
+        let cloud_folder = CloudFolder::select()
+            .where_("id = ?")
+            .bind(&track_map.cloud_folder_id)
+            .fetch_one(&mut db.connection)
+            .await?;
+
+        let local_path = Path::new(&cloud_folder.local_folder_path)
+            .join(&track_map.relative_path)
+            .to_string_lossy()
+            .to_string();
+
+        // Update status to in_progress
+        let mut item_to_update = item.clone();
+        item_to_update.start_processing();
+        item_to_update = item_to_update.update_all_fields(&mut db.connection).await?;
+
+        (item_to_update, track_map, cloud_track, cloud_folder, local_path)
+    }; // Lock is released here
+
+    // Create parent directory if it doesn't exist
+    if let Some(parent) = Path::new(&local_path).parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    // Perform the download without holding the lock
+    match CloudProviderType::from_str(&cloud_folder.provider_type)? {
+        CloudProviderType::Dropbox => {
+            cloud_state.dropbox.download_file(&cloud_track.cloud_file_id.unwrap(), &PathBuf::from(&local_path)).await?;
+        }
+        CloudProviderType::GoogleDrive => {
+            return Err(SyncudioError::GoogleDrive("Google Drive not implemented yet".to_string()));
+        }
+    }
+
+    // Re-acquire lock briefly to update status
+    {
+        let mut db = db_state.get_lock().await;
+        let mut item_to_update = item;
+        item_to_update.complete();
+        item_to_update.update_all_fields(&mut db.connection).await?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn fail_upload(
+    item_id: String,
+    error: String,
+    db_state: State<'_, DBState>,
+) -> AnyResult<()> {
+    let mut db = db_state.get_lock().await;
+
+    let mut item = UploadQueueItem::select()
+        .where_("id = ?")
+        .bind(&item_id)
+        .fetch_one(&mut db.connection)
+        .await?;
+
+    item.fail(error);
+    item.update_all_fields(&mut db.connection).await?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn fail_download(
+    item_id: String,
+    error: String,
+    db_state: State<'_, DBState>,
+) -> AnyResult<()> {
+    let mut db = db_state.get_lock().await;
+
+    let mut item = DownloadQueueItem::select()
+        .where_("id = ?")
+        .bind(&item_id)
+        .fetch_one(&mut db.connection)
+        .await?;
+
+    item.fail(error);
+    item.update_all_fields(&mut db.connection).await?;
 
     Ok(())
 }

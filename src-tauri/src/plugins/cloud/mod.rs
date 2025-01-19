@@ -51,6 +51,14 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             add_to_upload_queue,
             add_to_download_queue,
             get_track_sync_status,
+            // Sync worker commands
+            reset_in_progress_items,
+            get_next_upload_item,
+            get_next_download_item,
+            start_upload,
+            start_download,
+            fail_upload,
+            fail_download,
         ])
         .setup(move |app_handle, _api| {
             let dropbox = Dropbox::new();
