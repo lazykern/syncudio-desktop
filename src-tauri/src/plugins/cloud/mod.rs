@@ -2,18 +2,15 @@ mod commands;
 mod models;
 mod providers;
 mod database;
-mod worker;
 
 use tauri::plugin::{Builder, TauriPlugin};
 use tauri::{AppHandle, Manager, Runtime};
 
 use crate::plugins::cloud::providers::*;
-use crate::plugins::cloud::worker::SyncWorker;
 
 pub use commands::*;
 pub use models::*;
 pub use database::*;
-pub use worker::*;
 
 pub struct CloudState {
     pub dropbox: Dropbox,
@@ -60,11 +57,6 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             let dropbox = Dropbox::new();
             app_handle.manage(CloudState { dropbox });
             
-            // Create and start the sync worker
-            let worker = SyncWorker::new(app_handle.clone());
-            tauri::async_runtime::spawn(async move {    
-                worker.start().await;
-            });
             Ok(())
         })
         .build()
