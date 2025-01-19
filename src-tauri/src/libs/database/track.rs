@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use ormlite::model::ModelBuilder;
 use ormlite::Model;
 
 use crate::libs::error::AnyResult;

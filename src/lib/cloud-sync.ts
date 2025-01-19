@@ -49,13 +49,6 @@ export const cloudSync = {
   },
 
   /**
-   * Pause or resume sync operations
-   */
-  async setSyncPaused(paused: boolean): Promise<void> {
-    return invoke('plugin:cloud|set_sync_paused', { paused });
-  },
-
-  /**
    * Retry failed sync items for a folder or all folders
    */
   async retryFailedItems(folderId?: string): Promise<void> {

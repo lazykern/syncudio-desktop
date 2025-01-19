@@ -377,14 +377,6 @@ pub async fn get_queue_stats(
     })
 }
 
-/// Command to pause/resume sync operations
-#[tauri::command]
-pub async fn set_sync_paused(paused: bool, cloud_state: State<'_, CloudState>) -> AnyResult<()> {
-    todo!("Implement set_sync_paused");
-    // 1. Update sync worker state
-    // 2. Pause/resume active transfers
-}
-
 /// Command to retry failed sync items
 #[tauri::command]
 pub async fn retry_failed_items(
