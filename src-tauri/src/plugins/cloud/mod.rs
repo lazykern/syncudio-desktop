@@ -47,7 +47,6 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             get_cloud_folder_sync_details,
             get_queue_items,
             get_queue_stats,
-            set_sync_paused,
             retry_failed_items,
             add_to_upload_queue,
             add_to_download_queue,
