@@ -78,6 +78,14 @@ fn main() {
                     "add_to_upload_queue",
                     "add_to_download_queue",
                     "get_track_sync_status",
+                    // Sync worker commands
+                    "reset_in_progress_items",
+                    "get_next_upload_item",
+                    "get_next_download_item",
+                    "start_upload",
+                    "start_download",
+                    "fail_upload",
+                    "fail_download",
                 ]),
             ),
     )
