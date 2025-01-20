@@ -475,34 +475,34 @@ export default function ViewCloud() {
             <>
           <div className={styles.toolbar}>
             <div className={styles.filters}>
-                  <select 
-                    value={locationFilter}
-                    onChange={(e) => setLocationFilter(e.target.value as TrackLocationState | 'all')}
-                  >
-                    <option value="all">All Files</option>
-                    <option value="complete">Synced</option>
-                    <option value="local_only">Local Only</option>
-                    <option value="cloud_only">Cloud Only</option>
-                    <option value="out_of_sync">Out of Sync</option>
-                    <option value="missing">Missing</option>
-                    <option value="not_mapped">Not Mapped</option>
+              <select 
+                value={locationFilter}
+                onChange={(e) => setLocationFilter(e.target.value as TrackLocationState | 'all')}
+              >
+                <option value="all">All Files</option>
+                <option value="complete">Synced</option>
+                <option value="local_only">Local Only</option>
+                <option value="cloud_only">Cloud Only</option>
+                <option value="out_of_sync">Out of Sync</option>
+                <option value="missing">Missing</option>
+                <option value="not_mapped">Not Mapped</option>
               </select>
-                  <select
-                    value={syncStatusFilter}
-                    onChange={(e) => setSyncStatusFilter(e.target.value as typeof syncStatusFilter)}
-                  >
-                    <option value="all">All Sync Status</option>
-                    <option value="pending">Pending</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="completed">Completed</option>
-                    <option value="failed">Failed</option>
+              <select
+                value={syncStatusFilter}
+                onChange={(e) => setSyncStatusFilter(e.target.value as typeof syncStatusFilter)}
+              >
+                <option value="all">All Sync Status</option>
+                <option value="pending">Pending</option>
+                <option value="in_progress">In Progress</option>
+                <option value="completed">Completed</option>
+                <option value="failed">Failed</option>
               </select>
-                  <input 
-                    type="text" 
-                    placeholder="Search files..." 
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
+              <input 
+                type="text" 
+                placeholder="Search files..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
           </div>
 
@@ -586,58 +586,24 @@ export default function ViewCloud() {
       {/* Queue Status Bar */}
       <div className={styles.queueStatus}>
         <div className={styles.queueTabs}>
-          <button 
+          <button
             className={`${styles.queueTab} ${activeQueueTab === 'current' ? styles.active : ''}`}
             onClick={() => setActiveQueueTab('current')}
           >
-            <span className={styles.queueTabIcon}>
-              {queueStats.in_progress_count > 0 ? <RiRefreshLine /> : <RiTimeLine />}
-            </span>
-            Current ({queueStats.in_progress_count + queueStats.pending_count})
+            Current ({queueStats.pending_count + queueStats.in_progress_count})
           </button>
-          <button 
+          <button
             className={`${styles.queueTab} ${activeQueueTab === 'completed' ? styles.active : ''}`}
             onClick={() => setActiveQueueTab('completed')}
           >
-            <span className={styles.queueTabIcon}><RiCheckLine /></span>
             Completed ({queueStats.completed_count})
           </button>
-          <button 
+          <button
             className={`${styles.queueTab} ${activeQueueTab === 'failed' ? styles.active : ''}`}
             onClick={() => setActiveQueueTab('failed')}
           >
-            <span className={styles.queueTabIcon}><RiCloseLine /></span>
             Failed ({queueStats.failed_count})
           </button>
-        </div>
-        <div className={styles.queueActions}>
-          {activeQueueTab === 'completed' && queueStats.completed_count > 0 && (
-            <button 
-              className={styles.queueActionButton}
-              onClick={() => cloudSync.clearCompletedQueue(selectedFolder || undefined)}
-            >
-              <RiCloseLine />
-              Clear Completed
-            </button>
-          )}
-          {activeQueueTab === 'failed' && queueStats.failed_count > 0 && (
-            <>
-              <button 
-                className={styles.queueActionButton}
-                onClick={() => cloudSync.clearFailedQueue(selectedFolder || undefined)}
-              >
-                <RiCloseLine />
-                Clear Failed
-              </button>
-              <button 
-                className={styles.queueActionButton}
-                onClick={() => cloudSync.retryFailedQueue(selectedFolder || undefined)}
-              >
-                <RiRefreshLine />
-                Retry Failed
-              </button>
-            </>
-          )}
         </div>
         <div className={styles.queueList}>
           <div className={styles.queueColumns}>
