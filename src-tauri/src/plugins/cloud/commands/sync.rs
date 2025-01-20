@@ -705,10 +705,7 @@ pub async fn get_next_upload_item(
 
     if let Some(ref item) = item {
         info!("Found next upload item: {}", item.id);
-    } else {
-        info!("No pending upload items found");
-    }
-
+    } 
     Ok(item)
 }
 
@@ -724,8 +721,6 @@ pub async fn get_next_download_item(
 
     if let Some(ref item) = item {
         info!("Found next download item: {}", item.id);
-    } else {
-        info!("No pending download items found");
     }
 
     Ok(item)

@@ -34,8 +34,8 @@ export const cloudDatabase = {
    * 3. During periodic background scans
    * 4. When file system changes are detected
    */
-  async discoverCloudFolderTracks(folder: CloudFolder): Promise<void> {
-    return invoke('plugin:cloud|discover_cloud_folder_tracks', { folder });
+  async discoverCloudFolderTracks(folderId: string): Promise<void> {
+    return invoke('plugin:cloud|discover_cloud_folder_tracks', { folderId });
   },
 
   /**

@@ -58,8 +58,7 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
             error_message TEXT,
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL,
-            attempts INTEGER NOT NULL DEFAULT 0,
-            FOREIGN KEY (cloud_track_map_id) REFERENCES cloud_track_maps(id)
+            attempts INTEGER NOT NULL DEFAULT 0
         );"
     )
     .execute(&mut *connection)
@@ -93,8 +92,7 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
             error_message TEXT,
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL,
-            attempts INTEGER NOT NULL DEFAULT 0,
-            FOREIGN KEY (cloud_track_map_id) REFERENCES cloud_track_maps(id)
+            attempts INTEGER NOT NULL DEFAULT 0
         );"
     )
     .execute(&mut *connection)

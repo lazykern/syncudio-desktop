@@ -21,7 +21,7 @@ use crate::plugins::cloud::CloudFile;
 use crate::{libs::error::AnyResult, plugins::db::DBState};
 
 use super::cloud_folder::CloudFolder;
-use super::cloud_track::CloudTracksMetadata;
+use super::cloud_track::{CloudTrackTag, CloudTracksMetadata};
 use super::models::cloud_track::{CloudTrack, CloudTrackMap};
 use super::{CloudProvider, CloudProviderType, CloudState};
 
@@ -30,333 +30,289 @@ use log::info;
 
 #[tauri::command]
 pub async fn discover_cloud_folder_tracks(
-    folder: CloudFolder,
-    cloud_state: State<'_, CloudState>,
+    folder_id: String,
     db_state: State<'_, DBState>,
+    cloud_state: State<'_, CloudState>,
 ) -> AnyResult<()> {
     let mut db = db_state.get_lock().await;
-    // Get all cloud files recursively
-    let cloud_files = cloud_list_files(
-        folder.provider_type.clone(),
-        folder.cloud_folder_id.clone(),
-        folder.cloud_folder_path.clone(),
-        true,
-        cloud_state,
-    )
-    .await?;
+    let folder = CloudFolder::select()
+        .where_("id = ?")
+        .bind(&folder_id)
+        .fetch_one(&mut db.connection)
+        .await?;
 
-    info!("Found {} cloud files", cloud_files.len());
+    // Get cloud files for this folder
+    let provider = &cloud_state.dropbox;
+    let cloud_files = provider
+        .list_files(&folder.cloud_folder_id, &folder.cloud_folder_path, true)
+        .await?;
 
-    // Filter for audio files only
-    let unprocessed_cloud_audio_files: Vec<CloudFile> = cloud_files
+    // Create maps for efficient lookups
+    let cloud_files_map: HashMap<String, CloudFile> = cloud_files
         .into_iter()
-        .filter(|file| {
-            !file.is_folder
-                && match &file.name.split('.').last() {
-                    Some(ext) => SUPPORTED_TRACKS_EXTENSIONS.contains(ext),
-                    None => false,
-                }
-        })
+        .filter(|f| !f.is_folder)
+        .map(|f| (f.relative_path.clone(), f))
         .collect();
 
-    // Get all local tracks that are in the cloud folder
-    let unprocessed_local_tracks: Vec<Track> = Track::select()
+    // Get local tracks
+    let local_tracks = Track::select()
+        .where_("path LIKE ?")
+        .bind(format!("{}%", folder.local_folder_path))
         .fetch_all(&mut db.connection)
-        .await?
-        .into_iter()
-        .filter(|track| {
-            info!("Checking local track: {}", track.path);
-            track.path.starts_with(&folder.local_folder_path)
-        })
-        .collect();
+        .await?;
 
-    // Create a map of relative paths to cloud files for easier lookup
-    let cloud_files_map: HashMap<String, CloudFile> = unprocessed_cloud_audio_files
+    let local_tracks_map: HashMap<String, Track> = local_tracks
         .into_iter()
-        .map(|file| (normalize_relative_path(&file.relative_path), file))
-        .collect();
-
-    // Create a map of relative paths to local tracks for easier lookup
-    let local_tracks_map: HashMap<String, Track> = unprocessed_local_tracks
-        .into_iter()
-        .filter_map(|track| {
-            track
+        .map(|t| {
+            let rel_path = t
                 .path
-                .clone()
                 .strip_prefix(&folder.local_folder_path)
-                .map(|rel_path| (normalize_relative_path(rel_path), track))
+                .unwrap_or(&t.path)
+                .trim_start_matches('/')
+                .to_string();
+            (rel_path, t)
         })
         .collect();
 
-    // Get existing cloud tracks for this folder
-    let existing_cloud_tracks: Vec<CloudTrack> =
-        CloudTrack::select().fetch_all(&mut db.connection).await?;
+    // Get ALL existing cloud tracks that match our hashes or cloud_file_ids
+    let mut hash_params = Vec::new();
+    let mut cloud_id_params = Vec::new();
 
-    let mut cloud_tracks_to_insert = Vec::new();
-    let mut cloud_tracks_to_update = Vec::new();
+    for track in local_tracks_map.values() {
+        if let Some(hash) = &track.blake3_hash {
+            hash_params.push(hash);
+        }
+    }
+    for file in cloud_files_map.values() {
+        cloud_id_params.push(&file.id);
+    }
 
-    // Process by focusing on local tracks
+    let mut query = String::from(
+        "SELECT DISTINCT ct.id, ct.blake3_hash, ct.cloud_file_id 
+         FROM cloud_tracks ct 
+         WHERE 0=1",
+    );
+
+    if !hash_params.is_empty() {
+        query.push_str(" OR blake3_hash IN (");
+        query.push_str(
+            &std::iter::repeat("?")
+                .take(hash_params.len())
+                .collect::<Vec<_>>()
+                .join(","),
+        );
+        query.push(')');
+    }
+    if !cloud_id_params.is_empty() {
+        query.push_str(" OR cloud_file_id IN (");
+        query.push_str(
+            &std::iter::repeat("?")
+                .take(cloud_id_params.len())
+                .collect::<Vec<_>>()
+                .join(","),
+        );
+        query.push(')');
+    }
+
+    let mut stmt = ormlite::query_as::<_, (String, Option<String>, Option<String>)>(&query);
+    for param in hash_params {
+        stmt = stmt.bind(param);
+    }
+    for param in cloud_id_params {
+        stmt = stmt.bind(param);
+    }
+
+    let existing_tracks = stmt.fetch_all(&mut db.connection).await?;
+
+    // Create lookup maps for existing tracks
+    let mut existing_by_hash: HashMap<String, String> = HashMap::new();
+    let mut existing_by_cloud_id: HashMap<String, String> = HashMap::new();
+    for (id, hash, cloud_id) in existing_tracks {
+        if let Some(hash) = hash {
+            existing_by_hash.insert(hash, id.clone());
+        }
+        if let Some(cloud_id) = cloud_id {
+            existing_by_cloud_id.insert(cloud_id, id);
+        }
+    }
+
+    let mut tracks_to_process = Vec::new();
+    let mut processed_track_ids = Vec::new();
+
+    // Process local tracks first
     for (rel_path, local_track) in local_tracks_map.iter() {
         let cloud_file = cloud_files_map.get(rel_path);
-        let existing_cloud_track = existing_cloud_tracks.iter().find(|ct| {
-            // Match by either hash or cloud_file_id
-            (cloud_file.is_some() && ct.cloud_file_id.as_ref() == cloud_file.map(|f| &f.id))
-                || (ct.blake3_hash == local_track.blake3_hash)
-        });
 
-        match (cloud_file, existing_cloud_track) {
-            // Track exists locally but not in cloud - CloudTrack not created yet -> create
-            (None, None) => {
-                info!("Found new local track: {}", rel_path);
-                let cloud_track = CloudTrack::from_track(local_track.clone())?;
-                cloud_tracks_to_insert.push(cloud_track);
+        // Try to find existing track ID, first by hash then by cloud_file_id
+        let existing_id = if let Some(hash) = &local_track.blake3_hash {
+            // First check if we already have this track in the database
+            match existing_by_hash.get(hash).cloned() {
+                Some(id) => Some(id),
+                None => CloudTrack::select()
+                    .where_("blake3_hash = ?")
+                    .bind(hash)
+                    .fetch_optional(&mut db.connection)
+                    .await
+                    .ok()
+                    .flatten()
+                    .map(|t| t.id),
             }
-            // Track exists in both places - CloudTrack created -> update if needed
-            (Some(cloud_file), Some(cloud_track)) => {
-                info!("Checking if track needs update: {}", rel_path);
-                let mut should_update = false;
-                let mut updated_track = cloud_track.clone();
+        } else {
+            None
+        }
+        .or_else(|| cloud_file.and_then(|f| existing_by_cloud_id.get(&f.id).cloned()));
 
-                // Update cloud_file_id if changed
-                if updated_track.cloud_file_id != Some(cloud_file.id.clone()) {
-                    updated_track.cloud_file_id = Some(cloud_file.id.clone());
-                    should_update = true;
-                }
+        match existing_id {
+            Some(id) => {
+                // Update existing track
+                let mut track = CloudTrack::select()
+                    .where_("id = ?")
+                    .bind(&id)
+                    .fetch_one(&mut db.connection)
+                    .await?;
 
-                // Update local track data if local version is newer
-                if local_track.blake3_hash != updated_track.blake3_hash {
-                    let file = File::open(&local_track.path)?;
-                    let metadata = file.metadata()?;
-                    let local_mtime = metadata.modified()?.duration_since(UNIX_EPOCH)?;
-                    let local_updated_at =
-                        DateTime::from_timestamp(local_mtime.as_secs() as i64, 0)
-                            .unwrap_or_default();
+                let mut updated = false;
 
-                    if local_updated_at > updated_track.updated_at {
-                        info!("Local track is newer, updating from local");
-                        if let Some(old_hash) = &updated_track.blake3_hash {
-                            if !updated_track.old_blake3_hashes.contains(old_hash) {
-                                updated_track.old_blake3_hashes.push(old_hash.clone());
-                            }
-                        }
-                        updated_track.blake3_hash = local_track.blake3_hash.clone();
-                        updated_track.updated_at = local_updated_at;
-                        should_update = true;
+                // Update cloud_file_id if needed
+                if let Some(cloud_file) = cloud_file {
+                    if track.cloud_file_id.as_ref() != Some(&cloud_file.id) {
+                        track.cloud_file_id = Some(cloud_file.id.clone());
+                        updated = true;
                     }
                 }
 
-                if should_update {
-                    info!("Updating track: {}", rel_path);
-                    cloud_tracks_to_update.push(updated_track);
+                // Update hash and tags if local file is newer
+                if let Some(hash) = &local_track.blake3_hash {
+                    if track.blake3_hash.as_ref() != Some(hash) {
+                        let file = File::open(&local_track.path)?;
+                        let metadata = file.metadata()?;
+                        let local_mtime = metadata.modified()?.duration_since(UNIX_EPOCH)?;
+                        let local_updated_at =
+                            DateTime::from_timestamp(local_mtime.as_secs() as i64, 0)
+                                .unwrap_or_default();
+
+                        if local_updated_at > track.updated_at {
+                            if let Some(old_hash) = track.blake3_hash.take() {
+                                if !track.old_blake3_hashes.contains(&old_hash) {
+                                    track.old_blake3_hashes.push(old_hash);
+                                }
+                            }
+                            track.blake3_hash = Some(hash.clone());
+                            track.tags = Some(CloudTrackTag::from_track(local_track.clone()));
+                            track.updated_at = local_updated_at;
+                            updated = true;
+                        }
+                    }
                 }
-            }
-            // Track exists both locally and in cloud - CloudTrack not created yet -> create
-            (Some(cloud_file), None) => {
-                info!("Creating CloudTrack for existing track: {}", rel_path);
-                let mut cloud_track = CloudTrack::from_track(local_track.clone())?;
-                cloud_track.cloud_file_id = Some(cloud_file.id.clone());
-                cloud_tracks_to_insert.push(cloud_track);
-            }
-            // Track exists locally but not in cloud - CloudTrack created -> update to remove cloud_file_id
-            (None, Some(cloud_track)) => {
-                info!(
-                    "Track exists locally but cloud file not found: {}",
-                    rel_path
-                );
-                let mut updated_track = cloud_track.clone();
-                if updated_track.cloud_file_id.is_some() {
-                    updated_track.cloud_file_id = None;
-                    cloud_tracks_to_update.push(updated_track);
+
+                if updated {
+                    tracks_to_process.push((track, None));
                 }
+                processed_track_ids.push(id);
+            }
+            None => {
+                // Create new track
+                let mut track = CloudTrack::from_track(local_track.clone())?;
+                if let Some(cloud_file) = cloud_file {
+                    track.cloud_file_id = Some(cloud_file.id.clone());
+                }
+                tracks_to_process.push((track, Some(rel_path.clone())));
             }
         }
     }
 
-    // Process by focusing on cloud files
+    // Process cloud-only files
     for (rel_path, cloud_file) in cloud_files_map.iter() {
-        let local_track = local_tracks_map.get(rel_path);
-        let existing_cloud_track = existing_cloud_tracks.iter().find(|ct| {
-            (ct.cloud_file_id.as_ref() == Some(&cloud_file.id))
-                || (local_track.is_some()
-                    && ct.blake3_hash.as_ref() == local_track.and_then(|t| t.blake3_hash.as_ref()))
-        });
-        match (local_track, existing_cloud_track) {
-            // Track exists in cloud but not locally - CloudTrack not created yet -> create
-            (None, None) => {
-                info!("Found new cloud-only track: {}", rel_path);
-                let cloud_track = CloudTrack::from_cloud_file(cloud_file.clone())?;
-                cloud_tracks_to_insert.push(cloud_track);
-            }
-            // Track exists in both places - CloudTrack created -> update if needed
-            (Some(local_track), Some(cloud_track)) => {
-                info!("Checking if track needs update: {}", rel_path);
-                let mut should_update = false;
-                let mut updated_track = cloud_track.clone();
-
-                // Update local track data if local version is newer
-                if local_track.blake3_hash != updated_track.blake3_hash {
-                    updated_track.blake3_hash = local_track.blake3_hash.clone();
-                    should_update = true;
-                }
-
-                if should_update {
-                    info!("Updating track: {}", rel_path);
-                    cloud_tracks_to_update.push(updated_track);
-                }
-            }
-            // Tracks exists in both places - CloudTrack not created yet -> create
-            (Some(local_track), None) => {
-                info!("Creating CloudTrack for existing track: {}", rel_path);
-                let mut cloud_track = CloudTrack::from_track(local_track.clone())?;
-                cloud_track.cloud_file_id = Some(cloud_file.id.clone());
-                cloud_tracks_to_insert.push(cloud_track);
-            }
-            // Track does not exist locally but exists in cloud - CloudTrack created -> keep existing
-            (None, Some(_)) => {}
+        if local_tracks_map.contains_key(rel_path) {
+            continue; // Already processed with local tracks
         }
-    }
 
-    // Clean up duplicates before inserting/updating
-    let mut seen_tracks: HashMap<(Option<String>, Option<String>), CloudTrack> = HashMap::new();
-
-    // Process tracks to insert, keeping only the latest version of each track
-    for track in cloud_tracks_to_insert {
-        let key = (track.blake3_hash.clone(), track.cloud_file_id.clone());
-        match seen_tracks.get(&key) {
-            Some(existing) if track.updated_at > existing.updated_at => {
-                seen_tracks.insert(key, track);
+        // Try to find existing track
+        if let Some(id) = existing_by_cloud_id.get(&cloud_file.id) {
+            if !processed_track_ids.contains(id) {
+                let track = CloudTrack::select()
+                    .where_("id = ?")
+                    .bind(id)
+                    .fetch_one(&mut db.connection)
+                    .await?;
+                tracks_to_process.push((track, None));
+                processed_track_ids.push(id.clone());
             }
-            None => {
-                seen_tracks.insert(key, track);
-            }
-            _ => {}
-        }
-    }
-
-    // Process tracks to update, keeping only the latest version
-    for track in cloud_tracks_to_update {
-        let key = (track.blake3_hash.clone(), track.cloud_file_id.clone());
-        match seen_tracks.get(&key) {
-            Some(existing) if track.updated_at > existing.updated_at => {
-                seen_tracks.insert(key, track);
-            }
-            None => {
-                seen_tracks.insert(key, track);
-            }
-            _ => {}
-        }
-    }
-
-    // Insert/update only unique tracks
-    for track in seen_tracks.values() {
-        info!(
-            "Processing cloud track: ({:?}, {:?})",
-            track.cloud_file_id, track.blake3_hash
-        );
-
-        let existing_cloud_track = CloudTrack::select()
-            .where_("(cloud_file_id IS NOT NULL AND cloud_file_id = ?) OR (blake3_hash IS NOT NULL AND blake3_hash = ?)")   
-            .bind(&track.cloud_file_id)
-            .bind(&track.blake3_hash)
-            .fetch_optional(&mut db.connection)
-            .await?;
-
-        match existing_cloud_track {
-            Some(mut existing) => {
-                info!("Updating existing track");
-
-                if existing.cloud_file_id.is_none() && track.cloud_file_id.is_some() {
-                    existing.cloud_file_id = track.cloud_file_id.clone();
-                }
-
-                if existing.blake3_hash.is_none() && track.blake3_hash.is_some() {
-                    existing.blake3_hash = track.blake3_hash.clone();
-                }
-
-                if existing.updated_at < track.updated_at {
-                    existing.updated_at = track.updated_at;
-                }
-
-                existing.update_all_fields(&mut db.connection).await?;
-            }
-            None => {
-                info!("Inserting new track");
-                track.clone().insert(&mut db.connection).await?;
-            }
-        }
-    }
-
-    CloudTrack::query(
-        r#"
-        DELETE FROM cloud_tracks WHERE blake3_hash IS NULL AND cloud_file_id IS NULL
-    "#,
-    )
-    .fetch_all(&mut db.connection)
-    .await?;
-
-    // Update cloud track paths
-    info!("Updating cloud track paths");
-
-    // Insert new paths
-    let mut paths_to_insert = Vec::new();
-
-    // Create paths for all relative paths
-    for (rel_path, local_track) in local_tracks_map.iter() {
-        // Find track by blake3_hash
-        if let Some(cloud_track) = CloudTrack::select()
-            .where_("blake3_hash = ?")
-            .bind(&local_track.blake3_hash)
-            .fetch_optional(&mut db.connection)
-            .await?
-        {
-            paths_to_insert.push(CloudTrackMap {
-                id: Uuid::new_v4().to_string(),
-                cloud_track_id: cloud_track.id.clone(),
-                cloud_folder_id: folder.id.clone(),
-                relative_path: rel_path.clone(),
-            });
-        }
-    }
-
-    for (rel_path, cloud_file) in cloud_files_map.iter() {
-        println!("Processing cloud file: {}", rel_path);
-        // Find track by cloud_file_id
-        if let Some(cloud_track) = CloudTrack::select()
-            .where_("cloud_file_id = ?")
-            .bind(&cloud_file.id)
-            .fetch_optional(&mut db.connection)
-            .await?
-        {
-            // Only insert if we haven't already added this path
-            if !paths_to_insert.iter().any(|p| p.relative_path == *rel_path) {
-                paths_to_insert.push(CloudTrackMap {
-                    id: Uuid::new_v4().to_string(),
-                    cloud_track_id: cloud_track.id.clone(),
-                    cloud_folder_id: folder.id.clone(),
-                    relative_path: rel_path.clone(),
-                });
-            }
-        }
-    }
-
-    info!("Inserting {} paths", paths_to_insert.len());
-
-    // Insert all paths
-    for path in paths_to_insert {
-        let existing = CloudTrackMap::select()
-            .where_("cloud_track_id = ? AND cloud_folder_id = ?")
-            .bind(&path.cloud_track_id)
-            .bind(&path.cloud_folder_id)
-            .fetch_optional(&mut db.connection)
-            .await?;
-        if let Some(existing) = existing {
-            info!("Updating existing path: {}", path.relative_path);
-            existing.update_all_fields(&mut db.connection).await?;
         } else {
-            info!("Inserting new path: {}", path.relative_path);
-            path.insert(&mut db.connection).await?;
+            let track = CloudTrack::from_cloud_file(cloud_file.clone())?;
+            tracks_to_process.push((track, Some(rel_path.clone())));
         }
     }
+
+    // Process all tracks in batches
+    for (track, maybe_rel_path) in tracks_to_process {
+        // Update or insert track
+        let track_id = if maybe_rel_path.is_none() {
+            track.update_all_fields(&mut db.connection).await?.id
+        } else {
+            // For new tracks, first check if a track with this hash already exists
+            if let Some(hash) = &track.blake3_hash {
+                if let Some(existing) = CloudTrack::select()
+                    .where_("blake3_hash = ?")
+                    .bind(hash)
+                    .fetch_optional(&mut db.connection)
+                    .await?
+                {
+                    // Update existing track if needed
+                    let mut existing = existing;
+                    if existing.cloud_file_id.is_none() && track.cloud_file_id.is_some() {
+                        existing.cloud_file_id = track.cloud_file_id;
+                        existing = existing.update_all_fields(&mut db.connection).await?;
+                    }
+                    existing.id
+                } else {
+                    track.insert(&mut db.connection).await?.id
+                }
+            } else {
+                track.insert(&mut db.connection).await?.id
+            }
+        };
+
+        // Create or update track map if we have a relative path
+        if let Some(rel_path) = maybe_rel_path {
+            // Check for existing map
+            let existing_map = CloudTrackMap::select()
+                .where_("cloud_track_id = ? AND cloud_folder_id = ?")
+                .bind(&track_id)
+                .bind(&folder_id)
+                .fetch_optional(&mut db.connection)
+                .await?;
+
+            match existing_map {
+                Some(mut map) => {
+                    if map.relative_path != rel_path {
+                        map.relative_path = rel_path;
+                        map.update_all_fields(&mut db.connection).await?;
+                    }
+                }
+                None => {
+                    let map = CloudTrackMap {
+                        id: Uuid::new_v4().to_string(),
+                        cloud_track_id: track_id,
+                        cloud_folder_id: folder_id.clone(),
+                        relative_path: rel_path,
+                    };
+                    map.insert(&mut db.connection).await?;
+                }
+            }
+        }
+    }
+
+    // Clean up orphaned tracks (no cloud_file_id and no blake3_hash)
+    ormlite::query(
+        r#"
+        DELETE FROM cloud_tracks 
+        WHERE blake3_hash IS NULL 
+        AND cloud_file_id IS NULL
+        "#,
+    )
+    .execute(&mut db.connection)
+    .await?;
 
     Ok(())
 }

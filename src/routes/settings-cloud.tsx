@@ -237,7 +237,7 @@ export default function SettingsCloud() {
                     <Button
                       onClick={async () => {
                         try {
-                          await cloudDatabase.discoverCloudFolderTracks(folder);
+                          await cloudDatabase.discoverCloudFolderTracks(folder.id);
                           // await cloudDatabase.syncCloudTracksMetadata(folder.provider_type as CloudProviderType);
                           toastsAPI.add('success', 'Folder fetch  completed successfully');
                         } catch (error) {
