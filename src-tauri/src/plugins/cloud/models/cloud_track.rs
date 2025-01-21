@@ -43,26 +43,12 @@ impl CloudTrackTag {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Model, TS)]
-#[ormlite(table = "cloud_track_maps")]
-#[ts(export, export_to = "../../src/generated/typings/index.ts")]
-pub struct CloudTrackMap {
-    #[ormlite(primary_key)]
-    pub id: String,
-    pub cloud_track_id: String,
-    pub cloud_folder_id: String,
-    pub relative_path: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Model, TS)]
 #[ormlite(table = "cloud_tracks")]
 #[ts(export, export_to = "../../src/generated/typings/index.ts")]
 pub struct CloudTrack {
     #[ormlite(primary_key)]
     pub id: String,
     pub blake3_hash: Option<String>,
-    pub cloud_file_id: Option<String>,
-    #[ormlite(json)]
-    pub old_blake3_hashes: Vec<String>,
     pub file_name: String,
     pub updated_at: DateTime<Utc>,
     #[ormlite(json)]
@@ -75,8 +61,6 @@ impl CloudTrack {
         Ok(Self {
             id: Uuid::new_v4().to_string(),
             blake3_hash: track.blake3_hash.clone(),
-            cloud_file_id: None,
-            old_blake3_hashes: vec![],
             file_name: track.path.split('/').last().unwrap_or("").to_string(),
             updated_at: now,
             tags: Some(CloudTrackTag::from_track(track)),
@@ -87,8 +71,6 @@ impl CloudTrack {
         Ok(Self {
             id: Uuid::new_v4().to_string(),
             blake3_hash: None,
-            cloud_file_id: Some(cloud_file.id),
-            old_blake3_hashes: vec![],
             file_name: cloud_file.name,
             updated_at: cloud_file.modified_at,
             tags: None,
@@ -111,12 +93,12 @@ impl CloudTracksMetadata {
         // Create a map of all tracks, keeping the most recent version of each
         let mut track_map: HashMap<(Option<String>, Option<String>), CloudTrack> = self.tracks
             .iter()
-            .map(|t| ((t.blake3_hash.clone(), t.cloud_file_id.clone()), t.clone()))
+            .map(|t| ((t.blake3_hash.clone(), None), t.clone()))
             .collect();
 
         // Merge in other tracks, keeping the most recent version
         for other_track in other.tracks {
-            let key = (other_track.blake3_hash.clone(), other_track.cloud_file_id.clone());
+            let key = (other_track.blake3_hash.clone(), None);
             match track_map.get(&key) {
                 Some(existing) if other_track.updated_at > existing.updated_at => {
                     track_map.insert(key, other_track);

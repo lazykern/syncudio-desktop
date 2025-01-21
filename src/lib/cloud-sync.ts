@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type {
   CloudTrackDTO,
-  CloudFolder,
+  CloudMusicFolder,
   CloudFolderSyncDetailsDTO,
   QueueItemDTO,
   QueueStatsDTO,

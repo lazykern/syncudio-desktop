@@ -10,7 +10,6 @@ pub struct TrackWithMapRow {
     // Track fields
     pub id: String,
     pub blake3_hash: Option<String>,
-    pub cloud_file_id: Option<String>,
     pub file_name: String,
     pub updated_at: DateTime<Utc>,
     #[ormlite(json)]
@@ -19,6 +18,7 @@ pub struct TrackWithMapRow {
     pub map_id: String,
     pub relative_path: String,
     pub cloud_folder_id: String,
+    pub cloud_file_id: Option<String>,
 }
 
 /// Query model for queue operations

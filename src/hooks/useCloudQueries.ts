@@ -1,6 +1,6 @@
 import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { cloudSync } from '../lib/cloud-sync';
-import type { CloudFolder, CloudFolderSyncDetailsDTO, QueueItemDTO, QueueStatsDTO, TrackSyncStatusDTO } from '../generated/typings';
+import type { CloudMusicFolder, CloudFolderSyncDetailsDTO, QueueItemDTO, QueueStatsDTO, TrackSyncStatusDTO } from '../generated/typings';
 import { cloudDatabase } from '../lib/cloud-database';
 
 // Query keys
@@ -13,14 +13,14 @@ export const cloudKeys = {
 };
 
 // Types
-export type FolderWithDetails = CloudFolder & {
+export type FolderWithDetails = CloudMusicFolder & {
   details?: CloudFolderSyncDetailsDTO;
 };
 
 // Hooks
 export function useCloudFolders() {
   // First get all folders
-  const foldersQuery = useQuery<CloudFolder[]>({
+  const foldersQuery = useQuery<CloudMusicFolder[]>({
     queryKey: cloudKeys.folders,
     queryFn: () => cloudDatabase.getCloudFolders(),
   });

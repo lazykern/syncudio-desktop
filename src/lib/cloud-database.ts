@@ -1,24 +1,24 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { CloudFolder, CloudProviderType } from '../generated/typings';
+import type { CloudMusicFolder, CloudProviderType } from '../generated/typings';
 
 export const cloudDatabase = {
-  async getCloudFolders(): Promise<CloudFolder[]> {
+  async getCloudFolders(): Promise<CloudMusicFolder[]> {
     return invoke('plugin:cloud|get_cloud_folders');
   },
 
-  async getCloudFoldersByProvider(providerType: CloudProviderType): Promise<CloudFolder[]> {
+  async getCloudFoldersByProvider(providerType: CloudProviderType): Promise<CloudMusicFolder[]> {
     return invoke('plugin:cloud|get_cloud_folders_by_provider', { providerType });
   },
 
-  async getCloudFolderByLocalPath(localPath: string): Promise<CloudFolder | null> {
+  async getCloudFolderByLocalPath(localPath: string): Promise<CloudMusicFolder | null> {
     return invoke('plugin:cloud|get_cloud_folder_by_local_path', { localPath });
   },
 
-  async saveCloudFolder(folder: CloudFolder): Promise<CloudFolder> {
+  async saveCloudFolder(folder: CloudMusicFolder): Promise<CloudMusicFolder> {
     return invoke('plugin:cloud|save_cloud_folder', { folder });
   },
 
-  async updateCloudFolder(folder: CloudFolder): Promise<CloudFolder> {
+  async updateCloudFolder(folder: CloudMusicFolder): Promise<CloudMusicFolder> {
     return invoke('plugin:cloud|update_cloud_folder', { folder });
   },
 

@@ -20,23 +20,22 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
         "CREATE TABLE IF NOT EXISTS cloud_tracks (
             id TEXT PRIMARY KEY NOT NULL,
             blake3_hash TEXT UNIQUE,
-            cloud_file_id TEXT UNIQUE,
-            old_blake3_hashes JSON NOT NULL, -- JSON array of old hashes
-            updated_at DATETIME NOT NULL,
             file_name TEXT NOT NULL,
+            updated_at DATETIME NOT NULL,
             tags JSON -- JSON object of CloudTrackTag
         );",
     )
     .execute(&mut *connection)
     .await?;
 
-    // Cloud track paths table
+    // Cloud track maps table - maps tracks to their locations
     ormlite::query(
         "CREATE TABLE IF NOT EXISTS cloud_track_maps (
             id TEXT PRIMARY KEY NOT NULL,
             cloud_track_id TEXT NOT NULL,
             cloud_folder_id TEXT NOT NULL,
             relative_path TEXT NOT NULL,
+            cloud_file_id TEXT UNIQUE, -- Moved from cloud_tracks to here since it's location-specific
             FOREIGN KEY (cloud_track_id) REFERENCES cloud_tracks(id),
             FOREIGN KEY (cloud_folder_id) REFERENCES cloud_folders(id)
         );

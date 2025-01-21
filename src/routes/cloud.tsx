@@ -21,7 +21,7 @@ import {
 import * as Checkbox from '@radix-ui/react-checkbox';
 import type {
   CloudTrackDTO,
-  CloudFolder,
+  CloudMusicFolder,
   CloudFolderSyncDetailsDTO,
   QueueItemDTO,
   QueueStatsDTO,

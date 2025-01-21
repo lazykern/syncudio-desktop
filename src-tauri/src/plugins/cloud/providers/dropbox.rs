@@ -192,7 +192,7 @@ impl CloudProvider for Dropbox {
                 mime_type: Some(from_path(&f.name).first_or_octet_stream().to_string()),
                 hash: f.content_hash.as_ref().map(|h| FileHash::ContentHash(h.clone())),
                 display_path: f.path_display.clone(),
-                relative_path: f.path_display.clone().unwrap_or_default().strip_prefix(folder_path).unwrap_or_default().to_string(),
+                relative_path: f.path_display.clone().unwrap_or_default().strip_prefix(folder_path).unwrap_or_default().to_string().trim_start_matches('/').to_string(),
             }),
             files::Metadata::Folder(f) => Some(CloudFile {
                 id: f.id.clone(),
@@ -203,7 +203,7 @@ impl CloudProvider for Dropbox {
                 mime_type: None,
                 hash: None,
                 display_path: f.path_display.clone(),
-                relative_path: f.path_display.clone().unwrap_or_default().strip_prefix(folder_path).unwrap_or_default().to_string(),
+                relative_path: f.path_display.clone().unwrap_or_default().strip_prefix(folder_path).unwrap_or_default().to_string().trim_start_matches('/').to_string(),
             }),
             _ => None,
         }).collect();

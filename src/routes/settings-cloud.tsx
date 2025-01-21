@@ -1,6 +1,6 @@
 import { useLoaderData } from 'react-router';
 import type { SettingsLoaderData } from './settings';
-import type { CloudFile, CloudFolder, CloudProviderType } from '../generated/typings';
+import type { CloudFile, CloudMusicFolder, CloudProviderType } from '../generated/typings';
 
 import * as Setting from '../components/Setting';
 import Flexbox from '../elements/Flexbox';
@@ -24,7 +24,7 @@ export default function SettingsCloud() {
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [showCloudFolderSelect, setShowCloudFolderSelect] = useState(false);
-  const [cloudFolders, setCloudFolders] = useState<CloudFolder[]>([]);
+  const [cloudFolders, setCloudFolders] = useState<CloudMusicFolder[]>([]);
   const [authCode, setAuthCode] = useState('');
   const [showAuthInput, setShowAuthInput] = useState(false);
   const toastsAPI = useToastsAPI();
@@ -130,7 +130,7 @@ export default function SettingsCloud() {
 
       const timestamp = Date.now();
       // Create cloud folder mapping with BigInt serialization
-      const folder: CloudFolder = {
+      const folder: CloudMusicFolder = {
         id: crypto.randomUUID(),
         provider_type: 'dropbox',
         cloud_folder_id: cloudFile.id,
