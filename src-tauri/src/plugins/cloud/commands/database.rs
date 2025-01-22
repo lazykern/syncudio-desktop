@@ -47,3 +47,60 @@ pub async fn delete_cloud_folder(id: String, db_state: State<'_, DBState>) -> An
     let mut db = db_state.get_lock().await;
     db.delete_cloud_folder(&id).await
 }
+
+#[tauri::command]
+pub async fn get_unified_tracks(db_state: State<'_, DBState>) -> AnyResult<Vec<UnifiedTrack>> {
+    info!("Getting all unified tracks");
+    let mut db = db_state.get_lock().await;
+    db.get_unified_tracks().await
+}
+
+#[tauri::command]
+pub async fn get_unified_tracks_by_ids(
+    ids: Vec<String>,
+    db_state: State<'_, DBState>
+) -> AnyResult<Vec<UnifiedTrack>> {
+    info!("Getting unified tracks by ids: {:?}", ids);
+    let mut db = db_state.get_lock().await;
+    db.get_unified_tracks_by_ids(&ids).await
+}
+
+#[tauri::command]
+pub async fn get_unified_tracks_by_location(
+    location_type: String,
+    db_state: State<'_, DBState>
+) -> AnyResult<Vec<UnifiedTrack>> {
+    info!("Getting unified tracks by location type: {}", location_type);
+    let mut db = db_state.get_lock().await;
+    db.get_unified_tracks_by_location(&location_type).await
+}
+
+#[tauri::command]
+pub async fn get_unified_track(
+    id: String,
+    db_state: State<'_, DBState>
+) -> AnyResult<Option<UnifiedTrack>> {
+    info!("Getting unified track by id: {}", id);
+    let mut db = db_state.get_lock().await;
+    db.get_unified_track(&id).await
+}
+
+#[tauri::command]
+pub async fn get_unified_tracks_by_folder(
+    folder_id: String,
+    db_state: State<'_, DBState>
+) -> AnyResult<Vec<UnifiedTrack>> {
+    info!("Getting unified tracks by folder id: {}", folder_id);
+    let mut db = db_state.get_lock().await;
+    db.get_unified_tracks_by_folder(&folder_id).await
+}
+
+#[tauri::command]
+pub async fn get_unified_tracks_by_provider(
+    provider_type: String,
+    db_state: State<'_, DBState>
+) -> AnyResult<Vec<UnifiedTrack>> {
+    info!("Getting unified tracks by provider type: {}", provider_type);
+    let mut db = db_state.get_lock().await;
+    db.get_unified_tracks_by_provider(&provider_type).await
+}

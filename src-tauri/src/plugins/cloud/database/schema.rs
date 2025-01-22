@@ -114,5 +114,89 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
     .execute(&mut *connection)
     .await?;
 
+    // Create unified tracks view
+    ormlite::query(
+        "CREATE VIEW IF NOT EXISTS unified_tracks AS
+        WITH base_tracks AS (
+            -- Get all tracks that have blake3_hash
+            SELECT 
+                blake3_hash,
+                'hash' as join_type
+            FROM (
+                SELECT blake3_hash 
+                FROM tracks 
+                WHERE blake3_hash IS NOT NULL
+                UNION 
+                SELECT blake3_hash 
+                FROM cloud_tracks 
+                WHERE blake3_hash IS NOT NULL
+            )
+            UNION ALL
+            -- Get all cloud tracks without blake3_hash
+            SELECT 
+                id as blake3_hash,
+                'cloud_id' as join_type
+            FROM cloud_tracks 
+            WHERE blake3_hash IS NULL
+        )
+        SELECT 
+            -- Track identifiers
+            t.id as local_track_id,
+            ct.id as cloud_track_id,
+            ctm.id as cloud_track_map_id,
+            cmf.id as cloud_folder_id,
+            COALESCE(t.blake3_hash, ct.blake3_hash) as blake3_hash,
+
+            -- Paths and locations
+            t.path as local_path,
+            ctm.relative_path as cloud_relative_path,
+            cmf.cloud_folder_path as cloud_folder_path,
+            cmf.local_folder_path as cloud_local_folder_path,
+            cmf.provider_type as cloud_provider_type,
+            ctm.cloud_file_id,
+
+            -- Metadata (preferring local over cloud)
+            COALESCE(t.title, ct.tags->>'$.title', ct.file_name) as title,
+            COALESCE(t.album, ct.tags->>'$.album', 'Unknown') as album,
+            COALESCE(
+                json(t.artists),
+                ct.tags->>'$.artists',
+                json_array('Unknown Artist')
+            ) as artists,
+            COALESCE(
+                json(t.genres),
+                ct.tags->>'$.genres',
+                json_array()
+            ) as genres,
+            COALESCE(t.year, CAST(ct.tags->>'$.year' AS INTEGER)) as year,
+            COALESCE(t.duration, CAST(ct.tags->>'$.duration' AS INTEGER), 0) as duration,
+            COALESCE(t.track_no, CAST(ct.tags->>'$.track_no' AS INTEGER)) as track_no,
+            COALESCE(t.track_of, CAST(ct.tags->>'$.track_of' AS INTEGER)) as track_of,
+            COALESCE(t.disk_no, CAST(ct.tags->>'$.disk_no' AS INTEGER)) as disk_no,
+            COALESCE(t.disk_of, CAST(ct.tags->>'$.disk_of' AS INTEGER)) as disk_of,
+
+            -- Location and sync state
+            CASE 
+                WHEN t.id IS NOT NULL AND ct.id IS NOT NULL THEN 'both'
+                WHEN t.id IS NOT NULL THEN 'local'
+                ELSE 'cloud'
+            END as location_type,
+            ct.updated_at as cloud_updated_at
+
+        FROM base_tracks
+        -- Join with tracks based on blake3_hash
+        LEFT JOIN tracks t ON 
+            base_tracks.join_type = 'hash' AND
+            t.blake3_hash = base_tracks.blake3_hash
+        -- Join with cloud_tracks based on either blake3_hash or id
+        LEFT JOIN cloud_tracks ct ON 
+            (base_tracks.join_type = 'hash' AND ct.blake3_hash = base_tracks.blake3_hash) OR
+            (base_tracks.join_type = 'cloud_id' AND ct.id = base_tracks.blake3_hash)
+        LEFT JOIN cloud_track_maps ctm ON ct.id = ctm.cloud_track_id
+        LEFT JOIN cloud_folders cmf ON ctm.cloud_music_folder_id = cmf.id;"
+    )
+    .execute(&mut *connection)
+    .await?;
+
     Ok(())
 }

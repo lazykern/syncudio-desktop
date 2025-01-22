@@ -51,6 +51,13 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             add_to_upload_queue,
             add_to_download_queue,
             get_track_sync_status,
+            // Unified track commands
+            get_unified_tracks,
+            get_unified_tracks_by_ids,
+            get_unified_tracks_by_location,
+            get_unified_tracks_by_folder,
+            get_unified_tracks_by_provider,
+            get_unified_track,
             // Sync worker commands
             reset_in_progress_items,
             get_next_upload_item,
