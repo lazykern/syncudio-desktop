@@ -2,7 +2,7 @@ use log::info;
 use tauri::State;
 
 use crate::libs::error::AnyResult;
-use crate::plugins::cloud::models::cloud_folder::CloudMusicFolder;
+use crate::plugins::cloud::models::*;
 use crate::plugins::db::DBState;
 
 // Cloud Folder Operations

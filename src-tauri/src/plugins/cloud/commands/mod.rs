@@ -22,13 +22,12 @@ use crate::libs::utils::normalize_relative_path;
 use crate::plugins::cloud::CloudFile;
 use crate::{libs::error::AnyResult, plugins::db::DBState};
 
-use super::cloud_folder::CloudMusicFolder;
-use super::cloud_track::{CloudTrackTag, CloudTracksMetadata};
-use super::models::{CloudTrack, CloudTrackMap};
+use super::models::*;
 use super::{CloudProvider, CloudProviderType, CloudState};
 
 use crate::libs::track::Track;
 use log::info;
+use std::path::Path;
 
 #[tauri::command]
 pub async fn discover_cloud_folder_tracks(
@@ -52,7 +51,18 @@ pub async fn discover_cloud_folder_tracks(
     // Create maps for efficient lookups
     let cloud_files_map: HashMap<String, CloudFile> = cloud_files
         .into_iter()
-        .filter(|f| !f.is_folder)
+        .filter(|f| {
+            if f.is_folder {
+                return false;
+            }
+            // Check if file has a supported extension
+            if let Some(ext) = Path::new(&f.name).extension() {
+                if let Some(ext_str) = ext.to_str() {
+                    return SUPPORTED_TRACKS_EXTENSIONS.contains(&ext_str.to_lowercase().as_str());
+                }
+            }
+            false
+        })
         .map(|f| (f.relative_path.clone(), f))
         .collect();
 
@@ -200,7 +210,7 @@ pub async fn discover_cloud_folder_tracks(
 
                 // Update or create track map
                 let track_map = CloudTrackMap::select()
-                    .where_("cloud_track_id = ? AND cloud_folder_id = ?")
+                    .where_("cloud_track_id = ? AND cloud_music_folder_id = ?")
                     .bind(&id)
                     .bind(&folder_id)
                     .fetch_optional(&mut db.connection)
@@ -231,7 +241,7 @@ pub async fn discover_cloud_folder_tracks(
                         let map = CloudTrackMap {
                             id: Uuid::new_v4().to_string(),
                             cloud_track_id: id.clone(),
-                            cloud_folder_id: folder_id.clone(),
+                            cloud_music_folder_id: folder_id.clone(),
                             relative_path: rel_path.clone(),
                             cloud_file_id: cloud_file.map(|f| f.id.clone()),
                         };
@@ -250,7 +260,7 @@ pub async fn discover_cloud_folder_tracks(
                 let map = CloudTrackMap {
                     id: Uuid::new_v4().to_string(),
                     cloud_track_id: track_id.clone(),
-                    cloud_folder_id: folder_id.clone(),
+                    cloud_music_folder_id: folder_id.clone(),
                     relative_path: rel_path.clone(),
                     cloud_file_id: cloud_file.map(|f| f.id.clone()),
                 };
@@ -272,7 +282,7 @@ pub async fn discover_cloud_folder_tracks(
             if !processed_track_ids.contains(id) {
                 // Update track map if needed
                 let track_map = CloudTrackMap::select()
-                    .where_("cloud_track_id = ? AND cloud_folder_id = ?")
+                    .where_("cloud_track_id = ? AND cloud_music_folder_id = ?")
                     .bind(id)
                     .bind(&folder_id)
                     .fetch_optional(&mut db.connection)
@@ -289,7 +299,7 @@ pub async fn discover_cloud_folder_tracks(
                         let map = CloudTrackMap {
                             id: Uuid::new_v4().to_string(),
                             cloud_track_id: id.clone(),
-                            cloud_folder_id: folder_id.clone(),
+                            cloud_music_folder_id: folder_id.clone(),
                             relative_path: rel_path.clone(),
                             cloud_file_id: Some(cloud_file.id.clone()),
                         };
@@ -307,7 +317,7 @@ pub async fn discover_cloud_folder_tracks(
             let map = CloudTrackMap {
                 id: Uuid::new_v4().to_string(),
                 cloud_track_id: track_id.clone(),
-                cloud_folder_id: folder_id.clone(),
+                cloud_music_folder_id: folder_id.clone(),
                 relative_path: rel_path.clone(),
                 cloud_file_id: Some(cloud_file.id.clone()),
             };
@@ -319,7 +329,7 @@ pub async fn discover_cloud_folder_tracks(
 
     // Clear cloud_file_id for any maps that reference files no longer in cloud storage
     let mut orphaned_maps = CloudTrackMap::select()
-        .where_("cloud_folder_id = ? AND cloud_file_id IS NOT NULL")
+        .where_("cloud_music_folder_id = ? AND cloud_file_id IS NOT NULL")
         .bind(&folder_id)
         .fetch_all(&mut db.connection)
         .await?;

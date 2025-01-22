@@ -53,10 +53,10 @@ pub async fn get_cloud_folder_sync_details(
     let tracks_with_maps: Vec<TrackWithMapRow> = ormlite::query_as(r#"
         SELECT 
             t.id, t.blake3_hash, t.file_name, t.updated_at, t.tags,
-            m.id as map_id, m.relative_path, m.cloud_folder_id, m.cloud_file_id
+            m.id as map_id, m.relative_path, m.cloud_music_folder_id, m.cloud_file_id
         FROM cloud_tracks t
         INNER JOIN cloud_track_maps m ON t.id = m.cloud_track_id
-        WHERE m.cloud_folder_id = ?
+        WHERE m.cloud_music_folder_id = ?
     "#)
     .bind(&folder_id)
     .fetch_all(&mut db.connection)
@@ -70,7 +70,7 @@ pub async fn get_cloud_folder_sync_details(
             u.cloud_track_map_id
         FROM upload_queue u
         INNER JOIN cloud_track_maps m ON u.cloud_track_map_id = m.id
-        WHERE m.cloud_folder_id = ? 
+        WHERE m.cloud_music_folder_id = ? 
             AND (u.status = 'pending' OR u.status = 'in_progress')
         UNION ALL
         SELECT 
@@ -79,7 +79,7 @@ pub async fn get_cloud_folder_sync_details(
             d.cloud_track_map_id
         FROM download_queue d
         INNER JOIN cloud_track_maps m ON d.cloud_track_map_id = m.id
-        WHERE m.cloud_folder_id = ?
+        WHERE m.cloud_music_folder_id = ?
             AND (d.status = 'pending' OR d.status = 'in_progress')
     "#)
     .bind(&folder_id)
@@ -145,7 +145,7 @@ pub async fn get_cloud_folder_sync_details(
 
         track_dtos.push(CloudTrackDTO {
             id: track.id,
-            cloud_folder_id: folder.id.clone(),
+            cloud_music_folder_id: folder.id.clone(),
             cloud_track_map_id: track.map_id,
             file_name: track.file_name,
             relative_path: track.relative_path,
@@ -202,7 +202,7 @@ pub async fn get_track_sync_status(
     // Get folder to check file existence
     let folder = CloudMusicFolder::select()
         .where_("id = ?")
-        .bind(&track_map.cloud_folder_id)
+        .bind(&track_map.cloud_music_folder_id)
         .fetch_one(&mut db.connection)
         .await?;
 

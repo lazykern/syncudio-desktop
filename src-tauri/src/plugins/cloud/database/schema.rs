@@ -33,15 +33,15 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
         "CREATE TABLE IF NOT EXISTS cloud_track_maps (
             id TEXT PRIMARY KEY NOT NULL,
             cloud_track_id TEXT NOT NULL,
-            cloud_folder_id TEXT NOT NULL,
+            cloud_music_folder_id TEXT NOT NULL,
             relative_path TEXT NOT NULL,
             cloud_file_id TEXT UNIQUE, -- Moved from cloud_tracks to here since it's location-specific
             FOREIGN KEY (cloud_track_id) REFERENCES cloud_tracks(id),
-            FOREIGN KEY (cloud_folder_id) REFERENCES cloud_folders(id)
+            FOREIGN KEY (cloud_music_folder_id) REFERENCES cloud_folders(id)
         );
         CREATE INDEX IF NOT EXISTS idx_cloud_track_maps_cloud_track_id ON cloud_track_maps(cloud_track_id);
-        CREATE INDEX IF NOT EXISTS idx_cloud_track_maps_cloud_folder_id ON cloud_track_maps(cloud_folder_id);
-        CREATE INDEX IF NOT EXISTS idx_cloud_track_maps_folder_track ON cloud_track_maps(cloud_folder_id, cloud_track_id);",
+        CREATE INDEX IF NOT EXISTS idx_cloud_track_maps_cloud_music_folder_id ON cloud_track_maps(cloud_music_folder_id);
+        CREATE INDEX IF NOT EXISTS idx_cloud_track_maps_folder_track ON cloud_track_maps(cloud_music_folder_id, cloud_track_id);",
     )
     .execute(&mut *connection)
     .await?;

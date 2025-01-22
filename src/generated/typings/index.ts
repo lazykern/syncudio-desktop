@@ -16,9 +16,9 @@ export type CloudTrack = { id: string, blake3_hash: string | null, file_name: st
 /**
  * Represents a track with its current sync and integrity status
  */
-export type CloudTrackDTO = { id: string, cloud_folder_id: string, cloud_track_map_id: string, file_name: string, relative_path: string, location_state: TrackLocationState, sync_operation: SyncOperationType | null, sync_status: SyncStatus | null, updated_at: string, tags: CloudTrackTag | null, };
+export type CloudTrackDTO = { id: string, cloud_music_folder_id: string, cloud_track_map_id: string, file_name: string, relative_path: string, location_state: TrackLocationState, sync_operation: SyncOperationType | null, sync_status: SyncStatus | null, updated_at: string, tags: CloudTrackTag | null, };
 
-export type CloudTrackMap = { id: string, cloud_track_id: string, cloud_folder_id: string, cloud_file_id: string | null, relative_path: string, };
+export type CloudTrackMap = { id: string, cloud_track_id: string, cloud_music_folder_id: string, cloud_file_id: string | null, relative_path: string, };
 
 export type CloudTrackTag = { title: string, album: string, artists: Array<string>, genres: Array<string>, year: number | null, duration: number, track_no: number | null, track_of: number | null, disk_no: number | null, disk_of: number | null, };
 

@@ -67,7 +67,7 @@ pub enum FolderSyncStatus {
 #[ts(export, export_to = "../../src/generated/typings/index.ts")]
 pub struct CloudTrackDTO {
     pub id: String,
-    pub cloud_folder_id: String,
+    pub cloud_music_folder_id: String,
     pub cloud_track_map_id: String,
     pub file_name: String,
     pub relative_path: String,

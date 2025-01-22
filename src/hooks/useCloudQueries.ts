@@ -58,7 +58,7 @@ export function useQueueItems(folderId: string | undefined) {
   return useQuery<QueueItemDTO[]>({
     queryKey: cloudKeys.queueItems(folderId),
     queryFn: () => cloudSync.getQueueItems(folderId),
-    refetchInterval: 5000, // Poll every 5 seconds
+    refetchInterval: 1000, // Poll every second
   });
 }
 
@@ -66,7 +66,7 @@ export function useQueueStats(folderId: string | undefined) {
   return useQuery<QueueStatsDTO>({
     queryKey: cloudKeys.queueStats(folderId),
     queryFn: () => cloudSync.getQueueStats(folderId),
-    refetchInterval: 5000, // Poll every 5 seconds
+    refetchInterval: 1000, // Poll every second
   });
 }
 
@@ -75,7 +75,7 @@ export function useTrackSyncStatus(trackId: string) {
     queryKey: cloudKeys.trackSyncStatus(trackId),
     queryFn: () => cloudSync.getTrackSyncStatus(trackId),
     enabled: !!trackId,
-    refetchInterval: 5000, // Poll every 5 seconds to match queue polling
+    refetchInterval: 1000, // Poll every second to match queue polling
   });
 }
 
@@ -85,7 +85,7 @@ export function useSyncMutations(folderId?: string) {
   const invalidateQueries = async () => {
     // Invalidate folder details
     await queryClient.invalidateQueries({ 
-      queryKey: cloudKeys.folderDetails(folderId || null)
+      queryKey: folderId ? cloudKeys.folderDetails(folderId) : ['cloud', 'folder', 'details']
     });
     
     // Invalidate queue items and stats

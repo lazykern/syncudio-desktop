@@ -17,7 +17,7 @@ pub struct TrackWithMapRow {
     // Map fields
     pub map_id: String,
     pub relative_path: String,
-    pub cloud_folder_id: String,
+    pub cloud_music_folder_id: String,
     pub cloud_file_id: Option<String>,
 }
 

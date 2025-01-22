@@ -1,4 +1,4 @@
-use cloud_folder::CloudMusicFolder;
+use cloud_music_folder::CloudMusicFolder;
 use ormlite::Model;
 
 use crate::libs::database::core::DB;

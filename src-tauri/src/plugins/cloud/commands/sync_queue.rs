@@ -37,7 +37,7 @@ pub async fn get_queue_items(
             r#"SELECT u.* 
             FROM upload_queue u
             INNER JOIN cloud_track_maps m ON u.cloud_track_map_id = m.id
-            WHERE m.cloud_folder_id = ?
+            WHERE m.cloud_music_folder_id = ?
             ORDER BY u.created_at ASC"#,
         )
         .bind(folder_id)
@@ -53,7 +53,7 @@ pub async fn get_queue_items(
             r#"SELECT d.* 
             FROM download_queue d
             INNER JOIN cloud_track_maps m ON d.cloud_track_map_id = m.id
-            WHERE m.cloud_folder_id = ?
+            WHERE m.cloud_music_folder_id = ?
             ORDER BY d.created_at ASC"#,
         )
         .bind(folder_id)
@@ -164,12 +164,12 @@ pub async fn get_queue_stats(
                 SELECT u.status 
                 FROM upload_queue u
                 INNER JOIN cloud_track_maps m ON u.cloud_track_map_id = m.id
-                WHERE m.cloud_folder_id = ?
+                WHERE m.cloud_music_folder_id = ?
                 UNION ALL
                 SELECT d.status 
                 FROM download_queue d
                 INNER JOIN cloud_track_maps m ON d.cloud_track_map_id = m.id
-                WHERE m.cloud_folder_id = ?
+                WHERE m.cloud_music_folder_id = ?
             ) combined
             GROUP BY status
         "#)
@@ -261,7 +261,7 @@ pub async fn add_to_upload_queue(
         // Get folder to determine provider type
         let folder = CloudMusicFolder::select()
             .where_("id = ?")
-            .bind(&track_map.cloud_folder_id)
+            .bind(&track_map.cloud_music_folder_id)
             .fetch_one(&mut db.connection)
             .await?;
 
@@ -332,7 +332,7 @@ pub async fn add_to_download_queue(
         // Get folder to determine provider type
         let folder = CloudMusicFolder::select()
             .where_("id = ?")
-            .bind(&track_map.cloud_folder_id)
+            .bind(&track_map.cloud_music_folder_id)
             .fetch_one(&mut db.connection)
             .await?;
 
@@ -369,7 +369,7 @@ pub async fn retry_failed_items(
             r#"SELECT * FROM upload_queue 
             WHERE status = 'failed' 
             AND cloud_track_map_id IN (
-                SELECT id FROM cloud_track_maps WHERE cloud_folder_id = ?
+                SELECT id FROM cloud_track_maps WHERE cloud_music_folder_id = ?
             )"#,
         )
         .bind(folder_id)
@@ -385,7 +385,7 @@ pub async fn retry_failed_items(
             r#"SELECT * FROM download_queue 
             WHERE status = 'failed' 
             AND cloud_track_map_id IN (
-                SELECT id FROM cloud_track_maps WHERE cloud_folder_id = ?
+                SELECT id FROM cloud_track_maps WHERE cloud_music_folder_id = ?
             )"#,
         )
         .bind(folder_id)
@@ -503,7 +503,7 @@ pub async fn start_upload(
 
         let cloud_folder = CloudMusicFolder::select()
             .where_("id = ?")
-            .bind(&track_map.cloud_folder_id)
+            .bind(&track_map.cloud_music_folder_id)
             .fetch_one(&mut db.connection)
             .await?;
 
@@ -596,7 +596,7 @@ pub async fn start_download(
 
         let cloud_folder = CloudMusicFolder::select()
             .where_("id = ?")
-            .bind(&track_map.cloud_folder_id)
+            .bind(&track_map.cloud_music_folder_id)
             .fetch_one(&mut db.connection)
             .await?;
 

@@ -9,7 +9,7 @@ pub struct CloudTrackMap {
     #[ormlite(primary_key)]
     pub id: String,
     pub cloud_track_id: String,
-    pub cloud_folder_id: String,
+    pub cloud_music_folder_id: String,
     pub cloud_file_id: Option<String>,
     pub relative_path: String,
 }
