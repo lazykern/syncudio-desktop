@@ -199,31 +199,43 @@ pub async fn discover_cloud_folder_tracks(
                 }
 
                 // Update or create track map
-                if let Some(cloud_file) = cloud_file {
-                    let track_map = CloudTrackMap::select()
-                        .where_("cloud_track_id = ? AND cloud_folder_id = ?")
-                        .bind(&id)
-                        .bind(&folder_id)
-                        .fetch_optional(&mut db.connection)
-                        .await?;
+                let track_map = CloudTrackMap::select()
+                    .where_("cloud_track_id = ? AND cloud_folder_id = ?")
+                    .bind(&id)
+                    .bind(&folder_id)
+                    .fetch_optional(&mut db.connection)
+                    .await?;
 
-                    match track_map {
-                        Some(mut map) => {
+                match track_map {
+                    Some(mut map) => {
+                        let mut map_updated = false;
+                        
+                        // Update cloud_file_id based on cloud storage state
+                        if let Some(cloud_file) = cloud_file {
                             if map.cloud_file_id.as_ref() != Some(&cloud_file.id) {
                                 map.cloud_file_id = Some(cloud_file.id.clone());
-                                map.update_all_fields(&mut db.connection).await?;
+                                map_updated = true;
                             }
+                        } else if map.cloud_file_id.is_some() {
+                            // Clear cloud_file_id if file no longer exists in cloud storage
+                            map.cloud_file_id = None;
+                            map_updated = true;
+                            info!("Clearing cloud_file_id for track {} as file no longer exists in cloud storage", id);
                         }
-                        None => {
-                            let map = CloudTrackMap {
-                                id: Uuid::new_v4().to_string(),
-                                cloud_track_id: id.clone(),
-                                cloud_folder_id: folder_id.clone(),
-                                relative_path: rel_path.clone(),
-                                cloud_file_id: Some(cloud_file.id.clone()),
-                            };
-                            map.insert(&mut db.connection).await?;
+
+                        if map_updated {
+                            map.update_all_fields(&mut db.connection).await?;
                         }
+                    }
+                    None => {
+                        let map = CloudTrackMap {
+                            id: Uuid::new_v4().to_string(),
+                            cloud_track_id: id.clone(),
+                            cloud_folder_id: folder_id.clone(),
+                            relative_path: rel_path.clone(),
+                            cloud_file_id: cloud_file.map(|f| f.id.clone()),
+                        };
+                        map.insert(&mut db.connection).await?;
                     }
                 }
 
@@ -302,6 +314,23 @@ pub async fn discover_cloud_folder_tracks(
             map.insert(&mut db.connection).await?;
 
             processed_track_ids.push(track_id);
+        }
+    }
+
+    // Clear cloud_file_id for any maps that reference files no longer in cloud storage
+    let mut orphaned_maps = CloudTrackMap::select()
+        .where_("cloud_folder_id = ? AND cloud_file_id IS NOT NULL")
+        .bind(&folder_id)
+        .fetch_all(&mut db.connection)
+        .await?;
+
+    for mut map in orphaned_maps {
+        if let Some(cloud_file_id) = &map.cloud_file_id {
+            if !cloud_files_map.values().any(|f| f.id == *cloud_file_id) {
+                info!("Clearing cloud_file_id for orphaned map {} as file no longer exists in cloud storage", map.id);
+                map.cloud_file_id = None;
+                map.update_all_fields(&mut db.connection).await?;
+            }
         }
     }
 
