@@ -1,60 +1,99 @@
+.track {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  transition: background var(--timing-medium) var(--timing-function);
+  user-select: none;
+  border-radius: var(--borderradius-small);
+
+  &[data-is-playing] {
+    color: var(--accent-color);
+  }
+}
+
 .cell {
-  /* Explicitely not a padding to mimic the cell headers + we may use it when
-     we will want to resize columns */
-  border-left: solid 1px transparent;
-  padding-right: 4px;
-  padding-left: 4px;
-  cursor: default;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 24px;
+  padding: 5px;
+  display: flex;
+  align-items: center;
+  font-size: var(--fontsize-small);
 }
 
-.track {
-  position: relative;
-  display: flex;
-  outline: none;
-  border-top: solid 1px transparent;
-  border-bottom: solid 1px transparent;
-  background-color: var(--tracks-bg-even);
-  align-items: center;
+.selected {
+  background-color: var(--highlight-color);
+  color: var(--text-color);
+}
 
-  &.even {
-    background-color: var(--tracks-bg-odd);
-  }
+.even {
+  background-color: var(--background-color-alt);
+}
 
-  &.selected {
-    background-color: var(--main-color);
-    color: white;
-
-    & + .selected {
-      border-top-color: rgba(255 255 255 / 0.2);
-    }
-  }
-
-  &.isDragging {
-    opacity: 0.5;
-  }
-
-  &.isOver:not(.isDragging) {
+.isOver {
+  &.isBelow {
     &::after {
-      pointer-events: none;
+      content: '';
       position: absolute;
-      z-index: 1;
-      display: block;
+      left: 0;
+      bottom: 0;
       width: 100%;
-      content: "";
-      height: 2px;
-      background-color: var(--main-color);
+      border-bottom: 2px solid var(--accent-color);
     }
   }
 
-  &.isAbove::after {
-    top: -1px;
+  &.isAbove {
+    &::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      border-top: 2px solid var(--accent-color);
+    }
   }
+}
 
-  &.isBelow::after {
-    bottom: -1px;
+/* Cloud-only track styles */
+.cloudOnly {
+  opacity: 0.6;
+  cursor: pointer;
+  position: relative;
+  
+  &:hover {
+    opacity: 0.8;
+  }
+}
+
+/* Downloading track styles */
+.downloading {
+  position: relative;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      var(--highlight-color) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: loading 1.5s infinite;
+    opacity: 0.3;
+    pointer-events: none;
+  }
+}
+
+@keyframes loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
   }
 }

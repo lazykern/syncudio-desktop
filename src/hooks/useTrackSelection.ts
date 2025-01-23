@@ -1,9 +1,10 @@
 import { useState, useCallback } from 'react';
-import type { Track } from '../generated/typings';
+import type { Track, UnifiedTrack } from '../generated/typings';
 import { keyboardSelect } from '../lib/utils-list';
 
 interface UseTrackSelectionProps {
-  tracks: Track[];
+  tracks: Track[] | UnifiedTrack[];
+  preventCloudOnlySelect?: boolean;
 }
 
 interface UseTrackSelectionReturn {
@@ -14,7 +15,7 @@ interface UseTrackSelectionReturn {
   selectAllTracks: () => void;
 }
 
-export function useTrackSelection({ tracks }: UseTrackSelectionProps): UseTrackSelectionReturn {
+export function useTrackSelection({ tracks, preventCloudOnlySelect }: UseTrackSelectionProps): UseTrackSelectionReturn {
   const [selectedTracks, setSelectedTracks] = useState<Set<string>>(new Set());
 
   const selectTrack = useCallback(
@@ -30,9 +31,29 @@ export function useTrackSelection({ tracks }: UseTrackSelectionProps): UseTrackS
         return;
       }
 
-      setSelectedTracks(keyboardSelect(tracks, selectedTracks, trackID, event));
+      // For unified tracks, prevent selecting cloud-only tracks if preventCloudOnlySelect is true
+      if (preventCloudOnlySelect && 'location_type' in tracks[0]) {
+        const track = tracks.find((t) => 
+          (t as UnifiedTrack).local_track_id === trackID || 
+          (t as UnifiedTrack).cloud_track_id === trackID
+        ) as UnifiedTrack;
+
+        if (track && track.location_type === 'cloud') {
+          return;
+        }
+      }
+
+      setSelectedTracks(keyboardSelect(
+        tracks.map(t => ({
+          id: 'local_track_id' in t ? (t.local_track_id || t.cloud_track_id || '') : t.id,
+          path: 'local_path' in t ? (t.local_path || '') : t.path,
+        })), 
+        selectedTracks, 
+        trackID, 
+        event
+      ));
     },
-    [tracks, selectedTracks],
+    [tracks, selectedTracks, preventCloudOnlySelect],
   );
 
   const selectTrackClick = useCallback(
@@ -43,15 +64,43 @@ export function useTrackSelection({ tracks }: UseTrackSelectionProps): UseTrackS
         !event.shiftKey &&
         selectedTracks.has(trackID)
       ) {
+        // For unified tracks, prevent selecting cloud-only tracks if preventCloudOnlySelect is true
+        if (preventCloudOnlySelect && 'location_type' in tracks[0]) {
+          const track = tracks.find((t) => 
+            (t as UnifiedTrack).local_track_id === trackID || 
+            (t as UnifiedTrack).cloud_track_id === trackID
+          ) as UnifiedTrack;
+
+          if (track && track.location_type === 'cloud') {
+            return;
+          }
+        }
+
         setSelectedTracks(new Set([trackID]));
       }
     },
-    [selectedTracks],
+    [selectedTracks, tracks, preventCloudOnlySelect],
   );
 
   const selectAllTracks = useCallback(() => {
-    setSelectedTracks(new Set(tracks.map((track) => track.id)));
-  }, [tracks]);
+    if (preventCloudOnlySelect && 'location_type' in tracks[0]) {
+      // Only select non-cloud tracks
+      const nonCloudTracks = tracks.filter((t) => 
+        (t as UnifiedTrack).location_type !== 'cloud'
+      );
+
+      setSelectedTracks(new Set(nonCloudTracks.map((track) => 
+        (track as UnifiedTrack).local_track_id || 
+        (track as UnifiedTrack).cloud_track_id || ''
+      )));
+    } else {
+      setSelectedTracks(new Set(tracks.map((track) => 
+        'local_track_id' in track ? 
+          (track.local_track_id || track.cloud_track_id || '') : 
+          track.id
+      )));
+    }
+  }, [tracks, preventCloudOnlySelect]);
 
   return {
     selectedTracks,
@@ -60,4 +109,4 @@ export function useTrackSelection({ tracks }: UseTrackSelectionProps): UseTrackS
     selectTrackClick,
     selectAllTracks,
   };
-} 
+}
