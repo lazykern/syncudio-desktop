@@ -6,6 +6,7 @@ import type { UnifiedTrack, TrackSyncStatusDTO } from '../generated/typings';
 import useFormattedDuration from '../hooks/useFormattedDuration';
 import PlayingIndicator from './PlayingIndicator';
 import { useTrackSyncStatus } from '../hooks/useCloudQueries';
+import icons from '../lib/icons';
 
 import styles from './TrackRow.module.css';
 import cellStyles from './TracksListHeader.module.css';
@@ -137,6 +138,11 @@ export default function UnifiedTrackRow(props: Props) {
     >
       <div className={`${styles.cell} ${cellStyles.cellTrackPlaying}`}>
         {props.isPlaying ? <PlayingIndicator /> : null}
+        {isCloudOnly && (
+          <div className={styles.downloadIcon}>
+            <icons.DOWNLOAD />
+          </div>
+        )}
       </div>
       <div className={`${styles.cell} ${cellStyles.cellTrack}`}>
         {track.title}

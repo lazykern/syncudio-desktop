@@ -9,6 +9,7 @@ import type React from 'react';
 import { useCallback, useEffect, useRef } from 'react';
 import Keybinding from 'react-keybinding-component';
 import { useSearchParams } from 'react-router';
+import { useQueryClient } from '@tanstack/react-query';
 
 import type { Config, Playlist, UnifiedTrack } from '../generated/typings';
 import { useLibraryAPI } from '../stores/useLibraryStore';
@@ -61,7 +62,19 @@ export default function UnifiedTracksList(props: Props) {
   const libraryAPI = useLibraryAPI();
   const toastsAPI = useToastsAPI();
   const invalidate = useInvalidate();
+  const queryClient = useQueryClient();
   const sensors = useDndSensors();
+  
+  // Listen for track-downloaded events to refresh the list
+  useEffect(() => {
+    const handleTrackDownloaded = async () => {
+      // Invalidate unified tracks query to refresh the list
+      await queryClient.invalidateQueries({ queryKey: ['unified-tracks'] });
+    };
+
+    window.addEventListener('track-downloaded', handleTrackDownloaded);
+    return () => window.removeEventListener('track-downloaded', handleTrackDownloaded);
+  }, [queryClient]);
 
   const scrollableRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
