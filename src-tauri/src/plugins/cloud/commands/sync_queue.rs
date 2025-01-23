@@ -1,13 +1,20 @@
 use chrono::Utc;
 use log::info;
 use ormlite::Model;
+use serde::Deserialize;
+use serde::Serialize;
+use tauri::Emitter;
+use tauri::Runtime;
+use ts_rs::TS;
 use std::path::Path;
 use std::path::PathBuf;
-use tauri::State;
+use tauri::{Manager, State};
 use uuid::Uuid;
+
 
 use crate::libs::error::SyncudioError;
 use crate::libs::utils::blake3_hash;
+use crate::libs::track::{self, Track};
 use crate::plugins::cloud::CloudProvider;
 use crate::plugins::cloud::CloudProviderType;
 use crate::plugins::cloud::CloudState;
@@ -15,6 +22,13 @@ use crate::plugins::cloud::models::*;
 use crate::plugins::cloud::models::dto::*;
 use crate::plugins::db::DBState;
 use crate::libs::error::AnyResult;
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/generated/typings/index.ts")]
+struct TrackDownloadedPayload {
+    track_id: String,
+    location_type: String,
+}
 
 #[derive(Debug, ormlite::FromRow)]
 struct QueueStatsRow {
@@ -566,7 +580,8 @@ pub async fn start_upload(
 }
 
 #[tauri::command]
-pub async fn start_download(
+pub async fn start_download<R: Runtime>(
+    app: tauri::AppHandle<R>,
     item_id: String,
     db_state: State<'_, DBState>,
     cloud_state: State<'_, CloudState>,
@@ -646,8 +661,28 @@ pub async fn start_download(
             .bind(&track_map.cloud_track_id)
             .fetch_one(&mut db.connection)
             .await?;
-        cloud_track.blake3_hash = blake3_hash(&PathBuf::from(&local_path)).ok();
-        cloud_track.update_all_fields(&mut db.connection).await?;
+        // Get metadata from downloaded file
+        let local_path_buf = PathBuf::from(&local_path);
+        if let Some(track) = track::get_track_from_file(&local_path_buf) {
+            // Insert into local tracks table
+            track.clone().insert(&mut db.connection).await?;
+
+            // Update cloud track with metadata 
+            cloud_track.blake3_hash = blake3_hash(&local_path_buf).ok();
+            cloud_track.tags = Some(CloudTrackTag::from_track(track));
+            cloud_track = cloud_track.update_all_fields(&mut db.connection).await?;
+        } else {
+            info!("Failed to parse metadata from downloaded file: {}", local_path);
+            return Err(SyncudioError::Path(format!("Failed to parse metadata from {}", local_path)));
+        }
+        // Emit event to notify frontend that track has been downloaded
+        app.emit(
+            "track-downloaded",
+            TrackDownloadedPayload {
+                track_id: cloud_track.id.clone(),
+                location_type: "both".to_string(),
+            },
+        )?;
     }
 
     info!("Download completed successfully for item: {}", item_id);
@@ -696,4 +731,4 @@ pub async fn fail_download(
     info!("Download item {} marked as failed", item_id);
 
     Ok(())
-} 
+}

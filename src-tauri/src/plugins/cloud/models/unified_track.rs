@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromRow, TS)]
-#[ts(export, export_to = "../../../src/generated/typings/index.ts")]
+#[ts(export, export_to = "../../src/generated/typings/index.ts")]
 pub struct UnifiedTrack {
     // Track identifiers
     pub local_track_id: Option<String>,

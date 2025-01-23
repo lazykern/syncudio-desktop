@@ -37,7 +37,12 @@ export type FileHash = { "Sha1": string } | { "Sha256": string } | { "ContentHas
  */
 export type FolderSyncStatus = "synced" | "syncing" | "needs_attention" | "empty";
 
-export type IPCEvent = { "Unknown": string } | "PlaybackPlay" | "PlaybackPause" | "PlaybackStop" | "PlaybackPlayPause" | "PlaybackPrevious" | "PlaybackNext" | "PlaybackStart" | "LibraryScanProgress" | "GoToLibrary" | "GoToPlaylists" | "GoToSettings" | "JumpToPlayingTrack";
+export type IPCEvent = { "Unknown": string } | "PlaybackPlay" | "PlaybackPause" | "PlaybackStop" | "PlaybackPlayPause" | "PlaybackPrevious" | "PlaybackNext" | "PlaybackStart" | "LibraryScanProgress" | "GoToLibrary" | "GoToPlaylists" | "GoToSettings" | "JumpToPlayingTrack" | "track-downloaded";
+
+export type TrackDownloadedPayload = {
+  track_id: string;
+  location_type: string;
+};
 
 /** ----------------------------------------------------------------------------
  * Playlist
@@ -103,5 +108,7 @@ export type TrackLocationState = "complete" | "local_only" | "cloud_only" | "out
  * Represents detailed sync information for a track
  */
 export type TrackSyncStatusDTO = { location_state: TrackLocationState, sync_operation: SyncOperationType | null, sync_status: SyncStatus | null, updated_at: string, };
+
+export type UnifiedTrack = { local_track_id: string | null, cloud_track_id: string | null, cloud_track_map_id: string | null, cloud_folder_id: string | null, blake3_hash: string | null, local_path: string | null, cloud_relative_path: string | null, cloud_folder_path: string | null, cloud_local_folder_path: string | null, cloud_provider_type: string | null, cloud_file_id: string | null, title: string, album: string, artists: Array<string> | null, genres: Array<string> | null, year: number | null, duration: number, track_no: number | null, track_of: number | null, disk_no: number | null, disk_of: number | null, location_type: string, cloud_updated_at: string | null, };
 
 export type UploadQueueItem = { id: string, priority: number, cloud_track_map_id: string, provider_type: string, status: string, error_message: string | null, created_at: string, updated_at: string, attempts: number, };

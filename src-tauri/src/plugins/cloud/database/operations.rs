@@ -67,14 +67,14 @@ impl DB {
     }
 
     pub async fn get_unified_tracks(&mut self) -> AnyResult<Vec<UnifiedTrack>> {
-        let tracks = ormlite::query_as("SELECT * FROM unified_track;")
+        let tracks = ormlite::query_as("SELECT * FROM unified_tracks;")
             .fetch_all(&mut self.connection)
             .await?;
         Ok(tracks)
     }
 
     pub async fn get_unified_tracks_by_ids(&mut self, ids: &[String]) -> AnyResult<Vec<UnifiedTrack>> {
-        let mut query = "SELECT * FROM unified_track WHERE local_track_id IN (".to_string();
+        let mut query = "SELECT * FROM unified_tracks WHERE local_track_id IN (".to_string();
 
         query.push_str(&std::iter::repeat("?").take(ids.len()).collect::<Vec<_>>().join(","));
         query.push_str(") OR cloud_track_id IN (");
@@ -96,7 +96,7 @@ impl DB {
     }
 
     pub async fn get_unified_tracks_by_location(&mut self, location_type: &str) -> AnyResult<Vec<UnifiedTrack>> {
-        let tracks = ormlite::query_as("SELECT * FROM unified_track WHERE location_type = ?")
+        let tracks = ormlite::query_as("SELECT * FROM unified_tracks WHERE location_type = ?")
             .bind(location_type)
             .fetch_all(&mut self.connection)
             .await?;
@@ -104,7 +104,7 @@ impl DB {
     }
 
     pub async fn get_unified_tracks_by_folder(&mut self, folder_id: &str) -> AnyResult<Vec<UnifiedTrack>> {
-        let tracks = ormlite::query_as("SELECT * FROM unified_track WHERE cloud_folder_id = ?")
+        let tracks = ormlite::query_as("SELECT * FROM unified_tracks WHERE cloud_folder_id = ?")
             .bind(folder_id)
             .fetch_all(&mut self.connection)
             .await?;
@@ -112,7 +112,7 @@ impl DB {
     }
 
     pub async fn get_unified_tracks_by_provider(&mut self, provider_type: &str) -> AnyResult<Vec<UnifiedTrack>> {
-        let tracks = ormlite::query_as("SELECT * FROM unified_track WHERE cloud_provider_type = ?")
+        let tracks = ormlite::query_as("SELECT * FROM unified_tracks WHERE cloud_provider_type = ?")
             .bind(provider_type)
             .fetch_all(&mut self.connection)
             .await?;
@@ -120,7 +120,7 @@ impl DB {
     }
 
     pub async fn get_unified_track(&mut self, id: &str) -> AnyResult<Option<UnifiedTrack>> {
-        let tracks = ormlite::query_as("SELECT * FROM unified_track WHERE local_track_id = ? OR cloud_track_id = ?")
+        let tracks = ormlite::query_as("SELECT * FROM unified_tracks WHERE local_track_id = ? OR cloud_track_id = ?")
             .bind(id)
             .bind(id)
             .fetch_optional(&mut self.connection)

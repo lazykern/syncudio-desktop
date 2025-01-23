@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { CloudMusicFolder, CloudProviderType } from '../generated/typings';
+import type { CloudMusicFolder, CloudProviderType, UnifiedTrack } from '../generated/typings';
 
 export const cloudDatabase = {
   async getCloudFolders(): Promise<CloudMusicFolder[]> {
@@ -48,5 +48,47 @@ export const cloudDatabase = {
    */
   async syncCloudTracksMetadata(providerType: CloudProviderType): Promise<void> {
     return invoke('plugin:cloud|sync_cloud_tracks_metadata', { providerType });
+  },
+
+  /**
+   * Gets all unified tracks from both local and cloud sources
+   */
+  async getUnifiedTracks(): Promise<UnifiedTrack[]> {
+    return invoke('plugin:cloud|get_unified_tracks');
+  },
+
+  /**
+   * Gets unified tracks by their local or cloud IDs
+   */
+  async getUnifiedTracksByIds(ids: string[]): Promise<UnifiedTrack[]> {
+    return invoke('plugin:cloud|get_unified_tracks_by_ids', { ids });
+  },
+
+  /**
+   * Gets unified tracks by their location type ('local', 'cloud', or 'both')
+   */
+  async getUnifiedTracksByLocation(locationType: 'local' | 'cloud' | 'both'): Promise<UnifiedTrack[]> {
+    return invoke('plugin:cloud|get_unified_tracks_by_location', { locationType });
+  },
+
+  /**
+   * Gets unified tracks by cloud folder ID
+   */
+  async getUnifiedTracksByFolder(folderId: string): Promise<UnifiedTrack[]> {
+    return invoke('plugin:cloud|get_unified_tracks_by_folder', { folderId });
+  },
+
+  /**
+   * Gets unified tracks by cloud provider type
+   */
+  async getUnifiedTracksByProvider(providerType: CloudProviderType): Promise<UnifiedTrack[]> {
+    return invoke('plugin:cloud|get_unified_tracks_by_provider', { providerType });
+  },
+
+  /**
+   * Gets a single unified track by its local or cloud ID
+   */
+  async getUnifiedTrack(id: string): Promise<UnifiedTrack | null> {
+    return invoke('plugin:cloud|get_unified_track', { id });
   }
 }; 
