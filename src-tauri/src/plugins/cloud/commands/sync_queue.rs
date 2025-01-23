@@ -28,6 +28,10 @@ use crate::libs::error::AnyResult;
 struct TrackDownloadedPayload {
     track_id: String,
     location_type: String,
+    local_track_id: String,
+    cloud_track_id: String,
+    sync_folder_id: String,
+    relative_path: String,
 }
 
 #[derive(Debug, ormlite::FromRow)]
@@ -664,25 +668,30 @@ pub async fn start_download<R: Runtime>(
         // Get metadata from downloaded file
         let local_path_buf = PathBuf::from(&local_path);
         if let Some(track) = track::get_track_from_file(&local_path_buf) {
-            // Insert into local tracks table
-            track.clone().insert(&mut db.connection).await?;
-
+            // Insert into local tracks table and get ID
+            let local_track = track.clone().insert(&mut db.connection).await?;
+            
             // Update cloud track with metadata 
             cloud_track.blake3_hash = blake3_hash(&local_path_buf).ok();
             cloud_track.tags = Some(CloudTrackTag::from_track(track));
             cloud_track = cloud_track.update_all_fields(&mut db.connection).await?;
+
+            // Emit event with enhanced payload
+            app.emit(
+                "track-downloaded",
+                TrackDownloadedPayload {
+                    track_id: cloud_track.id.clone(),
+                    location_type: "both".to_string(),
+                    local_track_id: local_track.id,
+                    cloud_track_id: cloud_track.id,
+                    sync_folder_id: cloud_folder.id,
+                    relative_path: track_map.relative_path,
+                },
+            )?;
         } else {
             info!("Failed to parse metadata from downloaded file: {}", local_path);
             return Err(SyncudioError::Path(format!("Failed to parse metadata from {}", local_path)));
         }
-        // Emit event to notify frontend that track has been downloaded
-        app.emit(
-            "track-downloaded",
-            TrackDownloadedPayload {
-                track_id: cloud_track.id.clone(),
-                location_type: "both".to_string(),
-            },
-        )?;
     }
 
     info!("Download completed successfully for item: {}", item_id);

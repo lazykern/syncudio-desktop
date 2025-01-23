@@ -37,12 +37,7 @@ export type FileHash = { "Sha1": string } | { "Sha256": string } | { "ContentHas
  */
 export type FolderSyncStatus = "synced" | "syncing" | "needs_attention" | "empty";
 
-export type IPCEvent = { "Unknown": string } | "PlaybackPlay" | "PlaybackPause" | "PlaybackStop" | "PlaybackPlayPause" | "PlaybackPrevious" | "PlaybackNext" | "PlaybackStart" | "LibraryScanProgress" | "GoToLibrary" | "GoToPlaylists" | "GoToSettings" | "JumpToPlayingTrack" | "track-downloaded";
-
-export type TrackDownloadedPayload = {
-  track_id: string;
-  location_type: string;
-};
+export type IPCEvent = { "Unknown": string } | "PlaybackPlay" | "PlaybackPause" | "PlaybackStop" | "PlaybackPlayPause" | "PlaybackPrevious" | "PlaybackNext" | "PlaybackStart" | "LibraryScanProgress" | "GoToLibrary" | "GoToPlaylists" | "GoToSettings" | "JumpToPlayingTrack";
 
 /** ----------------------------------------------------------------------------
  * Playlist
@@ -98,6 +93,8 @@ export type SyncStatus = "pending" | "in_progress" | "completed" | { "failed": {
  * represent a single track, id and path should be unique
  */
 export type Track = { id: string, blake3_hash: string | null, path: string, title: string, album: string, artists: Array<string>, genres: Array<string>, year: number | null, duration: number, track_no: number | null, track_of: number | null, disk_no: number | null, disk_of: number | null, };
+
+export type TrackDownloadedPayload = { track_id: string, location_type: string, local_track_id: string, cloud_track_id: string, sync_folder_id: string, relative_path: string, };
 
 /**
  * Represents the location state of a track by checking both local and cloud existence by blake3_hash, cloud_file_id and relative_path (should be in local storage and cloud storage)

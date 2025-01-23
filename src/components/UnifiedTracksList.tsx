@@ -7,11 +7,12 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type React from 'react';
 import { useCallback, useEffect, useRef } from 'react';
+import { listen } from '@tauri-apps/api/event';
 import Keybinding from 'react-keybinding-component';
 import { useSearchParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 
-import type { Config, Playlist, UnifiedTrack } from '../generated/typings';
+import type { Config, Playlist, UnifiedTrack, TrackDownloadedPayload } from '../generated/typings';
 import { useLibraryAPI } from '../stores/useLibraryStore';
 import { usePlayerAPI } from '../stores/usePlayerStore';
 import { useTrackSelection } from '../hooks/useTrackSelection';
@@ -65,15 +66,34 @@ export default function UnifiedTracksList(props: Props) {
   const queryClient = useQueryClient();
   const sensors = useDndSensors();
   
-  // Listen for track-downloaded events to refresh the list
+  // Listen for track-downloaded events to update tracks
   useEffect(() => {
-    const handleTrackDownloaded = async () => {
-      // Invalidate unified tracks query to refresh the list
-      await queryClient.invalidateQueries({ queryKey: ['unified-tracks'] });
-    };
+    const unlisten = listen<TrackDownloadedPayload>('track-downloaded', async (event) => {
+      // Update specific track in cache without full refetch
+      await queryClient.setQueryData(['unified-tracks'], (oldData: UnifiedTrack[] | undefined) => {
+        if (!oldData) return oldData;
+        
+        return oldData.map(track => {
+          if (track.cloud_track_id === event.payload.cloud_track_id) {
+            return {
+              ...track,
+              local_track_id: event.payload.local_track_id,
+              location_type: event.payload.location_type,
+              local_path: `${event.payload.sync_folder_id}/${event.payload.relative_path}`
+            };
+          }
+          return track;
+        });
+      });
 
-    window.addEventListener('track-downloaded', handleTrackDownloaded);
-    return () => window.removeEventListener('track-downloaded', handleTrackDownloaded);
+      // Also invalidate to ensure consistency
+      await queryClient.invalidateQueries({ queryKey: ['unified-tracks'] });
+    });
+
+    // Return cleanup function
+    return () => {
+      unlisten.then(unsubscribe => unsubscribe());
+    };
   }, [queryClient]);
 
   const scrollableRef = useRef<HTMLDivElement>(null);
