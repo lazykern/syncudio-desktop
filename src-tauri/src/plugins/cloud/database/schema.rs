@@ -4,7 +4,7 @@ use ormlite::sqlite::SqliteConnection;
 pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
     // Cloud folder mappings
     ormlite::query(
-        "CREATE TABLE IF NOT EXISTS cloud_folders (
+        "CREATE TABLE IF NOT EXISTS cloud_music_folders (
             id TEXT PRIMARY KEY NOT NULL,
             provider_type TEXT NOT NULL,
             cloud_folder_id TEXT NOT NULL,
@@ -37,7 +37,7 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
             relative_path TEXT NOT NULL,
             cloud_file_id TEXT UNIQUE, -- Moved from cloud_tracks to here since it's location-specific
             FOREIGN KEY (cloud_track_id) REFERENCES cloud_tracks(id),
-            FOREIGN KEY (cloud_music_folder_id) REFERENCES cloud_folders(id)
+            FOREIGN KEY (cloud_music_folder_id) REFERENCES cloud_music_folders(id)
         );
         CREATE INDEX IF NOT EXISTS idx_cloud_track_maps_cloud_track_id ON cloud_track_maps(cloud_track_id);
         CREATE INDEX IF NOT EXISTS idx_cloud_track_maps_cloud_music_folder_id ON cloud_track_maps(cloud_music_folder_id);
@@ -193,7 +193,7 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
             (base_tracks.join_type = 'hash' AND ct.blake3_hash = base_tracks.blake3_hash) OR
             (base_tracks.join_type = 'cloud_id' AND ct.id = base_tracks.blake3_hash)
         LEFT JOIN cloud_track_maps ctm ON ct.id = ctm.cloud_track_id
-        LEFT JOIN cloud_folders cmf ON ctm.cloud_music_folder_id = cmf.id;"
+        LEFT JOIN cloud_music_folders cmf ON ctm.cloud_music_folder_id = cmf.id;"
     )
     .execute(&mut *connection)
     .await?;

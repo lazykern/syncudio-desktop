@@ -2,6 +2,7 @@ mod database;
 mod provider;
 mod sync;
 mod sync_queue;
+mod cleanup;
 
 use chrono::DateTime;
 use ormlite::Model;
@@ -15,6 +16,7 @@ pub use database::*;
 pub use provider::*;
 pub use sync::*;
 pub use sync_queue::*;
+pub use cleanup::*;
 
 use crate::libs::constants::SUPPORTED_TRACKS_EXTENSIONS;
 use crate::libs::error::SyncudioError;

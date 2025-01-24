@@ -3,6 +3,7 @@ import { ask, open } from '@tauri-apps/plugin-dialog';
 import type { SortBy, SortOrder, Track } from '../generated/typings';
 import config from '../lib/config';
 import database from '../lib/database';
+import { cloudDatabase } from '../lib/cloud-database';
 import { logAndNotifyError } from '../lib/utils';
 
 import type { StateCreator } from 'zustand';
@@ -115,6 +116,17 @@ const useLibraryStore = createLibraryStore<LibraryState>((set, get) => ({
       try {
         set({ refreshing: true });
 
+        // First cleanup missing tracks
+        const cleanupResult = await cloudDatabase.cleanupMissingTracks();
+        if (cleanupResult.removed_tracks > 0) {
+          useToastsStore.getState().api.add(
+            'success',
+            `Cleaned up ${cleanupResult.removed_tracks} missing tracks`,
+            5000,
+          );
+        }
+
+        // Then refresh library
         const libraryFolders = await config.get('library_folders');
         const scanResult = await database.importTracks(libraryFolders);
 

@@ -35,13 +35,14 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             cloud_download_file,
             cloud_delete_file,
             // Cloud folder database operations
-            get_cloud_folders,
-            get_cloud_folders_by_provider,
+            get_cloud_music_folders,
+            get_cloud_music_folders_by_provider,
             get_cloud_folder_by_local_path,
             save_cloud_folder,
             update_cloud_folder,
             delete_cloud_folder,
             // Cloud sync operations
+            cleanup_missing_local_tracks,
             discover_cloud_folder_tracks,
             sync_cloud_tracks_metadata,
             get_cloud_folder_sync_details,

@@ -4,7 +4,8 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Model, TS)]
-#[ormlite(table = "cloud_folders")]
+#[ormlite(table = "cloud_music_folders")]
+
 #[ts(export, export_to = "../../src/generated/typings/index.ts")]
 pub struct CloudMusicFolder {
     #[ormlite(primary_key)]

@@ -7,17 +7,17 @@ use crate::plugins::db::DBState;
 
 // Cloud Folder Operations
 #[tauri::command]
-pub async fn get_cloud_folders(db_state: State<'_, DBState>) -> AnyResult<Vec<CloudMusicFolder>> {
+pub async fn get_cloud_music_folders(db_state: State<'_, DBState>) -> AnyResult<Vec<CloudMusicFolder>> {
     info!("Getting all cloud folders");
     let mut db = db_state.get_lock().await;
-    db.get_cloud_folders().await
+    db.get_cloud_music_folders().await
 }
 
 #[tauri::command]
-pub async fn get_cloud_folders_by_provider(provider_type: String, db_state: State<'_, DBState>) -> AnyResult<Vec<CloudMusicFolder>> {
+pub async fn get_cloud_music_folders_by_provider(provider_type: String, db_state: State<'_, DBState>) -> AnyResult<Vec<CloudMusicFolder>> {
     info!("Getting cloud folders for provider: {}", provider_type);
     let mut db = db_state.get_lock().await;
-    db.get_cloud_folders_by_provider(&provider_type).await
+    db.get_cloud_music_folders_by_provider(&provider_type).await
 }
 
 #[tauri::command]

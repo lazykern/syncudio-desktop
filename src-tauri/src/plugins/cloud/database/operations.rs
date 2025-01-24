@@ -17,14 +17,14 @@ impl DB {
         Ok(folder)
     }
     
-    pub async fn get_cloud_folders(&mut self) -> AnyResult<Vec<CloudMusicFolder>> {
+    pub async fn get_cloud_music_folders(&mut self) -> AnyResult<Vec<CloudMusicFolder>> {
         let folders = CloudMusicFolder::select()
             .fetch_all(&mut self.connection)
             .await?;
         Ok(folders)
     }
 
-    pub async fn get_cloud_folders_by_provider(
+    pub async fn get_cloud_music_folders_by_provider(
         &mut self,
         provider_type: &str,
     ) -> AnyResult<Vec<CloudMusicFolder>> {

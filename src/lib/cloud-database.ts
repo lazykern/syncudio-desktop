@@ -3,11 +3,11 @@ import type { CloudMusicFolder, CloudProviderType, UnifiedTrack } from '../gener
 
 export const cloudDatabase = {
   async getCloudFolders(): Promise<CloudMusicFolder[]> {
-    return invoke('plugin:cloud|get_cloud_folders');
+    return invoke('plugin:cloud|get_cloud_music_folders');
   },
 
   async getCloudFoldersByProvider(providerType: CloudProviderType): Promise<CloudMusicFolder[]> {
-    return invoke('plugin:cloud|get_cloud_folders_by_provider', { providerType });
+    return invoke('plugin:cloud|get_cloud_music_folders_by_provider', { providerType });
   },
 
   async getCloudFolderByLocalPath(localPath: string): Promise<CloudMusicFolder | null> {
@@ -51,6 +51,21 @@ export const cloudDatabase = {
   },
 
   /**
+   * Cleans up missing local tracks and their related cloud mappings.
+   * Should be called:
+   * 1. Before library refresh operations
+   * 2. After detecting file system changes
+   * 3. Before cloud sync operations
+   */
+  async cleanupMissingTracks(): Promise<{
+    removed_tracks: number;
+    removed_cloud_mappings: number;
+    removed_cloud_tracks: number;
+  }> {
+    return invoke('plugin:cloud|cleanup_missing_local_tracks');
+  },
+
+  /**
    * Gets all unified tracks from both local and cloud sources
    */
   async getUnifiedTracks(): Promise<UnifiedTrack[]> {
@@ -91,4 +106,4 @@ export const cloudDatabase = {
   async getUnifiedTrack(id: string): Promise<UnifiedTrack | null> {
     return invoke('plugin:cloud|get_unified_track', { id });
   }
-}; 
+};
