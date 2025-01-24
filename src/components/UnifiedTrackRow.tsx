@@ -140,7 +140,7 @@ export default function UnifiedTrackRow(props: Props) {
         {props.isPlaying ? <PlayingIndicator /> : null}
         {isCloudOnly && (
           <div className={styles.downloadIcon}>
-            <icons.DOWNLOAD />
+            {isDownloading ? <icons.LOADING /> : <icons.DOWNLOAD />}
           </div>
         )}
       </div>

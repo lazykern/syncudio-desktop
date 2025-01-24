@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Outlet } from 'react-router';
 
 import AppEvents from '../components/AppEvents';
+import CloudEvents from '../components/CloudEvents';
 import DropzoneImport from '../components/DropzoneImport';
 import Footer from '../components/Footer';
 import GlobalKeyBindings from '../components/GlobalKeyBindings';
@@ -27,7 +28,7 @@ function BackgroundWorker() {
     // Start the worker immediately
     startWorker();
     // No cleanup function - we want this to run for the entire app lifecycle
-  }, []);
+  }, [startWorker]);
 
   return null;
 }
@@ -50,6 +51,7 @@ export default function ViewRoot() {
       <PlayerEvents />
       <MediaSessionEvents />
       <GlobalKeyBindings />
+      <CloudEvents />
       {/** Background processes */}
       <BackgroundWorker />
       {/** The actual app */}

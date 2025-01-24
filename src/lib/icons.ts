@@ -2,6 +2,7 @@ import NEXT from '../assets/icons/player-next.svg?react';
 import PAUSE from '../assets/icons/player-pause.svg?react';
 import PLAY from '../assets/icons/player-play.svg?react';
 import DOWNLOAD from '../assets/icons/player-download.svg?react';
+import LOADING from '../assets/icons/player-loading.svg?react';
 import PREVIOUS from '../assets/icons/player-previous.svg?react';
 import QUEUE from '../assets/icons/player-queue.svg?react';
 import REPEAT_ONE from '../assets/icons/player-repeat-one.svg?react';
@@ -18,6 +19,7 @@ const icons = {
   REPEAT,
   SHUFFLE,
   DOWNLOAD,
+  LOADING,
 };
 
 export default icons;
