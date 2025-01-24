@@ -49,6 +49,7 @@
     "--input-color": "#333333",
     "--button-bg": "#f3f3f3",
     "--button-border": "rgb(0 0 0 / 0.1)",
-    "--button-color": "#333333"
+    "--button-color": "#333333",
+    "--highlight-color": "#E6E6E6"
   }
 }

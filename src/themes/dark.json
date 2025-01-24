@@ -49,6 +49,7 @@
     "--input-color": "#efefef",
     "--button-bg": "hsl(216, 0%, 20%)",
     "--button-border": "rgb(255 255 255 / 0.2)",
-    "--button-color": "#efefef"
+    "--button-color": "#efefef",
+    "--highlight-color": "hsl(216, 0%, 13%)"
   }
 }

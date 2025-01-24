@@ -21,13 +21,13 @@
   font-size: var(--fontsize-small);
 }
 
+.even {
+  background-color: var(--background-color-alt);
+}
+
 .selected {
   background-color: var(--highlight-color);
   color: var(--text-color);
-}
-
-.even {
-  background-color: var(--background-color-alt);
 }
 
 .isOver {
