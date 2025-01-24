@@ -55,7 +55,7 @@ pub async fn get_cloud_folder_sync_details(
             t.id, t.blake3_hash, t.file_name, t.updated_at, t.tags,
             m.id as map_id, m.relative_path, m.cloud_music_folder_id, m.cloud_file_id
         FROM cloud_tracks t
-        INNER JOIN cloud_track_maps m ON t.id = m.cloud_track_id
+        INNER JOIN cloud_maps m ON t.id = m.cloud_track_id
         WHERE m.cloud_music_folder_id = ?
     "#)
     .bind(&folder_id)
@@ -67,18 +67,18 @@ pub async fn get_cloud_folder_sync_details(
         SELECT 
             'upload' as queue_type,
             u.status,
-            u.cloud_track_map_id
+            u.cloud_map_id
         FROM upload_queue u
-        INNER JOIN cloud_track_maps m ON u.cloud_track_map_id = m.id
+        INNER JOIN cloud_maps m ON u.cloud_map_id = m.id
         WHERE m.cloud_music_folder_id = ? 
             AND (u.status = 'pending' OR u.status = 'in_progress')
         UNION ALL
         SELECT 
             'download' as queue_type,
             d.status,
-            d.cloud_track_map_id
+            d.cloud_map_id
         FROM download_queue d
-        INNER JOIN cloud_track_maps m ON d.cloud_track_map_id = m.id
+        INNER JOIN cloud_maps m ON d.cloud_map_id = m.id
         WHERE m.cloud_music_folder_id = ?
             AND (d.status = 'pending' OR d.status = 'in_progress')
     "#)
@@ -91,7 +91,7 @@ pub async fn get_cloud_folder_sync_details(
     let operation_map: HashMap<String, (&str, &str)> = active_operations
         .iter()
         .map(|op| (
-            op.cloud_track_map_id.clone(),
+            op.cloud_map_id.clone(),
             (op.queue_type.as_str(), op.status.as_str())
         ))
         .collect();
@@ -146,7 +146,7 @@ pub async fn get_cloud_folder_sync_details(
         track_dtos.push(CloudTrackDTO {
             id: track.id,
             cloud_music_folder_id: folder.id.clone(),
-            cloud_track_map_id: track.map_id,
+            cloud_map_id: track.map_id,
             file_name: track.file_name,
             relative_path: track.relative_path,
             location_state,
@@ -215,13 +215,13 @@ pub async fn get_track_sync_status(
 
     // Get active operations
     let upload_op = UploadQueueItem::select()
-        .where_("cloud_track_map_id = ? AND (status = 'pending' OR status = 'in_progress')")
+        .where_("cloud_map_id = ? AND (status = 'pending' OR status = 'in_progress')")
         .bind(&track_map.id)
         .fetch_optional(&mut db.connection)
         .await?;
 
     let download_op = DownloadQueueItem::select()
-        .where_("cloud_track_map_id = ? AND (status = 'pending' OR status = 'in_progress')")
+        .where_("cloud_map_id = ? AND (status = 'pending' OR status = 'in_progress')")
         .bind(&track_map.id)
         .fetch_optional(&mut db.connection)
         .await?;

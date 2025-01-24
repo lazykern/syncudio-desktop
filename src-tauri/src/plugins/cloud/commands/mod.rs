@@ -104,7 +104,7 @@ pub async fn discover_cloud_folder_tracks(
     let mut query = String::from(
         "SELECT DISTINCT ct.id, ct.blake3_hash, ctm.cloud_file_id 
          FROM cloud_tracks ct 
-         LEFT JOIN cloud_track_maps ctm ON ct.id = ctm.cloud_track_id
+         LEFT JOIN cloud_maps ctm ON ct.id = ctm.cloud_track_id
          WHERE 0=1",
     );
 
@@ -343,66 +343,6 @@ pub async fn discover_cloud_folder_tracks(
                 map.cloud_file_id = None;
                 map.update_all_fields(&mut db.connection).await?;
             }
-        }
-    }
-
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn sync_cloud_tracks_metadata(
-    provider_type: String,
-    cloud_state: State<'_, CloudState>,
-    db_state: State<'_, DBState>,
-) -> AnyResult<()> {
-    let mut db = db_state.get_lock().await;
-    let provider = CloudProviderType::from_str(&provider_type)?;
-
-    // Get local cloud tracks
-    let local_tracks = CloudTrack::select().fetch_all(&mut db.connection).await?;
-    let local_metadata = CloudTracksMetadata::new(local_tracks);
-
-    // Download cloud metadata if exists
-    match provider {
-        CloudProviderType::Dropbox => {
-            match cloud_state.dropbox.download_metadata().await? {
-                Some(mut cloud_metadata) => {
-                    // Merge cloud metadata with local
-                    cloud_metadata.merge(local_metadata);
-
-                    // Update local database with merged tracks
-                    for track in &cloud_metadata.tracks {
-                        match CloudTrack::select()
-                            .where_("blake3_hash = ? OR cloud_file_id = ? OR id = ?")
-                            .bind(&track.blake3_hash)
-                            .bind(&track.id)
-                            .fetch_optional(&mut db.connection)
-                            .await?
-                        {
-                            Some(existing) => {
-                                info!("Updating existing track: {:?}", existing);
-                                existing.update_all_fields(&mut db.connection).await?;
-                            }
-                            None => {
-                                info!("Inserting new track: {:?}", track);
-                                (*track).clone().insert(&mut db.connection).await?;
-                            }
-                        }
-                    }
-
-                    // Upload merged metadata back to cloud
-                    cloud_state.dropbox.upload_metadata(&cloud_metadata).await?;
-                }
-                None => {
-                    // No cloud metadata exists, upload local
-                    cloud_state.dropbox.upload_metadata(&local_metadata).await?;
-                }
-            }
-        }
-        CloudProviderType::GoogleDrive => {
-            return Err(SyncudioError::GoogleDrive(
-                "Google Drive not implemented yet".to_string(),
-            ))
         }
     }
 

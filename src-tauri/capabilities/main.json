@@ -65,7 +65,6 @@
     "cloud:allow-delete-cloud-folder",
     "cloud:allow-cleanup-missing-local-tracks",
     "cloud:allow-discover-cloud-folder-tracks",
-    "cloud:allow-sync-cloud-tracks-metadata",
     "cloud:allow-get-cloud-folder-sync-details",
     "cloud:allow-get-queue-items",
     "cloud:allow-get-queue-stats",

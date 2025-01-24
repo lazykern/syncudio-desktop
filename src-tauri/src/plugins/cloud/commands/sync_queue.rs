@@ -54,7 +54,7 @@ pub async fn get_queue_items(
         UploadQueueItem::query(
             r#"SELECT u.* 
             FROM upload_queue u
-            INNER JOIN cloud_track_maps m ON u.cloud_track_map_id = m.id
+            INNER JOIN cloud_maps m ON u.cloud_map_id = m.id
             WHERE m.cloud_music_folder_id = ?
             ORDER BY u.created_at ASC"#,
         )
@@ -70,7 +70,7 @@ pub async fn get_queue_items(
         DownloadQueueItem::query(
             r#"SELECT d.* 
             FROM download_queue d
-            INNER JOIN cloud_track_maps m ON d.cloud_track_map_id = m.id
+            INNER JOIN cloud_maps m ON d.cloud_map_id = m.id
             WHERE m.cloud_music_folder_id = ?
             ORDER BY d.created_at ASC"#,
         )
@@ -86,7 +86,7 @@ pub async fn get_queue_items(
         // Get track info through track map
         let track_map = CloudTrackMap::select()
             .where_("id = ?")
-            .bind(&item.cloud_track_map_id)
+            .bind(&item.cloud_map_id)
             .fetch_optional(&mut db.connection)
             .await?;
 
@@ -126,7 +126,7 @@ pub async fn get_queue_items(
         // Get track info through track map
         let track_map = CloudTrackMap::select()
             .where_("id = ?")
-            .bind(&item.cloud_track_map_id)
+            .bind(&item.cloud_map_id)
             .fetch_optional(&mut db.connection)
             .await?;
 
@@ -181,12 +181,12 @@ pub async fn get_queue_stats(
             FROM (
                 SELECT u.status 
                 FROM upload_queue u
-                INNER JOIN cloud_track_maps m ON u.cloud_track_map_id = m.id
+                INNER JOIN cloud_maps m ON u.cloud_map_id = m.id
                 WHERE m.cloud_music_folder_id = ?
                 UNION ALL
                 SELECT d.status 
                 FROM download_queue d
-                INNER JOIN cloud_track_maps m ON d.cloud_track_map_id = m.id
+                INNER JOIN cloud_maps m ON d.cloud_map_id = m.id
                 WHERE m.cloud_music_folder_id = ?
             ) combined
             GROUP BY status
@@ -257,14 +257,14 @@ pub async fn add_to_upload_queue(
 
         // Check for existing active operations
         let has_active_upload = UploadQueueItem::select()
-            .where_("cloud_track_map_id = ? AND (status = 'pending' OR status = 'in_progress')")
+            .where_("cloud_map_id = ? AND (status = 'pending' OR status = 'in_progress')")
             .bind(&track_map.id)
             .fetch_optional(&mut db.connection)
             .await?
             .is_some();
 
         let has_active_download = DownloadQueueItem::select()
-            .where_("cloud_track_map_id = ? AND (status = 'pending' OR status = 'in_progress')")
+            .where_("cloud_map_id = ? AND (status = 'pending' OR status = 'in_progress')")
             .bind(&track_map.id)
             .fetch_optional(&mut db.connection)
             .await?
@@ -287,7 +287,7 @@ pub async fn add_to_upload_queue(
         let upload_item = UploadQueueItem {
             id: Uuid::new_v4().to_string(),
             priority: priority.unwrap_or(0),
-            cloud_track_map_id: track_map.id,
+            cloud_map_id: track_map.id,
             provider_type: folder.provider_type,
             status: "pending".to_string(),
             error_message: None,
@@ -328,14 +328,14 @@ pub async fn add_to_download_queue(
 
         // Check for existing active operations
         let has_active_upload = UploadQueueItem::select()
-            .where_("cloud_track_map_id = ? AND (status = 'pending' OR status = 'in_progress')")
+            .where_("cloud_map_id = ? AND (status = 'pending' OR status = 'in_progress')")
             .bind(&track_map.id)
             .fetch_optional(&mut db.connection)
             .await?
             .is_some();
 
         let has_active_download = DownloadQueueItem::select()
-            .where_("cloud_track_map_id = ? AND (status = 'pending' OR status = 'in_progress')")
+            .where_("cloud_map_id = ? AND (status = 'pending' OR status = 'in_progress')")
             .bind(&track_map.id)
             .fetch_optional(&mut db.connection)
             .await?
@@ -358,7 +358,7 @@ pub async fn add_to_download_queue(
         let download_item = DownloadQueueItem {
             id: Uuid::new_v4().to_string(),
             priority: priority.unwrap_or(0),
-            cloud_track_map_id: track_map.id,
+            cloud_map_id: track_map.id,
             provider_type: folder.provider_type,
             status: "pending".to_string(),
             error_message: None,
@@ -386,8 +386,8 @@ pub async fn retry_failed_items(
         UploadQueueItem::query(
             r#"SELECT * FROM upload_queue 
             WHERE status = 'failed' 
-            AND cloud_track_map_id IN (
-                SELECT id FROM cloud_track_maps WHERE cloud_music_folder_id = ?
+            AND cloud_map_id IN (
+                SELECT id FROM cloud_maps WHERE cloud_music_folder_id = ?
             )"#,
         )
         .bind(folder_id)
@@ -402,8 +402,8 @@ pub async fn retry_failed_items(
         DownloadQueueItem::query(
             r#"SELECT * FROM download_queue 
             WHERE status = 'failed' 
-            AND cloud_track_map_id IN (
-                SELECT id FROM cloud_track_maps WHERE cloud_music_folder_id = ?
+            AND cloud_map_id IN (
+                SELECT id FROM cloud_maps WHERE cloud_music_folder_id = ?
             )"#,
         )
         .bind(folder_id)
@@ -515,7 +515,7 @@ pub async fn start_upload(
 
         let track_map = CloudTrackMap::select()
             .where_("id = ?")
-            .bind(&item.cloud_track_map_id)
+            .bind(&item.cloud_map_id)
             .fetch_one(&mut db.connection)
             .await?;
 
@@ -572,7 +572,7 @@ pub async fn start_upload(
 
         let mut track_map = CloudTrackMap::select()
             .where_("id = ?")
-            .bind(&item.cloud_track_map_id)
+            .bind(&item.cloud_map_id)
             .fetch_one(&mut db.connection)
             .await?;
         track_map.cloud_file_id = Some(cloud_file.id);
@@ -603,7 +603,7 @@ pub async fn start_download<R: Runtime>(
 
         let track_map = CloudTrackMap::select()
             .where_("id = ? AND cloud_file_id IS NOT NULL")
-            .bind(&item.cloud_track_map_id)
+            .bind(&item.cloud_map_id)
             .fetch_one(&mut db.connection)
             .await?;
 

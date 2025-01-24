@@ -49,7 +49,7 @@ pub async fn cleanup_missing_local_tracks(
             // First remove any cloud mappings for this track by matching the path
             let maps = CloudTrackMap::query(r#"
                 SELECT ctm.* 
-                FROM cloud_track_maps ctm
+                FROM cloud_maps ctm
                 INNER JOIN cloud_music_folders cmf ON ctm.cloud_music_folder_id = cmf.id
                 WHERE cmf.local_folder_path || '/' || ctm.relative_path = ?"#)
                 .bind(&track.path)
@@ -69,20 +69,20 @@ pub async fn cleanup_missing_local_tracks(
                     .await?;
 
                 // If no remaining mappings, remove the cloud track
-                if remaining_maps.is_none() {
-                    if let Ok(cloud_track) = CloudTrack::select()
-                        .where_("id = ?")
-                        .bind(&cloud_track_id)
-                        .fetch_optional(&mut db.connection)
-                        .await
-                    {
-                        if let Some(cloud_track) = cloud_track {
-                            cloud_track.delete(&mut db.connection).await?;
-                            result.removed_cloud_tracks += 1;
-                            info!("Removed orphaned cloud track: {}", cloud_track_id);
-                        }
-                    }
-                }
+                // if remaining_maps.is_none() {
+                //     if let Ok(cloud_track) = CloudTrack::select()
+                //         .where_("id = ?")
+                //         .bind(&cloud_track_id)
+                //         .fetch_optional(&mut db.connection)
+                //         .await
+                //     {
+                //         if let Some(cloud_track) = cloud_track {
+                //             cloud_track.delete(&mut db.connection).await?;
+                //             result.removed_cloud_tracks += 1;
+                //             info!("Removed orphaned cloud track: {}", cloud_track_id);
+                //         }
+                //     }
+                // }
             }
 
             // Finally remove the local track

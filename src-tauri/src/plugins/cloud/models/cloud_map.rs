@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Model, TS)]
-#[ormlite(table = "cloud_track_maps")]
+#[ormlite(table = "cloud_maps")]
 #[ts(export, export_to = "../../src/generated/typings/index.ts")]
 pub struct CloudTrackMap {
     #[ormlite(primary_key)]

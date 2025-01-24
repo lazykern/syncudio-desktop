@@ -58,8 +58,6 @@ pub enum FileHash {
 use async_trait::async_trait;
 use std::path::PathBuf;
 
-use super::cloud_track::CloudTracksMetadata;
-
 #[async_trait]
 pub trait CloudProvider {
     async fn is_authorized(&self) -> bool;
@@ -107,52 +105,5 @@ pub trait CloudProvider {
                 }
             };
         metadata
-    }
-
-    async fn get_metadata_file_id(&self) -> AnyResult<Option<String>> {
-        let metadata_folder = self.ensure_metadata_folder().await?;
-        Ok(self.list_files(&metadata_folder, "/Syncudio/metadata", false).await?
-            .iter()
-            .find(|f| !f.is_folder && f.name == "tracks.json")
-            .map(|f| f.id.clone()))
-    }
-
-    async fn upload_metadata(&self, metadata: &CloudTracksMetadata) -> AnyResult<()> {
-        let metadata_folder = self.ensure_metadata_folder().await?;
-        let json = metadata.to_json()?;
-        let temp_path = std::env::temp_dir().join("tracks.json");
-        std::fs::write(&temp_path, json)?;
-        
-        // Delete existing file if it exists
-        if let Some(file_id) = self.get_metadata_file_id().await? {
-            let _ = self.delete_file(&file_id).await;
-        }
-        
-        let parent_ref = self.get_parent_ref(
-            Some(&metadata_folder),
-            Some("/Syncudio/metadata")
-        );
-        self.upload_file(&temp_path, "tracks.json", parent_ref.as_deref()).await?;
-        
-        std::fs::remove_file(temp_path)?;
-        Ok(())
-    }
-
-    async fn download_metadata(&self) -> AnyResult<Option<CloudTracksMetadata>> {
-        let temp_path = std::env::temp_dir().join("tracks.json");
-        
-        // Try to get the metadata file ID
-        if let Some(file_id) = self.get_metadata_file_id().await? {
-            match self.download_file(&file_id, &temp_path).await {
-                Ok(_) => {
-                    let json = std::fs::read_to_string(&temp_path)?;
-                    std::fs::remove_file(temp_path)?;
-                    Ok(Some(CloudTracksMetadata::from_json(&json)?))
-                }
-                Err(_) => Ok(None)
-            }
-        } else {
-            Ok(None)
-        }
     }
 } 

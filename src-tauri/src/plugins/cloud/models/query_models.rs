@@ -26,7 +26,7 @@ pub struct TrackWithMapRow {
 pub struct QueueOperationRow {
     pub queue_type: String,  // 'upload' or 'download'
     pub status: String,
-    pub cloud_track_map_id: String,
+    pub cloud_map_id: String,
 }
 
 /// Query model for queue statistics

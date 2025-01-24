@@ -52,7 +52,7 @@ pub struct DownloadQueueItem {
     #[ormlite(primary_key)]
     pub id: String,
     pub priority: i32,
-    pub cloud_track_map_id: String,
+    pub cloud_map_id: String,
     pub provider_type: String,
     pub status: String,
     pub error_message: Option<String>,
@@ -62,12 +62,12 @@ pub struct DownloadQueueItem {
 }
 
 impl DownloadQueueItem {
-    pub fn new(cloud_track_map_id: String, provider_type: String, priority: i32) -> Self {
+    pub fn new(cloud_map_id: String, provider_type: String, priority: i32) -> Self {
         let now = Utc::now();
         Self {
             id: Uuid::new_v4().to_string(),
             priority,
-            cloud_track_map_id,
+            cloud_map_id,
             provider_type,
             status: SyncQueueStatus::Pending.as_str().to_string(),
             error_message: None,
@@ -132,7 +132,7 @@ pub struct UploadQueueItem {
     #[ormlite(primary_key)]
     pub id: String,
     pub priority: i32,
-    pub cloud_track_map_id: String,
+    pub cloud_map_id: String,
     pub provider_type: String,
     pub status: String,
     pub error_message: Option<String>,
@@ -142,12 +142,12 @@ pub struct UploadQueueItem {
 }
 
 impl UploadQueueItem {
-    pub fn new(cloud_track_map_id: String, provider_type: String, priority: i32) -> Self {
+    pub fn new(cloud_map_id: String, provider_type: String, priority: i32) -> Self {
         let now = Utc::now();
         Self {
             id: Uuid::new_v4().to_string(),
             priority,
-            cloud_track_map_id,
+            cloud_map_id,
             provider_type,
             status: SyncQueueStatus::Pending.as_str().to_string(),
             error_message: None,

@@ -9,7 +9,7 @@ pub struct UnifiedTrack {
     // Track identifiers
     pub local_track_id: Option<String>,
     pub cloud_track_id: Option<String>,
-    pub cloud_track_map_id: Option<String>,
+    pub cloud_map_id: Option<String>,
     pub cloud_folder_id: Option<String>,
     pub blake3_hash: Option<String>,
 
