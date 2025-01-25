@@ -20,6 +20,11 @@ pub mod config;
 pub mod db;
 
 /**
+ * Integrations
+ */
+pub mod lastfm;
+
+/**
  * Cloud sync
  */
 pub mod cloud;

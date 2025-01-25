@@ -24,7 +24,7 @@
 }
 
 .settingSelect,
-.settingInput {
+.settingInput:not([type="checkbox"]) {
   appearance: none;
   display: block;
   background: var(--input-bg);
@@ -45,6 +45,13 @@
     opacity: 0.6;
     cursor: not-allowed;
   }
+}
+
+.settingInput[type="checkbox"] {
+  appearance: auto;
+  width: auto;
+  margin-right: 8px;
+  cursor: pointer;
 }
 
 .settingError {

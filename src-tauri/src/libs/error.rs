@@ -66,6 +66,9 @@ pub enum SyncudioError {
 
     #[error("Invalid queue status")]
     InvalidQueueStatus,
+
+    #[error("Last.fm error: {0}")]
+    LastFm(String),
 }
 
 /**
@@ -91,5 +94,11 @@ impl<T: std::fmt::Debug> From<dropbox_sdk::Error<T>> for SyncudioError {
 impl From<StripPrefixError> for SyncudioError {
     fn from(error: StripPrefixError) -> Self {
         SyncudioError::Path(error.to_string())
+    }
+}
+
+impl From<toml::ser::Error> for SyncudioError {
+    fn from(error: toml::ser::Error) -> Self {
+        SyncudioError::SerializationError(error.to_string())
     }
 }

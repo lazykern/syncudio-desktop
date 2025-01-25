@@ -11,6 +11,7 @@ import ViewSettingsAudio from './routes/settings-audio';
 import ViewSettingsLibrary from './routes/settings-library';
 import ViewSettingsCloud from './routes/settings-cloud';
 import ViewSettingsUI from './routes/settings-ui';
+import ViewSettingsScrobbler from './routes/settings-scrobbler';
 import ViewTrackDetails from './routes/track-details';
 import ViewCloud from './routes/cloud';
 
@@ -71,6 +72,11 @@ const routeTree: RouteObject[] = [
           {
             path: 'cloud',
             Component: ViewSettingsCloud,
+            loader: ViewSettings.loader,
+          },
+          {
+            path: 'scrobbler',
+            Component: ViewSettingsScrobbler,
             loader: ViewSettings.loader,
           },
           {

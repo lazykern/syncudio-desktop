@@ -46,6 +46,16 @@ fn main() {
                 tauri_build::InlinedPlugin::new().commands(&["enable", "disable"]),
             )
             .plugin(
+                "lastfm",
+                tauri_build::InlinedPlugin::new().commands(&[
+                    "authenticate",
+                    "logout",
+                    "get_session",
+                    "scrobble_track",
+                    "update_now_playing",
+                ]),
+            )
+            .plugin(
                 "cloud",
                 tauri_build::InlinedPlugin::new().commands(&[
                     // Dropbox-specific auth commands

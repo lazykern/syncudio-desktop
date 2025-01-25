@@ -70,6 +70,7 @@ pub struct Config {
     pub sync_concurrent_downloads: u32,
     pub sync_retry_limit: u32,
     pub sync_retry_delay_seconds: u32,
+    pub lastfm_enabled: bool,
 }
 
 pub const SYSTEM_THEME: &str = "__system";
@@ -100,6 +101,7 @@ impl Config {
             sync_concurrent_downloads: 3,
             sync_retry_limit: 3,
             sync_retry_delay_seconds: 30,
+            lastfm_enabled: false,
         }
     }
 }

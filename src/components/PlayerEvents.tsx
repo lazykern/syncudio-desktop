@@ -5,9 +5,12 @@ import { useEffect } from 'react';
 import config from '../lib/config';
 import { getCover } from '../lib/cover';
 import player from '../lib/player';
+import { lastfm } from '../lib/lastfm';
 import { logAndNotifyError } from '../lib/utils';
 import { usePlayerAPI } from '../stores/usePlayerStore';
 import { useToastsAPI } from '../stores/useToastsStore';
+
+const SCROBBLE_THRESHOLD = 0.5; // 50%
 
 const AUDIO_ERRORS = {
   aborted: 'The video playback was aborted.',
@@ -53,42 +56,93 @@ function PlayerEvents() {
       }
     }
 
-    async function notifyTrackChange() {
-      const track = player.getTrack();
-      const isEnabled = await config.get('notifications');
-      const isMinimized = await getCurrentWindow()
-        .isMinimized()
-        .catch(logAndNotifyError);
-      const isFocused = await getCurrentWindow()
-        .isFocused()
-        .catch(logAndNotifyError);
+async function handleTrackChange() {
+  const track = player.getTrack();
+  const notificationsEnabled = await config.get('notifications');
+  const isMinimized = await getCurrentWindow()
+    .isMinimized()
+    .catch(logAndNotifyError);
+  const isFocused = await getCurrentWindow()
+    .isFocused()
+    .catch(logAndNotifyError);
 
-      if (track == null || !isEnabled || isFocused || !isMinimized) {
-        return;
+  // Handle notifications
+  if (track && notificationsEnabled && !isFocused && isMinimized) {
+    const cover = await getCover(track.path);
+    sendNotification({
+      title: track.title,
+      body: `${track.artists.join(', ')}\n${track.album}`,
+      silent: true,
+      icon: cover ?? undefined,
+    });
+  }
+
+  // Update Last.fm now playing if enabled and track exists
+  if (track) {
+    const lastfmEnabled = await config.get('lastfm_enabled');
+    if (lastfmEnabled) {
+      try {
+        await lastfm.updateNowPlaying(
+          track.artists.join(', '),
+          track.title,
+          track.album
+        );
+      } catch (error) {
+        console.warn('Failed to update Last.fm now playing:', error);
       }
+    }
+  }
+}
 
-      const cover = await getCover(track.path);
+    // Track play duration for scrobbling
+let hasScrobbled = false;
 
-      sendNotification({
-        title: track.title,
-        body: `${track.artists.join(', ')}\n${track.album}`,
-        silent: true,
-        icon: cover ?? undefined,
-        // TODO: onClick event https://github.com/tauri-apps/tauri/issues/3698
-        // show + focus + unminimize
-      });
+async function handleTimeUpdate() {
+  const track = player.getTrack();
+  const audio = player.getAudio();
+  
+  // Only proceed if we have a track playing and haven't scrobbled yet
+  if (!track || hasScrobbled || audio.paused) return;
+
+  const playedPercentage = audio.currentTime / audio.duration;
+  if (playedPercentage >= SCROBBLE_THRESHOLD) {
+    // Check Last.fm enabled state before attempting to scrobble
+    const lastfmEnabled = await config.get('lastfm_enabled');
+    if (lastfmEnabled) {
+      hasScrobbled = true;
+      try {
+        await lastfm.scrobbleTrack(
+          track.artists.join(', '),
+          track.title,
+          track.album
+        );
+      } catch (error) {
+        console.warn('Failed to scrobble track:', error);
+        // Reset scrobble flag on error to allow retry
+        hasScrobbled = false;
+      }
+    }
+  }
+}
+
+    // Reset scrobble flag on track change
+    function handlePlay() {
+      hasScrobbled = false;
+      handleTrackChange();
     }
 
     // Bind player events
-    // Audio Events
-    player.getAudio().addEventListener('play', notifyTrackChange);
-    player.getAudio().addEventListener('error', handleAudioError);
-    player.getAudio().addEventListener('ended', playerAPI.next);
+    const audio = player.getAudio();
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('error', handleAudioError);
+    audio.addEventListener('ended', playerAPI.next);
+    audio.addEventListener('timeupdate', handleTimeUpdate);
 
     return function cleanup() {
-      player.getAudio().removeEventListener('play', notifyTrackChange);
-      player.getAudio().removeEventListener('error', handleAudioError);
-      player.getAudio().removeEventListener('ended', playerAPI.next);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('error', handleAudioError);
+      audio.removeEventListener('ended', playerAPI.next);
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
     };
   }, [toastsAPI, playerAPI]);
 
