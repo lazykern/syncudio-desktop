@@ -1,52 +1,38 @@
-import { useLoaderData } from 'react-router';
-import type { SettingsLoaderData } from './settings';
-import type { CloudFile, CloudMusicFolder, CloudProviderType } from '../generated/typings';
-
-import * as Setting from '../components/Setting';
-import Flexbox from '../elements/Flexbox';
+import { useCallback, useState, useEffect } from 'react';
 import Button from '../elements/Button';
-import { useCallback, useEffect, useState } from 'react';
+import Flexbox from '../elements/Flexbox';
+import * as Setting from '../components/Setting';
 import { cloud } from '../lib/cloud-provider';
-import { cloudDatabase } from '../lib/cloud-database';
-import { open } from '@tauri-apps/plugin-shell';
-import CloudFolderSelect from '../components/CloudFolderSelect';
-import { open as openDialog, ask } from '@tauri-apps/plugin-dialog';
 import { useToastsAPI } from '../stores/useToastsStore';
+import CloudFolderSelect from '../components/CloudFolderSelect';
+import { open } from '@tauri-apps/plugin-shell';
+import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import useCloudLibraryStore, { useCloudAPI } from '../stores/useCloudLibraryStore';
+import type { CloudFile } from '../generated/typings';
+import { cloudDatabase } from '../lib/cloud-database';
+import { cloudMetadata } from '../lib/cloud-metadata';
+
 import styles from './settings-cloud.module.css';
 
-// Helper function to handle BigInt serialization
-function bigIntReplacer(_key: string, value: any) {
-  return typeof value === 'bigint' ? value.toString() : value;
-}
-
 export default function SettingsCloud() {
-  const { config } = useLoaderData() as SettingsLoaderData;
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [showCloudFolderSelect, setShowCloudFolderSelect] = useState(false);
-  const [cloudFolders, setCloudFolders] = useState<CloudMusicFolder[]>([]);
   const [authCode, setAuthCode] = useState('');
   const [showAuthInput, setShowAuthInput] = useState(false);
+  
   const toastsAPI = useToastsAPI();
+  const cloudAPI = useCloudAPI();
+  const { folders, isSyncing } = useCloudLibraryStore();
 
   useEffect(() => {
     // Check initial authorization status
     cloud.dropboxIsAuthorized().then(setIsAuthorized);
     // Load existing cloud folders
     if (isAuthorized) {
-      loadCloudFolders();
+      cloudAPI.loadFolders();
     }
-  }, [isAuthorized]);
-
-  const loadCloudFolders = async () => {
-    try {
-      const folders = await cloudDatabase.getCloudFoldersByProvider('dropbox');
-      setCloudFolders(folders);
-    } catch (error) {
-      console.error('Failed to load cloud folders:', error);
-      toastsAPI.add('danger', 'Failed to load cloud folders. Please try again.');
-    }
-  };
+  }, [isAuthorized, cloudAPI]);
 
   const handleConnect = useCallback(async () => {
     try {
@@ -78,13 +64,14 @@ export default function SettingsCloud() {
       setShowAuthInput(false);
       setAuthCode('');
       toastsAPI.add('success', 'Successfully connected to Dropbox!');
+      await cloudAPI.loadFolders();
     } catch (error) {
       console.error('Failed to connect to Dropbox:', error);
       toastsAPI.add('danger', 'Failed to connect to Dropbox. Please try again.');
     } finally {
       setIsConnecting(false);
     }
-  }, [authCode, toastsAPI]);
+  }, [authCode, toastsAPI, cloudAPI]);
 
   const handleAuthCancel = useCallback(() => {
     setShowAuthInput(false);
@@ -94,16 +81,8 @@ export default function SettingsCloud() {
 
   const handleDisconnect = useCallback(async () => {
     try {
-      const confirmed = await ask('Are you sure you want to disconnect from Dropbox?', {
-        title: 'Confirm Disconnect',
-        kind: 'warning'
-      });
-
-      if (!confirmed) return;
-
       await cloud.dropboxUnauthorize();
       setIsAuthorized(false);
-      setCloudFolders([]);
       toastsAPI.add('success', 'Successfully disconnected from Dropbox');
     } catch (error) {
       console.error('Failed to disconnect from Dropbox:', error);
@@ -128,143 +107,135 @@ export default function SettingsCloud() {
         return;
       }
 
-      const timestamp = Date.now();
-      // Create cloud folder mapping with BigInt serialization
-      const folder: CloudMusicFolder = {
+      const folder = {
         id: crypto.randomUUID(),
-        provider_type: 'dropbox',
+        provider_type: 'dropbox' as const,
         cloud_folder_id: cloudFile.id,
         cloud_folder_path: fullPath,
         local_folder_path: localPath,
       };
 
-      // Save to database with BigInt serialization
-      await cloudDatabase.saveCloudFolder(JSON.parse(JSON.stringify(folder, bigIntReplacer)));
-      
-      // Refresh list
-      await loadCloudFolders();
-      
-      // Close modal
+      await cloudAPI.saveFolder(folder);
       setShowCloudFolderSelect(false);
-      toastsAPI.add('success', 'Cloud folder added successfully');
     } catch (error) {
       console.error('Failed to add cloud folder:', error);
       toastsAPI.add('danger', 'Failed to add cloud folder. Please try again.');
     }
-  }, [toastsAPI]);
+  }, [toastsAPI, cloudAPI]);
 
-  const handleRemoveCloudFolder = useCallback(async (folderId: string) => {
+  const handleMetadataSync = async () => {
     try {
-      const confirmed = await ask('Are you sure you want to remove this cloud folder?', {
-        title: 'Confirm Remove',
-        kind: 'warning'
-      });
-
-      if (!confirmed) return;
-
-      await cloudDatabase.deleteCloudFolder(folderId);
-      await loadCloudFolders();
-      toastsAPI.add('success', 'Cloud folder removed successfully');
+      const syncResult = await cloudMetadata.syncCloudMetadata();
+      const updateResult = await cloudMetadata.updateCloudMetadata();
+      
+      let message = '';
+      if (syncResult.is_fresh_start) {
+        message = `Initial metadata sync complete. Created ${syncResult.tracks_created} tracks.`;
+      } else {
+        message = `Metadata sync complete. Updated ${syncResult.tracks_updated} tracks, created ${syncResult.tracks_created} tracks.`;
+      }
+      message += ` ${updateResult.tracks_included} tracks included in cloud metadata, ${updateResult.tracks_skipped} skipped.`;
+      
+      toastsAPI.add('success', message);
     } catch (error) {
-      console.error('Failed to remove cloud folder:', error);
-      toastsAPI.add('danger', 'Failed to remove cloud folder. Please try again.');
+      console.error('Failed to sync metadata:', error);
+      toastsAPI.add('danger', 'Failed to sync cloud metadata. Please try again.');
     }
-  }, [toastsAPI]);
+  };
 
   return (
-    <div className="setting setting-cloud">
-      <Setting.Section>
-        <Setting.Title>Dropbox</Setting.Title>
-        <Setting.Description>
-          Connect your Dropbox account to sync your music library across devices.
-        </Setting.Description>
-        <Flexbox gap={4}>
-          {!isAuthorized ? (
-            <>
-              {!showAuthInput ?
-                <Button onClick={handleConnect}>
-                  Connect to Dropbox
+    <div className={styles.container}>
+      <div className="setting setting-cloud">
+        <Setting.Section>
+          <Setting.Title>Dropbox</Setting.Title>
+          <Setting.Description>
+            Connect your Dropbox account to sync your music library across devices.
+          </Setting.Description>
+          <Flexbox gap={4}>
+            {!isAuthorized ? (
+              <>
+                {!showAuthInput ?
+                  <Button onClick={handleConnect}>
+                    Connect to Dropbox
+                  </Button>
+                : (
+                  <div className={styles.authInput}>
+                    <Setting.Description>
+                      Please complete the authorization in your browser, then paste the code below:
+                    </Setting.Description>
+                    <input
+                      type="text"
+                      value={authCode}
+                      onChange={(e) => setAuthCode(e.target.value)}
+                      placeholder="Paste authorization code here"
+                      className={styles.input}
+                    />
+                    <Flexbox gap={4}>
+                      <Button onClick={handleAuthSubmit} disabled={isConnecting}>Submit</Button>
+                      <Button onClick={handleAuthCancel} relevancy="danger">Cancel</Button>
+                    </Flexbox>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <Button onClick={cloudAPI.syncMetadata} disabled={isSyncing}>
+                  {isSyncing ? 'Syncing...' : 'Sync Metadata'}
                 </Button>
-              : (
-                <div className={styles.authInput}>
-                  <Setting.Description>
-                    Please complete the authorization in your browser, then paste the code below:
-                  </Setting.Description>
-                  <input
-                    type="text"
-                    value={authCode}
-                    onChange={(e) => setAuthCode(e.target.value)}
-                    placeholder="Paste authorization code here"
-                    className={styles.input}
-                  />
-                  <Flexbox gap={4}>
-                    <Button onClick={handleAuthSubmit} disabled={isConnecting}>Submit</Button>
-                    <Button onClick={handleAuthCancel} relevancy="danger">Cancel</Button>
-                  </Flexbox>
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              <Button onClick={handleAddCloudFolder}>
-                Add Cloud Folder
-              </Button>
-              <Button
-                onClick={handleDisconnect}
-                relevancy="danger"
-              >
-                Disconnect from Dropbox
-              </Button>
-            </>
-          )}
-        </Flexbox>
+                <Button
+                  onClick={handleDisconnect}
+                  relevancy="danger"
+                >
+                  Disconnect from Dropbox
+                </Button>
+              </>
+            )}
+          </Flexbox>
 
-        {cloudFolders.length > 0 && (
-          <div className={styles.cloudFolders}>
-            <h3>Sync Folders</h3>
-            <ul>
-              {cloudFolders.map(folder => (
-                <li key={folder.id}>
-                  <span>{folder.cloud_folder_path} → {folder.local_folder_path}</span>
-                  <Flexbox gap={4}>
-                    <Button
-                      onClick={() => handleRemoveCloudFolder(folder.id)}
-                      relevancy="danger"
-                      bSize="small"
-                    >
-                      Remove
-                    </Button>
-                    <Button
-                      onClick={async () => {
-                        try {
-                          await cloudDatabase.discoverCloudFolderTracks(folder.id);
-                          toastsAPI.add('success', 'Folder fetch  completed successfully');
-                        } catch (error) {
-                          console.error('Failed to fetch folder:', error);
-                          toastsAPI.add('danger', 'Failed to fetch folder. Please try again.');
-                        }
-                      }}
-                      bSize="small"
-                    >
-                      Fetch
-                    </Button>
-                  </Flexbox>
-                </li>
-              ))}
-            </ul>
+          {folders.length > 0 && (
+            <div className={styles.cloudFolders}>
+              <h3>Sync Folders</h3>
+              <Flexbox gap={4} className={styles.addFolderSection}>
+                <Button onClick={handleAddCloudFolder}>
+                  Add Cloud Folder
+                </Button>
+              </Flexbox>
+              <ul>
+                {folders.map(folder => (
+                  <li key={folder.id}>
+                    <span>{folder.cloud_folder_path} → {folder.local_folder_path}</span>
+                    <Flexbox gap={4}>
+                      <Button
+                        onClick={() => cloudAPI.removeFolder(folder.id)}
+                        relevancy="danger"
+                        bSize="small"
+                      >
+                        Remove
+                      </Button>
+                      <Button
+                        onClick={() => cloudAPI.discoverFolderTracks(folder.id)}
+                        bSize="small"
+                      >
+                        Fetch
+                      </Button>
+                    </Flexbox>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </Setting.Section>
+
+        {showCloudFolderSelect && (
+          <div className={styles.modal}>
+            <CloudFolderSelect
+              providerType="dropbox"
+              onSelect={handleCloudFolderSelect}
+              onCancel={() => setShowCloudFolderSelect(false)}
+            />
           </div>
         )}
-      </Setting.Section>
-
-      {showCloudFolderSelect && (
-        <div className={styles.modal}>
-          <CloudFolderSelect
-            providerType="dropbox"
-            onSelect={handleCloudFolderSelect}
-            onCancel={() => setShowCloudFolderSelect(false)}
-          />
-        </div>
-      )}
+      </div>
     </div>
   );
 }

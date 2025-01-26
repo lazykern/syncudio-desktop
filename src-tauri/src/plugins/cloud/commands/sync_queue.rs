@@ -668,8 +668,36 @@ pub async fn start_download<R: Runtime>(
         // Get metadata from downloaded file
         let local_path_buf = PathBuf::from(&local_path);
         if let Some(track) = track::get_track_from_file(&local_path_buf) {
-            // Insert into local tracks table and get ID
-            let local_track = track.clone().insert(&mut db.connection).await?;
+            // Check if track already exists with this path
+            let existing_track = Track::select()
+                .where_("path = ?")
+                .bind(&track.path)
+                .fetch_optional(&mut db.connection)
+                .await?;
+
+            let cloned_track = track.clone();
+
+            // Insert or update local track
+            let local_track = match existing_track {
+                Some(mut existing) => {
+                    // Update existing track with new metadata
+                    existing.title = cloned_track.title;
+                    existing.album = cloned_track.album;
+                    existing.artists = cloned_track.artists;
+                    existing.genres = cloned_track.genres;
+                    existing.year = cloned_track.year;
+                    existing.duration = cloned_track.duration;
+                    existing.track_no = cloned_track.track_no;
+                    existing.track_of = cloned_track.track_of;
+                    existing.disk_no = cloned_track.disk_no;
+                    existing.disk_of = cloned_track.disk_of;
+                    existing.update_all_fields(&mut db.connection).await?
+                }
+                None => {
+                    // Insert new track
+                    track.clone().insert(&mut db.connection).await?
+                }
+            };
             
             // Update cloud track with metadata 
             cloud_track.blake3_hash = blake3_hash(&local_path_buf).ok();

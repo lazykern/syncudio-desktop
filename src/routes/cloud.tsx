@@ -35,6 +35,8 @@ import { useCloudFolders, useCloudFolderDetails, useQueueItems, useQueueStats, u
 import styles from './cloud.module.css';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useCloudSyncWorker } from '../hooks/useCloudSyncWorker';
+import { useToastsAPI } from '../stores/useToastsStore';
+import useCloudLibraryStore, { useCloudAPI } from '../stores/useCloudLibraryStore';
 
 // Helper function to get provider icon
 const getProviderIcon = (providerType: string) => {
@@ -393,6 +395,19 @@ export default function ViewCloud() {
     setSelectedFolder(folderId);
   };
 
+  const toastsAPI = useToastsAPI();
+  const cloudAPI = useCloudAPI();
+  const { isSyncing: isMetadataSyncing } = useCloudLibraryStore();
+
+  const handleMetadataSync = async () => {
+    try {
+      await cloudAPI.syncMetadata();
+    } catch (error) {
+      console.error('Failed to sync metadata:', error);
+      toastsAPI.add('danger', 'Failed to sync cloud metadata. Please try again.');
+    }
+  };
+
   return (
     <div className={styles.container}>
       {/* Header */}
@@ -411,6 +426,14 @@ export default function ViewCloud() {
           </div>
         </div>
         <div className={styles.actions}>
+          <button
+            className={styles.syncButton}
+            onClick={handleMetadataSync}
+            disabled={isMetadataSyncing}
+            title="Sync metadata with cloud"
+          >
+            <RiRefreshLine /> {isMetadataSyncing ? 'Syncing...' : 'Sync Metadata'}
+          </button>
           {currentSelectedTracks.size > 0 && (
             <button 
               onClick={handleSyncSelected}

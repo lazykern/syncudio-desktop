@@ -127,4 +127,150 @@ impl DB {
             .await?;
         Ok(tracks)
     }
+
+    /// Get all cloud tracks with their mapping and folder information
+    pub async fn get_cloud_tracks_full(&mut self) -> AnyResult<Vec<CloudTrackFullDTO>> {
+        let tracks = ormlite::query_as(
+            r#"
+            SELECT 
+                -- CloudTrack fields
+                ct.id as track_id,
+                ct.blake3_hash,
+                ct.file_name,
+                ct.updated_at as track_updated_at,
+                ct.tags,
+
+                -- CloudTrackMap fields
+                cm.id as map_id,
+                cm.cloud_file_id,
+                cm.relative_path,
+
+                -- CloudMusicFolder fields
+                cmf.id as folder_id,
+                cmf.provider_type,
+                cmf.cloud_folder_id,
+                cmf.cloud_folder_path,
+                cmf.local_folder_path
+
+            FROM cloud_tracks ct
+            INNER JOIN cloud_maps cm ON ct.id = cm.cloud_track_id
+            INNER JOIN cloud_music_folders cmf ON cm.cloud_music_folder_id = cmf.id
+            "#,
+        )
+        .fetch_all(&mut self.connection)
+        .await?;
+
+        Ok(tracks)
+    }
+
+    /// Get cloud tracks for a specific folder
+    pub async fn get_cloud_tracks_full_by_folder(&mut self, folder_id: &str) -> AnyResult<Vec<CloudTrackFullDTO>> {
+        let tracks = ormlite::query_as(
+            r#"
+            SELECT 
+                -- CloudTrack fields
+                ct.id as track_id,
+                ct.blake3_hash,
+                ct.file_name,
+                ct.updated_at as track_updated_at,
+                ct.tags,
+
+                -- CloudTrackMap fields
+                cm.id as map_id,
+                cm.cloud_file_id,
+                cm.relative_path,
+
+                -- CloudMusicFolder fields
+                cmf.id as folder_id,
+                cmf.provider_type,
+                cmf.cloud_folder_id,
+                cmf.cloud_folder_path,
+                cmf.local_folder_path
+
+            FROM cloud_tracks ct
+            INNER JOIN cloud_maps cm ON ct.id = cm.cloud_track_id
+            INNER JOIN cloud_music_folders cmf ON cm.cloud_music_folder_id = cmf.id
+            WHERE cmf.id = ?
+            "#,
+        )
+        .bind(folder_id)
+        .fetch_all(&mut self.connection)
+        .await?;
+
+        Ok(tracks)
+    }
+
+    /// Get cloud tracks for a specific provider
+    pub async fn get_cloud_tracks_full_by_provider(&mut self, provider_type: &str) -> AnyResult<Vec<CloudTrackFullDTO>> {
+        let tracks = ormlite::query_as(
+            r#"
+            SELECT 
+                -- CloudTrack fields
+                ct.id as track_id,
+                ct.blake3_hash,
+                ct.file_name,
+                ct.updated_at as track_updated_at,
+                ct.tags,
+
+                -- CloudTrackMap fields
+                cm.id as map_id,
+                cm.cloud_file_id,
+                cm.relative_path,
+
+                -- CloudMusicFolder fields
+                cmf.id as folder_id,
+                cmf.provider_type,
+                cmf.cloud_folder_id,
+                cmf.cloud_folder_path,
+                cmf.local_folder_path
+
+            FROM cloud_tracks ct
+            INNER JOIN cloud_maps cm ON ct.id = cm.cloud_track_id
+            INNER JOIN cloud_music_folders cmf ON cm.cloud_music_folder_id = cmf.id
+            WHERE cmf.provider_type = ?
+            "#,
+        )
+        .bind(provider_type)
+        .fetch_all(&mut self.connection)
+        .await?;
+
+        Ok(tracks)
+    }
+
+    /// Get a single cloud track by its ID
+    pub async fn get_cloud_track_full(&mut self, track_id: &str) -> AnyResult<Option<CloudTrackFullDTO>> {
+        let track = ormlite::query_as(
+            r#"
+            SELECT 
+                -- CloudTrack fields
+                ct.id as track_id,
+                ct.blake3_hash,
+                ct.file_name,
+                ct.updated_at as track_updated_at,
+                ct.tags,
+
+                -- CloudTrackMap fields
+                cm.id as map_id,
+                cm.cloud_file_id,
+                cm.relative_path,
+
+                -- CloudMusicFolder fields
+                cmf.id as folder_id,
+                cmf.provider_type,
+                cmf.cloud_folder_id,
+                cmf.cloud_folder_path,
+                cmf.local_folder_path
+
+            FROM cloud_tracks ct
+            INNER JOIN cloud_maps cm ON ct.id = cm.cloud_track_id
+            INNER JOIN cloud_music_folders cmf ON cm.cloud_music_folder_id = cmf.id
+            WHERE ct.id = ?
+            "#,
+        )
+        .bind(track_id)
+        .fetch_optional(&mut self.connection)
+        .await?;
+
+        Ok(track)
+    }
 }

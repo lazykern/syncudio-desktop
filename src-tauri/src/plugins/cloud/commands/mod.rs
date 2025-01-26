@@ -3,9 +3,12 @@ mod provider;
 mod sync;
 mod sync_queue;
 mod cleanup;
+mod metadata;
 
 use chrono::DateTime;
 use ormlite::Model;
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 use std::collections::HashMap;
 use std::fs::File;
 use std::time::UNIX_EPOCH;
@@ -17,6 +20,7 @@ pub use provider::*;
 pub use sync::*;
 pub use sync_queue::*;
 pub use cleanup::*;
+pub use metadata::*;
 
 use crate::libs::constants::SUPPORTED_TRACKS_EXTENSIONS;
 use crate::libs::error::SyncudioError;
@@ -31,12 +35,27 @@ use crate::libs::track::Track;
 use log::info;
 use std::path::Path;
 
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/generated/typings/index.ts")]
+pub struct CloudFolderDiscoveryResult {
+    /// Number of tracks found in cloud storage
+    pub cloud_tracks_found: usize,
+    /// Number of local tracks found in the folder
+    pub local_tracks_found: usize,
+    /// Number of tracks that were newly created in cloud_tracks table
+    pub tracks_created: usize,
+    /// Number of tracks that were updated with new information
+    pub tracks_updated: usize,
+    /// Number of track mappings that were cleared (cloud_file_id set to None)
+    pub mappings_cleared: usize,
+}
+
 #[tauri::command]
 pub async fn discover_cloud_folder_tracks(
     folder_id: String,
     db_state: State<'_, DBState>,
     cloud_state: State<'_, CloudState>,
-) -> AnyResult<()> {
+) -> AnyResult<CloudFolderDiscoveryResult> {
     let mut db = db_state.get_lock().await;
     let folder = CloudMusicFolder::select()
         .where_("id = ?")
@@ -50,6 +69,14 @@ pub async fn discover_cloud_folder_tracks(
         .list_files(&folder.cloud_folder_id, &folder.cloud_folder_path, true)
         .await?;
 
+    let mut result = CloudFolderDiscoveryResult {
+        cloud_tracks_found: 0,
+        local_tracks_found: 0,
+        tracks_created: 0,
+        tracks_updated: 0,
+        mappings_cleared: 0,
+    };
+
     // Create maps for efficient lookups
     let cloud_files_map: HashMap<String, CloudFile> = cloud_files
         .into_iter()
@@ -60,6 +87,7 @@ pub async fn discover_cloud_folder_tracks(
             // Check if file has a supported extension
             if let Some(ext) = Path::new(&f.name).extension() {
                 if let Some(ext_str) = ext.to_str() {
+                    result.cloud_tracks_found += 1;
                     return SUPPORTED_TRACKS_EXTENSIONS.contains(&ext_str.to_lowercase().as_str());
                 }
             }
@@ -74,6 +102,8 @@ pub async fn discover_cloud_folder_tracks(
         .bind(format!("{}%", folder.local_folder_path))
         .fetch_all(&mut db.connection)
         .await?;
+
+    result.local_tracks_found = local_tracks.len();
 
     let local_tracks_map: HashMap<String, Track> = local_tracks
         .into_iter()
@@ -178,7 +208,7 @@ pub async fn discover_cloud_folder_tracks(
 
         match existing_id {
             Some(id) => {
-                // Update existing track
+                // Track exists, update if needed
                 let mut track = CloudTrack::select()
                     .where_("id = ?")
                     .bind(&id)
@@ -208,6 +238,7 @@ pub async fn discover_cloud_folder_tracks(
 
                 if updated {
                     track.update_all_fields(&mut db.connection).await?;
+                    result.tracks_updated += 1;
                 }
 
                 // Update or create track map
@@ -232,6 +263,7 @@ pub async fn discover_cloud_folder_tracks(
                             // Clear cloud_file_id if file no longer exists in cloud storage
                             map.cloud_file_id = None;
                             map_updated = true;
+                            result.mappings_cleared += 1;
                             info!("Clearing cloud_file_id for track {} as file no longer exists in cloud storage", id);
                         }
 
@@ -258,6 +290,7 @@ pub async fn discover_cloud_folder_tracks(
                 let track = CloudTrack::from_track(local_track.clone())?;
                 let track_id = track.id.clone();
                 track.insert(&mut db.connection).await?;
+                result.tracks_created += 1;
 
                 let map = CloudTrackMap {
                     id: Uuid::new_v4().to_string(),
@@ -315,6 +348,7 @@ pub async fn discover_cloud_folder_tracks(
             let track = CloudTrack::from_cloud_file(cloud_file.clone())?;
             let track_id = track.id.clone();
             track.insert(&mut db.connection).await?;
+            result.tracks_created += 1;
 
             let map = CloudTrackMap {
                 id: Uuid::new_v4().to_string(),
@@ -342,9 +376,10 @@ pub async fn discover_cloud_folder_tracks(
                 info!("Clearing cloud_file_id for orphaned map {} as file no longer exists in cloud storage", map.id);
                 map.cloud_file_id = None;
                 map.update_all_fields(&mut db.connection).await?;
+                result.mappings_cleared += 1;
             }
         }
     }
 
-    Ok(())
+    Ok(result)
 }

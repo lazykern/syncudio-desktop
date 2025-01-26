@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use ormlite::FromRow;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
+use std::path::{Path, PathBuf};
 
 use super::cloud_track::CloudTrackTag;
 
@@ -140,4 +141,60 @@ pub struct CloudFolderSyncDetailsDTO {
 pub struct QueueStatsGroupDTO {
     pub status: String,
     pub count: i32,
+}
+
+/// Comprehensive DTO that combines CloudTrack, CloudTrackMap, and CloudMusicFolder
+/// Used for efficient lookups and metadata operations
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, TS)]
+#[ts(export, export_to = "../../src/generated/typings/index.ts")]
+pub struct CloudTrackFullDTO {
+    // CloudTrack fields
+    pub track_id: String,
+    pub blake3_hash: Option<String>,
+    pub file_name: String,
+    pub track_updated_at: DateTime<Utc>,
+    #[ormlite(json)]
+    pub tags: Option<CloudTrackTag>,
+
+    // CloudTrackMap fields
+    pub map_id: String,
+    pub cloud_file_id: Option<String>,
+    pub relative_path: String,
+
+    // CloudMusicFolder fields
+    pub folder_id: String,
+    pub provider_type: String,
+    pub cloud_folder_id: String,
+    pub cloud_folder_path: String,
+    pub local_folder_path: String,
+}
+
+impl CloudTrackFullDTO {
+    /// Get the absolute path in cloud storage
+    pub fn cloud_path(&self) -> String {
+        Path::new(&self.cloud_folder_path)
+            .join(&self.relative_path)
+            .to_string_lossy()
+            .to_string()
+    }
+
+    /// Get the absolute path in local filesystem
+    pub fn local_path(&self) -> PathBuf {
+        Path::new(&self.local_folder_path)
+            .join(&self.relative_path)
+    }
+
+    /// Get the parent directory path in cloud storage
+    pub fn cloud_parent_path(&self) -> String {
+        Path::new(&self.cloud_folder_path)
+            .join(Path::new(&self.relative_path).parent().unwrap_or_else(|| Path::new("")))
+            .to_string_lossy()
+            .to_string()
+    }
+
+    /// Get the parent directory path in local filesystem
+    pub fn local_parent_path(&self) -> PathBuf {
+        Path::new(&self.local_folder_path)
+            .join(Path::new(&self.relative_path).parent().unwrap_or_else(|| Path::new("")))
+    }
 }

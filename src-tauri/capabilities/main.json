@@ -90,7 +90,9 @@
     "cloud:allow-start-upload",
     "cloud:allow-start-download",
     "cloud:allow-fail-upload",
-    "cloud:allow-fail-download"
+    "cloud:allow-fail-download",
+    "cloud:allow-sync-cloud-metadata",
+    "cloud:allow-update-cloud-metadata"
   ],
   "platforms": [
     "linux",

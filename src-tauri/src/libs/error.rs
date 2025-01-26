@@ -97,6 +97,12 @@ impl From<StripPrefixError> for SyncudioError {
     }
 }
 
+impl From<serde_json::Error> for SyncudioError {
+    fn from(error: serde_json::Error) -> Self {
+        SyncudioError::SerializationError(error.to_string())
+    }
+}
+
 impl From<toml::ser::Error> for SyncudioError {
     fn from(error: toml::ser::Error) -> Self {
         SyncudioError::SerializationError(error.to_string())

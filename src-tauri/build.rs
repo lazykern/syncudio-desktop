@@ -80,6 +80,8 @@ fn main() {
                     // Cloud track operations
                     "cleanup_missing_local_tracks",
                     "discover_cloud_folder_tracks",
+                    "sync_cloud_metadata",
+                    "update_cloud_metadata",
                     "get_cloud_folder_sync_details",
                     "get_queue_items",
                     "get_queue_stats",

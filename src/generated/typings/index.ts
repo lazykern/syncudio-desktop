@@ -7,10 +7,47 @@ export type CleanupResult = { removed_tracks: number, removed_cloud_mappings: nu
 
 export type CloudFile = { id: string, name: string, size: bigint, is_folder: boolean, modified_at: string, mime_type: string | null, hash: FileHash | null, display_path: string | null, relative_path: string, };
 
+export type CloudFolderDiscoveryResult = { 
+/**
+ * Number of tracks found in cloud storage
+ */
+cloud_tracks_found: number, 
+/**
+ * Number of local tracks found in the folder
+ */
+local_tracks_found: number, 
+/**
+ * Number of tracks that were newly created in cloud_tracks table
+ */
+tracks_created: number, 
+/**
+ * Number of tracks that were updated with new information
+ */
+tracks_updated: number, 
+/**
+ * Number of track mappings that were cleared (cloud_file_id set to None)
+ */
+mappings_cleared: number, };
+
 /**
  * Represents detailed sync information for a cloud folder
  */
 export type CloudFolderSyncDetailsDTO = { id: string, cloud_folder_path: string, local_folder_path: string, sync_status: FolderSyncStatus, pending_sync_count: number, tracks: Array<CloudTrackDTO>, };
+
+/**
+ * Collection of track metadata for cloud storage
+ */
+export type CloudMetadataCollection = { tracks: Array<CloudTrackMetadata>, last_updated: string, version: string, };
+
+/**
+ * Result of a metadata sync operation
+ */
+export type CloudMetadataSyncResult = { tracks_updated: number, tracks_created: number, metadata_version: string, is_fresh_start: boolean, };
+
+/**
+ * Result of a metadata update operation
+ */
+export type CloudMetadataUpdateResult = { tracks_included: number, tracks_skipped: number, metadata_version: string, };
 
 export type CloudMusicFolder = { id: string, provider_type: string, cloud_folder_id: string, cloud_folder_path: string, local_folder_path: string, };
 
@@ -23,7 +60,18 @@ export type CloudTrack = { id: string, blake3_hash: string | null, file_name: st
  */
 export type CloudTrackDTO = { id: string, cloud_music_folder_id: string, cloud_map_id: string, file_name: string, relative_path: string, location_state: TrackLocationState, sync_operation: SyncOperationType | null, sync_status: SyncStatus | null, updated_at: string, tags: CloudTrackTag | null, };
 
+/**
+ * Comprehensive DTO that combines CloudTrack, CloudTrackMap, and CloudMusicFolder
+ * Used for efficient lookups and metadata operations
+ */
+export type CloudTrackFullDTO = { track_id: string, blake3_hash: string | null, file_name: string, track_updated_at: string, tags: CloudTrackTag | null, map_id: string, cloud_file_id: string | null, relative_path: string, folder_id: string, provider_type: string, cloud_folder_id: string, cloud_folder_path: string, local_folder_path: string, };
+
 export type CloudTrackMap = { id: string, cloud_track_id: string, cloud_music_folder_id: string, cloud_file_id: string | null, relative_path: string, };
+
+/**
+ * Represents track metadata stored in cloud storage
+ */
+export type CloudTrackMetadata = { blake3_hash: string, cloud_file_id: string, cloud_path: string, relative_path: string, tags: CloudTrackTag | null, last_modified: string, last_sync: string, provider: string, cloud_folder_id: string, };
 
 export type CloudTrackTag = { title: string, album: string, artists: Array<string>, genres: Array<string>, year: number | null, duration: number, track_no: number | null, track_of: number | null, disk_no: number | null, disk_of: number | null, };
 
