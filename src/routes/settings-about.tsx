@@ -20,20 +20,19 @@ export default function ViewSettingsAbout() {
   return (
     <div className="setting setting-about">
       <Setting.Section>
-        <Setting.Title>About Museeks</Setting.Title>
+        <Setting.Title>About Syncudio</Setting.Title>
         <Setting.Description>
-          Museeks {version}
-          {' - '}
-          <ExternalLink href="https://museeks.io" type="url">
-            museeks.io
+          Syncudio {version} - A fork of{' '}
+          <ExternalLink href="https://github.com/martpie/museeks" type="url">
+            Museeks
           </ExternalLink>
-          {' - '}
+          {' with cloud sync capabilities. - '}
           <ExternalLink
-            href={`https://github.com/martpie/Museeks/releases/tag/${version}`}
+            href="https://github.com/lazykern/syncudio-desktop"
             type="url"
           >
-            release notes
-          </ExternalLink>{' '}
+            GitHub
+          </ExternalLink>
         </Setting.Description>
         <CheckboxSetting
           slug="update"
@@ -52,18 +51,19 @@ export default function ViewSettingsAbout() {
         </div>
       </Setting.Section>
       <Setting.Section>
-        <Setting.Title>Contributors</Setting.Title>
+        <Setting.Title>Credits</Setting.Title>
         <Setting.Description>
-          Made with <Heart /> by Pierre de la Martinière (
+          Based on <ExternalLink href="https://github.com/martpie/museeks" type="url">Museeks</ExternalLink>{' '}
+          by Pierre de la Martinière (
           <ExternalLink href="https://martpie.io" type="url">
             @martpie
           </ExternalLink>
-          ) and a bunch of{' '}
+          ) and its{' '}
           <ExternalLink
-            href="https://github.com/martpie/Museeks/graphs/contributors"
+            href="https://github.com/martpie/museeks/graphs/contributors"
             type="url"
           >
-            great people
+            contributors
           </ExternalLink>
           .
         </Setting.Description>
