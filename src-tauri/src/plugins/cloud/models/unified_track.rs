@@ -27,22 +27,13 @@ pub struct UnifiedTrack {
     #[ormlite(json)]
     pub artists: Option<Vec<String>>,
     #[ormlite(json)]
-    pub composers: Option<Vec<String>>,
-    #[ormlite(json)]
-    pub album_artists: Option<Vec<String>>,
-    #[ormlite(json)]
     pub genres: Option<Vec<String>>,
-    pub date: Option<String>,
     pub year: Option<u32>,
     pub duration: u32,
     pub track_no: Option<u32>,
     pub track_of: Option<u32>,
     pub disk_no: Option<u32>,
     pub disk_of: Option<u32>,
-    pub bitrate: Option<u32>,
-    pub sampling_rate: Option<u32>,
-    pub channels: Option<u32>,
-    pub encoder: Option<String>,
 
     // Location and sync state
     pub location_type: String,  // 'local', 'cloud', or 'both'

@@ -164,31 +164,16 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
                 json_array('Unknown Artist')
             ) as artists,
             COALESCE(
-                json(t.composers),
-                ct.tags->>'$.composers',
-                json_array()
-            ) as composers,
-            COALESCE(
-                json(t.album_artists),
-                ct.tags->>'$.album_artists',
-                json_array()
-            ) as album_artists,
-            COALESCE(
                 json(t.genres),
                 ct.tags->>'$.genres',
                 json_array()
             ) as genres,
-            COALESCE(t.date, ct.tags->>'$.date') as date,
             COALESCE(t.year, CAST(ct.tags->>'$.year' AS INTEGER)) as year,
             COALESCE(t.duration, CAST(ct.tags->>'$.duration' AS INTEGER), 0) as duration,
             COALESCE(t.track_no, CAST(ct.tags->>'$.track_no' AS INTEGER)) as track_no,
             COALESCE(t.track_of, CAST(ct.tags->>'$.track_of' AS INTEGER)) as track_of,
             COALESCE(t.disk_no, CAST(ct.tags->>'$.disk_no' AS INTEGER)) as disk_no,
             COALESCE(t.disk_of, CAST(ct.tags->>'$.disk_of' AS INTEGER)) as disk_of,
-            COALESCE(t.bitrate, CAST(ct.tags->>'$.bitrate' AS INTEGER)) as bitrate,
-            COALESCE(t.sampling_rate, CAST(ct.tags->>'$.sampling_rate' AS INTEGER)) as sampling_rate,
-            COALESCE(t.channels, CAST(ct.tags->>'$.channels' AS INTEGER)) as channels,
-            COALESCE(t.encoder, ct.tags->>'$.encoder') as encoder,
 
             -- Location and sync state
             CASE 

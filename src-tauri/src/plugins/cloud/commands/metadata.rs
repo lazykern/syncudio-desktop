@@ -12,6 +12,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use tauri::State;
 use uuid::Uuid;
+use std::env::temp_dir;
 
 #[tauri::command]
 pub async fn sync_cloud_metadata(
@@ -24,7 +25,7 @@ pub async fn sync_cloud_metadata(
 
     // 1. Download metadata from cloud
     let metadata_folder = provider.ensure_metadata_folder().await?;
-    let temp_path = PathBuf::from("tracks.json.tmp");
+    let temp_path = temp_dir().join("syncudio_tracks.json.tmp");
     
     let (cloud_metadata, is_fresh_start) = match provider.download_file("/Syncudio/metadata/tracks.json", &temp_path).await {
         Ok(_) => {
@@ -179,7 +180,7 @@ pub async fn update_cloud_metadata(
     };
 
     // 3. Upload to cloud
-    let temp_path = PathBuf::from("tracks.json.tmp");
+    let temp_path = temp_dir().join("syncudio_tracks.json.tmp");
     std::fs::write(&temp_path, serde_json::to_string_pretty(&metadata)?)?;
     provider
         .upload_file(&temp_path, "tracks.json", Some("/Syncudio/metadata"))

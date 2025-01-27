@@ -192,7 +192,7 @@ export default function SettingsCloud() {
             )}
           </Flexbox>
 
-          {folders.length > 0 && (
+          {(
             <div className={styles.cloudFolders}>
               <h3>Sync Folders</h3>
               <Flexbox gap={4} className={styles.addFolderSection}>
