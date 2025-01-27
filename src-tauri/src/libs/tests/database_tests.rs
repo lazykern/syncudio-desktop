@@ -13,51 +13,75 @@ use super::track::Track;
 fn sample_track_1() -> Track {
     Track {
         id: "1".to_string(),
+        blake3_hash: None,
         path: "/music/artist1/album1/track1.mp3".to_string(),
         title: "Song One".to_string(),
         album: "Album One".to_string(),
         artists: vec!["Artist One".to_string()],
+        composers: vec!["Composer One".to_string()],
+        album_artists: vec!["Artist One".to_string()],
         genres: vec!["Pop".to_string(), "Rock".to_string()],
-        year: Some(2023),
-        duration: 210,
         track_no: Some(1),
         track_of: Some(10),
         disk_no: Some(1),
         disk_of: Some(1),
+        date: Some("2023".to_string()),
+        year: Some(2023),
+        duration: 210,
+        bitrate: Some(320),
+        sampling_rate: Some(44100),
+        channels: Some(2),
+        encoder: Some("LAME".to_string()),
     }
 }
 
 fn sample_track_2() -> Track {
     Track {
         id: "2".to_string(),
+        blake3_hash: None,
         path: "/music/artist2/album2/track2.mp3".to_string(),
         title: "Song Two".to_string(),
         album: "Album Two".to_string(),
         artists: vec!["Artist Two".to_string()],
+        composers: vec![],
+        album_artists: vec!["Artist Two".to_string()],
         genres: vec!["Jazz".to_string()],
-        year: None,
-        duration: 180,
         track_no: None,
         track_of: None,
         disk_no: None,
         disk_of: None,
+        date: None,
+        year: None,
+        duration: 180,
+        bitrate: Some(256),
+        sampling_rate: Some(48000),
+        channels: Some(2),
+        encoder: None,
     }
 }
 
 fn sample_track_3() -> Track {
     Track {
         id: "3".to_string(),
+        blake3_hash: None,
         path: "/music/artist3/album3/track3.mp3".to_string(),
         title: "Song Three".to_string(),
         album: "Album Three".to_string(),
         artists: vec!["Artist Three".to_string(), "Artist Four".to_string()],
+        composers: vec!["Composer Three".to_string(), "Composer Four".to_string()],
+        album_artists: vec!["Artist Three".to_string()],
         genres: vec!["Hip-Hop".to_string()],
-        year: Some(2022),
-        duration: 240,
         track_no: Some(3),
         track_of: Some(12),
         disk_no: Some(1),
         disk_of: Some(2),
+        date: Some("2022".to_string()),
+        year: Some(2022),
+        duration: 240,
+        bitrate: Some(320),
+        sampling_rate: Some(44100),
+        channels: Some(2),
+        encoder: Some("FLAC".to_string()),
     }
 }
 

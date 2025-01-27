@@ -27,13 +27,22 @@ pub struct Track {
     #[ormlite(json)]
     pub artists: Vec<String>,
     #[ormlite(json)]
+    pub composers: Vec<String>,
+    #[ormlite(json)]
+    pub album_artists: Vec<String>,
+    #[ormlite(json)]
     pub genres: Vec<String>,
-    pub year: Option<u32>,
-    pub duration: u32,
     pub track_no: Option<u32>,
     pub track_of: Option<u32>,
     pub disk_no: Option<u32>,
     pub disk_of: Option<u32>,
+    pub date: Option<String>,
+    pub year: Option<u32>,
+    pub duration: u32,
+    pub bitrate: Option<u32>,
+    pub sampling_rate: Option<u32>,
+    pub channels: Option<u32>,
+    pub encoder: Option<String>,
 }
 
 /**
@@ -44,8 +53,9 @@ pub fn get_track_from_file(path: &PathBuf) -> Option<Track> {
     match lofty::read_from_path(path) {
         Ok(tagged_file) => {
             let tag = tagged_file.primary_tag()?;
+            let properties = tagged_file.properties();
+            let metadata = std::fs::metadata(path).ok()?;
 
-            // IMPROVE ME: Is there a more idiomatic way of doing the following?
             let mut artists: Vec<String> = tag
                 .get_strings(&ItemKey::TrackArtist)
                 .map(ToString::to_string)
@@ -62,6 +72,16 @@ pub fn get_track_from_file(path: &PathBuf) -> Option<Track> {
                 artists = vec!["Unknown Artist".into()];
             }
 
+            let composers: Vec<String> = tag
+                .get_strings(&ItemKey::Composer)
+                .map(ToString::to_string)
+                .collect();
+
+            let album_artists: Vec<String> = tag
+                .get_strings(&ItemKey::AlbumArtist)
+                .map(ToString::to_string)
+                .collect();
+
             let id = get_track_id_for_path(path)?;
 
             Some(Track {
@@ -77,16 +97,23 @@ pub fn get_track_from_file(path: &PathBuf) -> Option<Track> {
                     .unwrap_or("Unknown")
                     .to_string(),
                 artists,
+                composers,
+                album_artists,
                 genres: tag
                     .get_strings(&ItemKey::Genre)
                     .map(ToString::to_string)
                     .collect(),
-                year: tag.year(),
-                duration: u32::try_from(tagged_file.properties().duration().as_secs()).unwrap_or(0),
                 track_no: tag.track(),
                 track_of: tag.track_total(),
                 disk_no: tag.disk(),
                 disk_of: tag.disk_total(),
+                date: tag.get_string(&ItemKey::ReleaseDate).map(String::from),
+                year: tag.year(),
+                duration: u32::try_from(properties.duration().as_secs()).unwrap_or(0),
+                bitrate: properties.audio_bitrate(),
+                sampling_rate: properties.sample_rate(),
+                channels: properties.channels().map(|c| c as u32),
+                encoder: tag.get_string(&ItemKey::EncodedBy).map(String::from),
             })
         }
         Err(err) => {

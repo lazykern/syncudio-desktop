@@ -19,13 +19,20 @@ impl DB {
                 title TEXT NOT NULL,
                 album TEXT NOT NULL,
                 artists JSON NOT NULL, -- Array of strings
+                composers JSON NOT NULL, -- Array of strings
+                album_artists JSON NOT NULL, -- Array of strings
                 genres JSON NOT NULL, -- Array of strings
-                year INTEGER,
-                duration INTEGER NOT NULL,
                 track_no INTEGER,
                 track_of INTEGER,
                 disk_no INTEGER,
-                disk_of INTEGER
+                disk_of INTEGER,
+                date TEXT,
+                year INTEGER,
+                duration INTEGER NOT NULL,
+                bitrate INTEGER,
+                sampling_rate INTEGER,
+                channels INTEGER,
+                encoder TEXT
             );",
         )
         .execute(&mut self.connection)

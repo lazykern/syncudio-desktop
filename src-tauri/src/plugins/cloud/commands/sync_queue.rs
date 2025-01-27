@@ -691,6 +691,11 @@ pub async fn start_download<R: Runtime>(
                     existing.track_of = cloned_track.track_of;
                     existing.disk_no = cloned_track.disk_no;
                     existing.disk_of = cloned_track.disk_of;
+                    existing.bitrate = cloned_track.bitrate;
+                    existing.sampling_rate = cloned_track.sampling_rate;
+                    existing.channels = cloned_track.channels;
+                    existing.encoder = cloned_track.encoder;
+                    existing.date = cloned_track.date;
                     existing.update_all_fields(&mut db.connection).await?
                 }
                 None => {

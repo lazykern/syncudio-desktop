@@ -16,13 +16,20 @@ pub struct CloudTrackTag {
     pub title: String,
     pub album: String,
     pub artists: Vec<String>,
+    pub composers: Vec<String>,
+    pub album_artists: Vec<String>,
     pub genres: Vec<String>,
+    pub date: Option<String>,
     pub year: Option<u32>,
     pub duration: u32,
     pub track_no: Option<u32>,
     pub track_of: Option<u32>,
     pub disk_no: Option<u32>,
     pub disk_of: Option<u32>,
+    pub bitrate: Option<u32>,
+    pub sampling_rate: Option<u32>,
+    pub channels: Option<u32>,
+    pub encoder: Option<String>,
 }
 
 impl CloudTrackTag {
@@ -31,13 +38,20 @@ impl CloudTrackTag {
             title: track.title,
             album: track.album,
             artists: track.artists,
+            composers: track.composers,
+            album_artists: track.album_artists,
             genres: track.genres,
+            date: track.date,
             year: track.year,
             duration: track.duration,
             track_no: track.track_no,
             track_of: track.track_of,
             disk_no: track.disk_no,
             disk_of: track.disk_of,
+            bitrate: track.bitrate,
+            sampling_rate: track.sampling_rate,
+            channels: track.channels,
+            encoder: track.encoder,
         }
     }
 }
