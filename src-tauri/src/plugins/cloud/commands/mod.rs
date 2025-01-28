@@ -37,7 +37,7 @@ use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/generated/typings/index.ts")]
-pub struct CloudFolderDiscoveryResult {
+pub struct CloudFolderScanResult {
     /// Number of tracks found in cloud storage
     pub cloud_tracks_found: usize,
     /// Number of local tracks found in the folder
@@ -51,11 +51,11 @@ pub struct CloudFolderDiscoveryResult {
 }
 
 #[tauri::command]
-pub async fn discover_cloud_folder_tracks(
+pub async fn scan_cloud_music_folder(
     folder_id: String,
     db_state: State<'_, DBState>,
     cloud_state: State<'_, CloudState>,
-) -> AnyResult<CloudFolderDiscoveryResult> {
+) -> AnyResult<CloudFolderScanResult> {
     let mut db = db_state.get_lock().await;
     let folder = CloudMusicFolder::select()
         .where_("id = ?")
@@ -69,7 +69,7 @@ pub async fn discover_cloud_folder_tracks(
         .list_files(&folder.cloud_folder_id, &folder.cloud_folder_path, true)
         .await?;
 
-    let mut result = CloudFolderDiscoveryResult {
+    let mut result = CloudFolderScanResult {
         cloud_tracks_found: 0,
         local_tracks_found: 0,
         tracks_created: 0,

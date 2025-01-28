@@ -23,7 +23,7 @@ export default function SettingsCloud() {
   
   const toastsAPI = useToastsAPI();
   const cloudAPI = useCloudAPI();
-  const { folders, isSyncing } = useCloudLibraryStore();
+  const { folders, isSyncing, isScanning, scanningFolderId } = useCloudLibraryStore();
 
   useEffect(() => {
     // Check initial authorization status
@@ -213,10 +213,11 @@ export default function SettingsCloud() {
                         Remove
                       </Button>
                       <Button
-                        onClick={() => cloudAPI.discoverFolderTracks(folder.id)}
+                        onClick={() => cloudAPI.scanCloudMusicFolder(folder.id)}
                         bSize="small"
+                        disabled={isScanning}
                       >
-                        Fetch
+                        {isScanning && scanningFolderId === folder.id ? 'Scanning...' : 'Scan'}
                       </Button>
                     </Flexbox>
                   </li>

@@ -69,7 +69,7 @@
     "cloud:allow-update-cloud-folder",
     "cloud:allow-delete-cloud-folder",
     "cloud:allow-cleanup-missing-local-tracks",
-    "cloud:allow-discover-cloud-folder-tracks",
+    "cloud:allow-scan-cloud-music-folder",
     "cloud:allow-get-cloud-folder-sync-details",
     "cloud:allow-get-queue-items",
     "cloud:allow-get-queue-stats",

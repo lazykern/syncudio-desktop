@@ -1,5 +1,5 @@
 import { ask } from '@tauri-apps/plugin-dialog';
-import type { CloudFolderDiscoveryResult, CloudMusicFolder } from '../generated/typings';
+import type { CloudFolderScanResult, CloudMusicFolder } from '../generated/typings';
 import { cloudDatabase } from '../lib/cloud-database';
 import { cloudMetadata } from '../lib/cloud-metadata';
 import { logAndNotifyError } from '../lib/utils';
@@ -11,10 +11,12 @@ import useToastsStore from './useToastsStore';
 
 type CloudState = API<{
   isSyncing: boolean;
+  isScanning: boolean;
+  scanningFolderId: string | null;
   folders: CloudMusicFolder[];
   api: {
     syncMetadata: () => Promise<void>;
-    discoverFolderTracks: (folderId: string) => Promise<CloudFolderDiscoveryResult>;
+    scanCloudMusicFolder: (folderId: string) => Promise<CloudFolderScanResult>;
     removeFolder: (folderId: string) => Promise<void>;
     loadFolders: () => Promise<void>;
     saveFolder: (folder: CloudMusicFolder) => Promise<void>;
@@ -23,6 +25,8 @@ type CloudState = API<{
 
 const useCloudStore = createCloudStore<CloudState>((set, get) => ({
   isSyncing: false,
+  isScanning: false,
+  scanningFolderId: null,
   folders: [],
 
   api: {
@@ -48,9 +52,16 @@ const useCloudStore = createCloudStore<CloudState>((set, get) => ({
       }
     },
 
-    discoverFolderTracks: async (folderId: string) => {
+    scanCloudMusicFolder: async (folderId: string) => {
+      const state = get();
+      if (state.isScanning) {
+        useToastsStore.getState().api.add('warning', 'A folder scan is already in progress');
+        throw new Error('A folder scan is already in progress');
+      }
+
+      set({ isScanning: true, scanningFolderId: folderId });
       try {
-        const result = await cloudDatabase.discoverCloudFolderTracks(folderId);
+        const result = await cloudDatabase.scanCloudMusicFolder(folderId);
         useToastsStore.getState().api.add(
           'success',
           `Folder scan complete:
@@ -62,8 +73,10 @@ const useCloudStore = createCloudStore<CloudState>((set, get) => ({
         );
         return result;
       } catch (err) {
-        logAndNotifyError(err, 'Failed to fetch folder');
+        logAndNotifyError(err, 'Failed to scan folder');
         throw err;
+      } finally {
+        set({ isScanning: false, scanningFolderId: null });
       }
     },
 
@@ -123,8 +136,13 @@ function createCloudStore<T extends CloudState>(store: StateCreator<T>) {
         };
 
         if (persistedState != null && typeof persistedState === 'object') {
-          if ('isSyncing' in persistedState) {
-            persistedState.isSyncing = false;
+          const state = persistedState as { isSyncing?: boolean; isScanning?: boolean; scanningFolderId?: string | null };
+          if ('isSyncing' in state) {
+            state.isSyncing = false;
+          }
+          if ('isScanning' in state) {
+            state.isScanning = false;
+            state.scanningFolderId = null;
           }
         }
 

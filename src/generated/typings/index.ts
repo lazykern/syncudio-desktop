@@ -7,7 +7,7 @@ export type CleanupResult = { removed_tracks: number, removed_cloud_mappings: nu
 
 export type CloudFile = { id: string, name: string, size: bigint, is_folder: boolean, modified_at: string, mime_type: string | null, hash: FileHash | null, display_path: string | null, relative_path: string, };
 
-export type CloudFolderDiscoveryResult = { 
+export type CloudFolderScanResult = { 
 /**
  * Number of tracks found in cloud storage
  */

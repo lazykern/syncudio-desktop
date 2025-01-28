@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { CloudFolderDiscoveryResult, CloudMusicFolder, CloudProviderType, UnifiedTrack } from '../generated/typings';
+import type { CloudFolderScanResult, CloudMusicFolder, CloudProviderType, UnifiedTrack } from '../generated/typings';
 
 export const cloudDatabase = {
   async getCloudFolders(): Promise<CloudMusicFolder[]> {
@@ -34,8 +34,8 @@ export const cloudDatabase = {
    * 3. During periodic background scans
    * 4. When file system changes are detected
    */
-  async discoverCloudFolderTracks(folderId: string): Promise<CloudFolderDiscoveryResult> {
-    return invoke('plugin:cloud|discover_cloud_folder_tracks', { folderId });
+  async scanCloudMusicFolder(folderId: string): Promise<CloudFolderScanResult> {
+    return invoke('plugin:cloud|scan_cloud_music_folder', { folderId });
   },
 
   /**

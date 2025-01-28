@@ -17,6 +17,7 @@ import {
   RiComputerLine,
   RiCloudOffLine,
   RiRefreshLine,
+  RiScanLine,
 } from 'react-icons/ri';
 import * as Checkbox from '@radix-ui/react-checkbox';
 import type {
@@ -397,7 +398,7 @@ export default function ViewCloud() {
 
   const toastsAPI = useToastsAPI();
   const cloudAPI = useCloudAPI();
-  const { isSyncing: isMetadataSyncing } = useCloudLibraryStore();
+  const { isSyncing: isMetadataSyncing, isScanning, scanningFolderId } = useCloudLibraryStore();
 
   const handleMetadataSync = async () => {
     try {
@@ -434,6 +435,16 @@ export default function ViewCloud() {
           >
             <RiRefreshLine /> {isMetadataSyncing ? 'Syncing...' : 'Sync Metadata'}
           </button>
+          {selectedFolder && (
+            <button
+              className={styles.syncButton}
+              onClick={() => cloudAPI.scanCloudMusicFolder(selectedFolder)}
+              disabled={isScanning}
+              title="Scan selected folder for changes"
+            >
+              <RiScanLine /> {isScanning && scanningFolderId === selectedFolder ? 'Scanning...' : 'Scan Folder'}
+            </button>
+          )}
           {currentSelectedTracks.size > 0 && (
             <button 
               onClick={handleSyncSelected}
