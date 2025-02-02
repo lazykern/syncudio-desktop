@@ -90,12 +90,6 @@ pub fn get_theme_from_name(theme_name: &str) -> Option<Theme> {
     }
 }
 
-pub fn blake3_hash(path: &PathBuf) -> Result<String, SyncudioError> {
-    let mut hasher = blake3::Hasher::new();
-    hasher.update_mmap_rayon(path)?;
-    Ok(hasher.finalize().to_string())
-}
-
 /// Normalize a relative path by removing leading slashes
 pub fn normalize_relative_path(path: &str) -> String {
     path.trim_start_matches('/').to_string()

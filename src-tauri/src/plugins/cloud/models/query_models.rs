@@ -9,7 +9,6 @@ use super::cloud_track::CloudTrackTag;
 pub struct TrackWithMapRow {
     // Track fields
     pub id: String,
-    pub blake3_hash: Option<String>,
     pub file_name: String,
     pub updated_at: DateTime<Utc>,
     #[ormlite(json)]

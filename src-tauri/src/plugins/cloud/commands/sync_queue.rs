@@ -13,7 +13,6 @@ use uuid::Uuid;
 
 
 use crate::libs::error::SyncudioError;
-use crate::libs::utils::blake3_hash;
 use crate::libs::track::{self, Track};
 use crate::plugins::cloud::CloudProvider;
 use crate::plugins::cloud::CloudProviderType;
@@ -255,40 +254,29 @@ pub async fn add_to_upload_queue(
             .fetch_one(&mut db.connection)
             .await?;
 
-        // Check for existing active operations
-        let has_active_upload = UploadQueueItem::select()
-            .where_("cloud_map_id = ? AND (status = 'pending' OR status = 'in_progress')")
-            .bind(&track_map.id)
-            .fetch_optional(&mut db.connection)
-            .await?
-            .is_some();
-
-        let has_active_download = DownloadQueueItem::select()
-            .where_("cloud_map_id = ? AND (status = 'pending' OR status = 'in_progress')")
-            .bind(&track_map.id)
-            .fetch_optional(&mut db.connection)
-            .await?
-            .is_some();
-
-        if has_active_upload || has_active_download {
-            // Skip this track as it already has an active operation
-            info!("Skipping track {} as it already has an active sync operation", track_id);
-            continue;
-        }
-
-        // Get folder to determine provider type
+        // Get folder to check file existence
         let folder = CloudMusicFolder::select()
             .where_("id = ?")
             .bind(&track_map.cloud_music_folder_id)
             .fetch_one(&mut db.connection)
             .await?;
 
+        // Check if file exists locally
+        let local_path = Path::new(&folder.local_folder_path)
+            .join(&track_map.relative_path)
+            .to_string_lossy()
+            .to_string();
+
+        if !Path::new(&local_path).exists() {
+            return Err(SyncudioError::FileNotFound(local_path));
+        }
+
         // Create upload queue item
-        let upload_item = UploadQueueItem {
+        let item = UploadQueueItem {
             id: Uuid::new_v4().to_string(),
-            priority: priority.unwrap_or(0),
             cloud_map_id: track_map.id,
             provider_type: folder.provider_type,
+            priority: priority.unwrap_or(0),
             status: "pending".to_string(),
             error_message: None,
             created_at: now,
@@ -296,7 +284,7 @@ pub async fn add_to_upload_queue(
             attempts: 0,
         };
 
-        upload_item.insert(&mut db.connection).await?;
+        item.insert(&mut db.connection).await?;
     }
 
     Ok(())
@@ -502,84 +490,79 @@ pub async fn start_upload(
     db_state: State<'_, DBState>,
     cloud_state: State<'_, CloudState>,
 ) -> AnyResult<()> {
-    info!("Starting upload for item: {}", item_id);
-    // Get all necessary data under a short-lived lock
-    let (item, track_map, cloud_folder, local_path) = {
-        let mut db = db_state.get_lock().await;
+    let mut db = db_state.get_lock().await;
 
-        let item = UploadQueueItem::select()
-            .where_("id = ?")
-            .bind(&item_id)
-            .fetch_one(&mut db.connection)
-            .await?;
+    // Get queue item
+    let mut item = UploadQueueItem::select()
+        .where_("id = ?")
+        .bind(&item_id)
+        .fetch_one(&mut db.connection)
+        .await?;
 
-        let track_map = CloudTrackMap::select()
-            .where_("id = ?")
-            .bind(&item.cloud_map_id)
-            .fetch_one(&mut db.connection)
-            .await?;
+    // Get track info
+    let track_map = CloudTrackMap::select()
+        .where_("id = ?")
+        .bind(&item.cloud_map_id)
+        .fetch_one(&mut db.connection)
+        .await?;
 
-        let cloud_folder = CloudMusicFolder::select()
-            .where_("id = ?")
-            .bind(&track_map.cloud_music_folder_id)
-            .fetch_one(&mut db.connection)
-            .await?;
+    let mut track = CloudTrack::select()
+        .where_("id = ?")
+        .bind(&track_map.cloud_track_id)
+        .fetch_one(&mut db.connection)
+        .await?;
 
-        let local_path = Path::new(&cloud_folder.local_folder_path)
-            .join(&track_map.relative_path)
-            .to_string_lossy()
-            .to_string();
+    // Get folder info
+    let folder = CloudMusicFolder::select()
+        .where_("id = ?")
+        .bind(&track_map.cloud_music_folder_id)
+        .fetch_one(&mut db.connection)
+        .await?;
 
-        info!("Updating item {} status to in_progress", item_id);
-        // Update status to in_progress
-        let mut item_to_update = item.clone();
-        item_to_update.start_processing();
-        item_to_update = item_to_update.update_all_fields(&mut db.connection).await?;
-
-        (item_to_update, track_map, cloud_folder, local_path)
-    }; // Lock is released here
+    // Get local file path
+    let local_path = Path::new(&folder.local_folder_path)
+        .join(&track_map.relative_path)
+        .to_string_lossy()
+        .to_string();
 
     if !Path::new(&local_path).exists() {
-        info!("File not found at {}", local_path);
-        return Err(SyncudioError::Path(format!("File not found at {}", local_path)));
+        return Err(SyncudioError::FileNotFound(local_path));
     }
 
-    // Perform the upload without holding the lock
-    let cloud_file = match CloudProviderType::from_str(&cloud_folder.provider_type)? {
-        CloudProviderType::Dropbox => {
-            info!("Starting Dropbox upload for {}", local_path);
-            // get parent path and file name
-            let cloud_path = Path::new(&cloud_folder.cloud_folder_path).join(&track_map.relative_path);
-            let file_name = cloud_path.file_name().unwrap().to_string_lossy().to_string();
-            let parent_path = cloud_path.parent().unwrap().to_string_lossy().to_string();
-            let cloud_file = cloud_state.dropbox.upload_file(&PathBuf::from(&local_path), &file_name, Some(&parent_path)).await?;
-            info!("Successfully uploaded file to Dropbox: {}", cloud_path.display());
-            cloud_file
-        }
-        CloudProviderType::GoogleDrive => {
-            info!("Google Drive upload not implemented");
-            return Err(SyncudioError::GoogleDrive("Google Drive not implemented yet".to_string()));
-        }
+    // Update item status
+    item.status = "in_progress".to_string();
+    item.updated_at = Utc::now();
+    item = item.update_all_fields(&mut db.connection).await?;
+
+    // Get cloud provider
+    let provider = match folder.provider_type.as_str() {
+        "dropbox" => &cloud_state.dropbox,
+        _ => return Err(SyncudioError::UnsupportedProvider(folder.provider_type)),
     };
 
-    // Re-acquire lock briefly to update status and cloud file ID
-    {
-        let mut db = db_state.get_lock().await;
-        let mut item_to_update = item.clone();
-        item_to_update.complete();
-        info!("Marking upload item {} as completed", item_id);
-        item_to_update.update_all_fields(&mut db.connection).await?;
+    // Upload file
+    let cloud_file = provider
+        .upload_file(
+            &PathBuf::from(&local_path),
+            &track_map.relative_path,
+            Some(&folder.cloud_folder_path),
+        )
+        .await?;
 
-        let mut track_map = CloudTrackMap::select()
-            .where_("id = ?")
-            .bind(&item.cloud_map_id)
-            .fetch_one(&mut db.connection)
-            .await?;
-        track_map.cloud_file_id = Some(cloud_file.id);
-        track_map.update_all_fields(&mut db.connection).await?;
-    }
+    // Update track map with cloud file ID
+    let mut updated_map = track_map;
+    updated_map.cloud_file_id = Some(cloud_file.id.clone());
+    updated_map.update_all_fields(&mut db.connection).await?;
 
-    info!("Upload completed successfully for item: {}", item_id);
+    // Update track metadata
+    track.updated_at = Utc::now();
+    track.update_all_fields(&mut db.connection).await?;
+
+    // Mark item as completed
+    item.status = "completed".to_string();
+    item.updated_at = Utc::now();
+    item.update_all_fields(&mut db.connection).await?;
+
     Ok(())
 }
 
@@ -590,144 +573,91 @@ pub async fn start_download<R: Runtime>(
     db_state: State<'_, DBState>,
     cloud_state: State<'_, CloudState>,
 ) -> AnyResult<()> {
-    info!("Starting download for item: {}", item_id);
-    // Get all necessary data under a short-lived lock
-    let (item, track_map, cloud_track, cloud_folder, local_path) = {
-        let mut db = db_state.get_lock().await;
+    let mut db = db_state.get_lock().await;
 
-        let item = DownloadQueueItem::select()
-            .where_("id = ?")
-            .bind(&item_id)
-            .fetch_one(&mut db.connection)
-            .await?;
+    // Get queue item
+    let mut item = DownloadQueueItem::select()
+        .where_("id = ?")
+        .bind(&item_id)
+        .fetch_one(&mut db.connection)
+        .await?;
 
-        let track_map = CloudTrackMap::select()
-            .where_("id = ? AND cloud_file_id IS NOT NULL")
-            .bind(&item.cloud_map_id)
-            .fetch_one(&mut db.connection)
-            .await?;
+    // Get track info
+    let track_map = CloudTrackMap::select()
+        .where_("id = ?")
+        .bind(&item.cloud_map_id)
+        .fetch_one(&mut db.connection)
+        .await?;
 
-        let cloud_track = CloudTrack::select()
-            .where_("id = ?")
-            .bind(&track_map.cloud_track_id)
-            .fetch_one(&mut db.connection)
-            .await?;
+    let mut track = CloudTrack::select()
+        .where_("id = ?")
+        .bind(&track_map.cloud_track_id)
+        .fetch_one(&mut db.connection)
+        .await?;
 
-        let cloud_folder = CloudMusicFolder::select()
-            .where_("id = ?")
-            .bind(&track_map.cloud_music_folder_id)
-            .fetch_one(&mut db.connection)
-            .await?;
+    // Get folder info
+    let folder = CloudMusicFolder::select()
+        .where_("id = ?")
+        .bind(&track_map.cloud_music_folder_id)
+        .fetch_one(&mut db.connection)
+        .await?;
 
-        let local_path = Path::new(&cloud_folder.local_folder_path)
-            .join(&track_map.relative_path)
-            .to_string_lossy()
-            .to_string();
+    // Get local file path
+    let local_path = Path::new(&folder.local_folder_path)
+        .join(&track_map.relative_path)
+        .to_string_lossy()
+        .to_string();
 
-        info!("Updating item {} status to in_progress", item_id);
-        // Update status to in_progress
-        let mut item_to_update = item.clone();
-        item_to_update.start_processing();
-        item_to_update = item_to_update.update_all_fields(&mut db.connection).await?;
-
-        (item_to_update, track_map, cloud_track, cloud_folder, local_path)
-    }; // Lock is released here
-
-    // Create parent directory if it doesn't exist
+    // Create parent directories if they don't exist
     if let Some(parent) = Path::new(&local_path).parent() {
-        info!("Creating parent directory: {}", parent.display());
         std::fs::create_dir_all(parent)?;
     }
 
-    // Perform the download without holding the lock
-    match CloudProviderType::from_str(&cloud_folder.provider_type)? {
-        CloudProviderType::Dropbox => {
-            info!("Starting Dropbox download to {}", local_path);
-            cloud_state.dropbox.download_file(&track_map.cloud_file_id.unwrap(), &PathBuf::from(&local_path)).await?;
-            info!("Successfully downloaded file from Dropbox");
-        }
-        CloudProviderType::GoogleDrive => {
-            info!("Google Drive download not implemented");
-            return Err(SyncudioError::GoogleDrive("Google Drive not implemented yet".to_string()));
-        }
-    }
+    // Update item status
+    item.status = "in_progress".to_string();
+    item.updated_at = Utc::now();
+    item = item.update_all_fields(&mut db.connection).await?;
 
-    // Re-acquire lock briefly to update status
-    {
-        let mut db = db_state.get_lock().await;
-        let mut item_to_update = item.clone();
-        item_to_update.complete();
-        info!("Marking download item {} as completed", item_id);
-        item_to_update.update_all_fields(&mut db.connection).await?;
+    // Get cloud provider
+    let provider = match folder.provider_type.as_str() {
+        "dropbox" => &cloud_state.dropbox,
+        _ => return Err(SyncudioError::UnsupportedProvider(folder.provider_type)),
+    };
 
-        let mut cloud_track = CloudTrack::select()
-            .where_("id = ?")
-            .bind(&track_map.cloud_track_id)
-            .fetch_one(&mut db.connection)
-            .await?;
-        // Get metadata from downloaded file
-        let local_path_buf = PathBuf::from(&local_path);
-        if let Some(track) = track::get_track_from_file(&local_path_buf) {
-            // Check if track already exists with this path
-            let existing_track = Track::select()
-                .where_("path = ?")
-                .bind(&track.path)
-                .fetch_optional(&mut db.connection)
-                .await?;
+    // Download file
+    provider
+        .download_file(&track_map.cloud_file_id.clone().unwrap(), &PathBuf::from(&local_path))
+        .await?;
 
-            let cloned_track = track.clone();
+    // Parse local track metadata
+    let mut local_track = track::get_track_from_file(&PathBuf::from(&local_path))
+        .ok_or_else(|| SyncudioError::InvalidTrackMetadata(local_path.clone()))?;
 
-            // Insert or update local track
-            let local_track = match existing_track {
-                Some(mut existing) => {
-                    // Update existing track with new metadata
-                    existing.title = cloned_track.title;
-                    existing.album = cloned_track.album;
-                    existing.artists = cloned_track.artists;
-                    existing.genres = cloned_track.genres;
-                    existing.year = cloned_track.year;
-                    existing.duration = cloned_track.duration;
-                    existing.track_no = cloned_track.track_no;
-                    existing.track_of = cloned_track.track_of;
-                    existing.disk_no = cloned_track.disk_no;
-                    existing.disk_of = cloned_track.disk_of;
-                    existing.bitrate = cloned_track.bitrate;
-                    existing.sampling_rate = cloned_track.sampling_rate;
-                    existing.channels = cloned_track.channels;
-                    existing.encoder = cloned_track.encoder;
-                    existing.date = cloned_track.date;
-                    existing.update_all_fields(&mut db.connection).await?
-                }
-                None => {
-                    // Insert new track
-                    track.clone().insert(&mut db.connection).await?
-                }
-            };
-            
-            // Update cloud track with metadata 
-            cloud_track.blake3_hash = blake3_hash(&local_path_buf).ok();
-            cloud_track.tags = Some(CloudTrackTag::from_track(track));
-            cloud_track = cloud_track.update_all_fields(&mut db.connection).await?;
+    // Insert local track
+    local_track = local_track.insert(&mut db.connection).await?;
 
-            // Emit event with enhanced payload
-            app.emit(
-                "track-downloaded",
-                TrackDownloadedPayload {
-                    track_id: cloud_track.id.clone(),
-                    location_type: "both".to_string(),
-                    local_track_id: local_track.id,
-                    cloud_track_id: cloud_track.id,
-                    sync_folder_id: cloud_folder.id,
-                    relative_path: track_map.relative_path,
-                },
-            )?;
-        } else {
-            info!("Failed to parse metadata from downloaded file: {}", local_path);
-            return Err(SyncudioError::Path(format!("Failed to parse metadata from {}", local_path)));
-        }
-    }
+    // Update track metadata
+    track.updated_at = Utc::now();
+    track = track.update_all_fields(&mut db.connection).await?;
 
-    info!("Download completed successfully for item: {}", item_id);
+    // Mark item as completed
+    item.status = "completed".to_string();
+    item.updated_at = Utc::now();
+    item = item.update_all_fields(&mut db.connection).await?;
+
+    // Emit track downloaded event
+    app.emit(
+        "track-downloaded",
+        TrackDownloadedPayload {
+            track_id: track.id.clone(),
+            location_type: "both".to_string(),
+            local_track_id: local_track.id.clone(),
+            cloud_track_id: track.id.clone(),
+            sync_folder_id: folder.id.clone(),
+            relative_path: track_map.relative_path,
+        },
+    )?;
+
     Ok(())
 }
 

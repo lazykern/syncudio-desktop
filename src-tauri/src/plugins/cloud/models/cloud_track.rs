@@ -62,7 +62,6 @@ impl CloudTrackTag {
 pub struct CloudTrack {
     #[ormlite(primary_key)]
     pub id: String,
-    pub blake3_hash: Option<String>,
     pub file_name: String,
     pub updated_at: DateTime<Utc>,
     #[ormlite(json)]
@@ -74,7 +73,6 @@ impl CloudTrack {
         let now = chrono::Utc::now();
         Ok(Self {
             id: Uuid::new_v4().to_string(),
-            blake3_hash: track.blake3_hash.clone(),
             file_name: track.path.split('/').last().unwrap_or("").to_string(),
             updated_at: now,
             tags: Some(CloudTrackTag::from_track(track)),
@@ -84,7 +82,6 @@ impl CloudTrack {
     pub fn from_cloud_file(cloud_file: CloudFile) -> AnyResult<Self> {
         Ok(Self {
             id: Uuid::new_v4().to_string(),
-            blake3_hash: None,
             file_name: cloud_file.name,
             updated_at: cloud_file.modified_at,
             tags: None,

@@ -13,7 +13,6 @@ use super::track::Track;
 fn sample_track_1() -> Track {
     Track {
         id: "1".to_string(),
-        blake3_hash: None,
         path: "/music/artist1/album1/track1.mp3".to_string(),
         title: "Song One".to_string(),
         album: "Album One".to_string(),
@@ -38,7 +37,6 @@ fn sample_track_1() -> Track {
 fn sample_track_2() -> Track {
     Track {
         id: "2".to_string(),
-        blake3_hash: None,
         path: "/music/artist2/album2/track2.mp3".to_string(),
         title: "Song Two".to_string(),
         album: "Album Two".to_string(),
@@ -63,7 +61,6 @@ fn sample_track_2() -> Track {
 fn sample_track_3() -> Track {
     Track {
         id: "3".to_string(),
-        blake3_hash: None,
         path: "/music/artist3/album3/track3.mp3".to_string(),
         title: "Song Three".to_string(),
         album: "Album Three".to_string(),

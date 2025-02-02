@@ -11,7 +11,7 @@ pub struct CloudPlaylist {
     pub id: String,
     pub name: String,
     #[ormlite(json)]
-    pub tracks: Vec<String>, // blake3_hash
+    pub tracks: Vec<String>, // Track IDs
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

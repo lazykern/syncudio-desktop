@@ -135,7 +135,6 @@ impl DB {
             SELECT 
                 -- CloudTrack fields
                 ct.id as track_id,
-                ct.blake3_hash,
                 ct.file_name,
                 ct.updated_at as track_updated_at,
                 ct.tags,
@@ -170,7 +169,6 @@ impl DB {
             SELECT 
                 -- CloudTrack fields
                 ct.id as track_id,
-                ct.blake3_hash,
                 ct.file_name,
                 ct.updated_at as track_updated_at,
                 ct.tags,
@@ -207,7 +205,6 @@ impl DB {
             SELECT 
                 -- CloudTrack fields
                 ct.id as track_id,
-                ct.blake3_hash,
                 ct.file_name,
                 ct.updated_at as track_updated_at,
                 ct.tags,
@@ -244,7 +241,6 @@ impl DB {
             SELECT 
                 -- CloudTrack fields
                 ct.id as track_id,
-                ct.blake3_hash,
                 ct.file_name,
                 ct.updated_at as track_updated_at,
                 ct.tags,

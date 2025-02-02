@@ -69,6 +69,15 @@ pub enum SyncudioError {
 
     #[error("Last.fm error: {0}")]
     LastFm(String),
+
+    #[error("File not found: {0}")]
+    FileNotFound(String),
+
+    #[error("Invalid track metadata: {0}")]
+    InvalidTrackMetadata(String),
+
+    #[error("Unsupported provider: {0}")]
+    UnsupportedProvider(String),
 }
 
 /**

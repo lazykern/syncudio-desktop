@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use super::cloud_track::CloudTrackTag;
 
-/// Represents the location state of a track by checking both local and cloud existence by blake3_hash, cloud_file_id and relative_path (should be in local storage and cloud storage)
+/// Represents the location state of a track by checking both local and cloud existence by cloud_file_id and relative_path (should be in local storage and cloud storage)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/generated/typings/index.ts")]
 #[serde(rename_all = "snake_case")]
@@ -17,7 +17,7 @@ pub enum TrackLocationState {
     LocalOnly,
     /// Track exists only in cloud storage
     CloudOnly,
-    /// Track exists in both but has different hashes
+    /// Track exists in both but has different content
     OutOfSync,
     /// Track is mapped but missing from both locations
     Missing,
@@ -109,8 +109,6 @@ pub struct QueueStatsDTO {
 pub struct SyncHistoryEntry {
     pub timestamp: DateTime<Utc>,
     pub operation: SyncOperationType,
-    pub old_hash: Option<String>,
-    pub new_hash: Option<String>,
     pub status: SyncStatus,
 }
 
@@ -150,7 +148,6 @@ pub struct QueueStatsGroupDTO {
 pub struct CloudTrackFullDTO {
     // CloudTrack fields
     pub track_id: String,
-    pub blake3_hash: Option<String>,
     pub file_name: String,
     pub track_updated_at: DateTime<Utc>,
     #[ormlite(json)]

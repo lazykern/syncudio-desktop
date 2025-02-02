@@ -53,7 +53,7 @@ export type CloudMusicFolder = { id: string, provider_type: string, cloud_folder
 
 export type CloudProviderType = "dropbox" | "gdrive";
 
-export type CloudTrack = { id: string, blake3_hash: string | null, file_name: string, updated_at: string, tags: CloudTrackTag | null, };
+export type CloudTrack = { id: string, file_name: string, updated_at: string, tags: CloudTrackTag | null, };
 
 /**
  * Represents a track with its current sync and integrity status
@@ -64,16 +64,16 @@ export type CloudTrackDTO = { id: string, cloud_music_folder_id: string, cloud_m
  * Comprehensive DTO that combines CloudTrack, CloudTrackMap, and CloudMusicFolder
  * Used for efficient lookups and metadata operations
  */
-export type CloudTrackFullDTO = { track_id: string, blake3_hash: string | null, file_name: string, track_updated_at: string, tags: CloudTrackTag | null, map_id: string, cloud_file_id: string | null, relative_path: string, folder_id: string, provider_type: string, cloud_folder_id: string, cloud_folder_path: string, local_folder_path: string, };
+export type CloudTrackFullDTO = { track_id: string, file_name: string, track_updated_at: string, tags: CloudTrackTag | null, map_id: string, cloud_file_id: string | null, relative_path: string, folder_id: string, provider_type: string, cloud_folder_id: string, cloud_folder_path: string, local_folder_path: string, };
 
 export type CloudTrackMap = { id: string, cloud_track_id: string, cloud_music_folder_id: string, cloud_file_id: string | null, relative_path: string, };
 
 /**
  * Represents track metadata stored in cloud storage
  */
-export type CloudTrackMetadata = { blake3_hash: string, cloud_file_id: string, cloud_path: string, relative_path: string, tags: CloudTrackTag | null, last_modified: string, last_sync: string, provider: string, cloud_folder_id: string, };
+export type CloudTrackMetadata = { cloud_file_id: string, cloud_path: string, relative_path: string, tags: CloudTrackTag | null, last_modified: string, last_sync: string, provider: string, cloud_folder_id: string, };
 
-export type CloudTrackTag = { title: string, album: string, artists: Array<string>, genres: Array<string>, year: number | null, duration: number, track_no: number | null, track_of: number | null, disk_no: number | null, disk_of: number | null, };
+export type CloudTrackTag = { title: string, album: string, artists: Array<string>, composers: Array<string>, album_artists: Array<string>, genres: Array<string>, date: string | null, year: number | null, duration: number, track_no: number | null, track_of: number | null, disk_no: number | null, disk_of: number | null, bitrate: number | null, sampling_rate: number | null, channels: number | null, encoder: string | null, };
 
 export type Config = { theme: string, audio_volume: number, audio_playback_rate: number | null, audio_output_device: string, audio_muted: boolean, audio_shuffle: boolean, audio_repeat: Repeat, default_view: DefaultView, library_sort_by: SortBy, library_sort_order: SortOrder, library_folders: Array<string>, library_autorefresh: boolean, sleepblocker: boolean, auto_update_checker: boolean, minimize_to_tray: boolean, notifications: boolean, track_view_density: string, sync_worker_enabled: boolean, sync_concurrent_uploads: number, sync_concurrent_downloads: number, sync_retry_limit: number, sync_retry_delay_seconds: number, lastfm_enabled: boolean, };
 
@@ -125,7 +125,7 @@ export type SortOrder = "Asc" | "Dsc";
 /**
  * Represents a sync history entry
  */
-export type SyncHistoryEntry = { timestamp: string, operation: SyncOperationType, old_hash: string | null, new_hash: string | null, status: SyncStatus, };
+export type SyncHistoryEntry = { timestamp: string, operation: SyncOperationType, status: SyncStatus, };
 
 /**
  * Represents operation type for sync operations
@@ -143,12 +143,12 @@ export type SyncStatus = "pending" | "in_progress" | "completed" | { "failed": {
  * Track
  * represent a single track, id and path should be unique
  */
-export type Track = { id: string, blake3_hash: string | null, path: string, title: string, album: string, artists: Array<string>, genres: Array<string>, year: number | null, duration: number, track_no: number | null, track_of: number | null, disk_no: number | null, disk_of: number | null, };
+export type Track = { id: string, path: string, title: string, album: string, artists: Array<string>, composers: Array<string>, album_artists: Array<string>, genres: Array<string>, track_no: number | null, track_of: number | null, disk_no: number | null, disk_of: number | null, date: string | null, year: number | null, duration: number, bitrate: number | null, sampling_rate: number | null, channels: number | null, encoder: string | null, };
 
 export type TrackDownloadedPayload = { track_id: string, location_type: string, local_track_id: string, cloud_track_id: string, sync_folder_id: string, relative_path: string, };
 
 /**
- * Represents the location state of a track by checking both local and cloud existence by blake3_hash, cloud_file_id and relative_path (should be in local storage and cloud storage)
+ * Represents the location state of a track by checking both local and cloud existence by cloud_file_id and relative_path (should be in local storage and cloud storage)
  */
 export type TrackLocationState = "complete" | "local_only" | "cloud_only" | "out_of_sync" | "missing" | "not_mapped";
 
@@ -157,6 +157,6 @@ export type TrackLocationState = "complete" | "local_only" | "cloud_only" | "out
  */
 export type TrackSyncStatusDTO = { location_state: TrackLocationState, sync_operation: SyncOperationType | null, sync_status: SyncStatus | null, updated_at: string, };
 
-export type UnifiedTrack = { local_track_id: string | null, cloud_track_id: string | null, cloud_map_id: string | null, cloud_folder_id: string | null, blake3_hash: string | null, local_path: string | null, cloud_relative_path: string | null, cloud_folder_path: string | null, cloud_local_folder_path: string | null, cloud_provider_type: string | null, cloud_file_id: string | null, title: string, album: string, artists: Array<string> | null, genres: Array<string> | null, year: number | null, duration: number, track_no: number | null, track_of: number | null, disk_no: number | null, disk_of: number | null, location_type: string, cloud_updated_at: string | null, };
+export type UnifiedTrack = { local_track_id: string | null, cloud_track_id: string | null, cloud_map_id: string | null, cloud_folder_id: string | null, local_path: string | null, cloud_relative_path: string | null, cloud_folder_path: string | null, cloud_local_folder_path: string | null, cloud_provider_type: string | null, cloud_file_id: string | null, title: string, album: string, artists: Array<string> | null, genres: Array<string> | null, year: number | null, duration: number, track_no: number | null, track_of: number | null, disk_no: number | null, disk_of: number | null, location_type: string, cloud_updated_at: string | null, };
 
 export type UploadQueueItem = { id: string, priority: number, cloud_map_id: string, provider_type: string, status: string, error_message: string | null, created_at: string, updated_at: string, attempts: number, };

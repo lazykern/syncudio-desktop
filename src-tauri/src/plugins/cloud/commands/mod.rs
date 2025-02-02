@@ -5,7 +5,7 @@ mod sync_queue;
 mod cleanup;
 mod metadata;
 
-use chrono::DateTime;
+use chrono::{DateTime, Utc};
 use ormlite::Model;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -118,64 +118,22 @@ pub async fn scan_cloud_music_folder(
         })
         .collect();
 
-    // Get ALL existing cloud tracks that match our hashes or have maps with our cloud_file_ids
-    let mut hash_params = Vec::new();
-    let mut cloud_id_params = Vec::new();
-
-    for track in local_tracks_map.values() {
-        if let Some(hash) = &track.blake3_hash {
-            hash_params.push(hash);
-        }
-    }
-    for file in cloud_files_map.values() {
-        cloud_id_params.push(&file.id);
-    }
-
-    let mut query = String::from(
-        "SELECT DISTINCT ct.id, ct.blake3_hash, ctm.cloud_file_id 
+    // Get existing cloud tracks and maps for this folder
+    let existing_tracks: Vec<(String, String, Option<String>)> = ormlite::query_as(
+        "SELECT ct.id, ctm.relative_path, ctm.cloud_file_id 
          FROM cloud_tracks ct 
-         LEFT JOIN cloud_maps ctm ON ct.id = ctm.cloud_track_id
-         WHERE 0=1",
-    );
-
-    if !hash_params.is_empty() {
-        query.push_str(" OR ct.blake3_hash IN (");
-        query.push_str(
-            &std::iter::repeat("?")
-                .take(hash_params.len())
-                .collect::<Vec<_>>()
-                .join(","),
-        );
-        query.push(')');
-    }
-    if !cloud_id_params.is_empty() {
-        query.push_str(" OR ctm.cloud_file_id IN (");
-        query.push_str(
-            &std::iter::repeat("?")
-                .take(cloud_id_params.len())
-                .collect::<Vec<_>>()
-                .join(","),
-        );
-        query.push(')');
-    }
-
-    let mut stmt = ormlite::query_as::<_, (String, Option<String>, Option<String>)>(&query);
-    for param in hash_params {
-        stmt = stmt.bind(param);
-    }
-    for param in cloud_id_params {
-        stmt = stmt.bind(param);
-    }
-
-    let existing_tracks: Vec<(String, Option<String>, Option<String>)> = stmt.fetch_all(&mut db.connection).await?;
+         INNER JOIN cloud_maps ctm ON ct.id = ctm.cloud_track_id
+         WHERE ctm.cloud_music_folder_id = ?"
+    )
+    .bind(&folder_id)
+    .fetch_all(&mut db.connection)
+    .await?;
 
     // Create lookup maps for existing tracks
-    let mut existing_by_hash: HashMap<String, String> = HashMap::new();
+    let mut existing_by_path: HashMap<String, String> = HashMap::new();
     let mut existing_by_cloud_id: HashMap<String, String> = HashMap::new();
-    for (id, hash, cloud_id) in existing_tracks {
-        if let Some(hash) = hash {
-            existing_by_hash.insert(hash, id.clone());
-        }
+    for (id, path, cloud_id) in existing_tracks {
+        existing_by_path.insert(path, id.clone());
         if let Some(cloud_id) = cloud_id {
             existing_by_cloud_id.insert(cloud_id, id);
         }
@@ -187,24 +145,11 @@ pub async fn scan_cloud_music_folder(
     for (rel_path, local_track) in local_tracks_map.iter() {
         let cloud_file = cloud_files_map.get(rel_path);
 
-        // Try to find existing track ID, first by hash then by cloud_file_id
-        let existing_id = if let Some(hash) = &local_track.blake3_hash {
-            // First check if we already have this track in the database
-            match existing_by_hash.get(hash).cloned() {
-                Some(id) => Some(id),
-                None => CloudTrack::select()
-                    .where_("blake3_hash = ?")
-                    .bind(hash)
-                    .fetch_optional(&mut db.connection)
-                    .await
-                    .ok()
-                    .flatten()
-                    .map(|t| t.id),
-            }
-        } else {
-            None
-        }
-        .or_else(|| cloud_file.and_then(|f| existing_by_cloud_id.get(&f.id).cloned()));
+        // Try to find existing track ID by path or cloud_file_id
+        let existing_id = existing_by_path
+            .get(rel_path)
+            .cloned()
+            .or_else(|| cloud_file.and_then(|f| existing_by_cloud_id.get(&f.id).cloned()));
 
         match existing_id {
             Some(id) => {
@@ -215,28 +160,17 @@ pub async fn scan_cloud_music_folder(
                     .fetch_one(&mut db.connection)
                     .await?;
 
-                let mut updated = false;
+                // Update tags if local file is newer
+                let file = File::open(&local_track.path)?;
+                let metadata = file.metadata()?;
+                let local_mtime = metadata.modified()?.duration_since(UNIX_EPOCH)?;
+                let local_updated_at =
+                    DateTime::from_timestamp(local_mtime.as_secs() as i64, 0)
+                        .unwrap_or_default();
 
-                // Update hash and tags if local file is newer
-                if let Some(hash) = &local_track.blake3_hash {
-                    if track.blake3_hash.as_ref() != Some(hash) {
-                        let file = File::open(&local_track.path)?;
-                        let metadata = file.metadata()?;
-                        let local_mtime = metadata.modified()?.duration_since(UNIX_EPOCH)?;
-                        let local_updated_at =
-                            DateTime::from_timestamp(local_mtime.as_secs() as i64, 0)
-                                .unwrap_or_default();
-
-                        if local_updated_at > track.updated_at {
-                            track.blake3_hash = Some(hash.clone());
-                            track.tags = Some(CloudTrackTag::from_track(local_track.clone()));
-                            track.updated_at = local_updated_at;
-                            updated = true;
-                        }
-                    }
-                }
-
-                if updated {
+                if local_updated_at > track.updated_at {
+                    track.tags = Some(CloudTrackTag::from_track(local_track.clone()));
+                    track.updated_at = local_updated_at;
                     track.update_all_fields(&mut db.connection).await?;
                     result.tracks_updated += 1;
                 }
@@ -251,27 +185,18 @@ pub async fn scan_cloud_music_folder(
 
                 match track_map {
                     Some(mut map) => {
-                        let mut map_updated = false;
-                        
-                        // Update cloud_file_id based on cloud storage state
-                        if let Some(cloud_file) = cloud_file {
-                            if map.cloud_file_id.as_ref() != Some(&cloud_file.id) {
-                                map.cloud_file_id = Some(cloud_file.id.clone());
-                                map_updated = true;
+                        // Update cloud_file_id if needed
+                        let new_cloud_id = cloud_file.map(|f| f.id.clone());
+                        if map.cloud_file_id != new_cloud_id {
+                            map.cloud_file_id = new_cloud_id;
+                            map = map.update_all_fields(&mut db.connection).await?;
+                            if map.cloud_file_id.is_none() {
+                                result.mappings_cleared += 1;
                             }
-                        } else if map.cloud_file_id.is_some() {
-                            // Clear cloud_file_id if file no longer exists in cloud storage
-                            map.cloud_file_id = None;
-                            map_updated = true;
-                            result.mappings_cleared += 1;
-                            info!("Clearing cloud_file_id for track {} as file no longer exists in cloud storage", id);
-                        }
-
-                        if map_updated {
-                            map.update_all_fields(&mut db.connection).await?;
                         }
                     }
                     None => {
+                        // Create new map
                         let map = CloudTrackMap {
                             id: Uuid::new_v4().to_string(),
                             cloud_track_id: id.clone(),
@@ -286,12 +211,17 @@ pub async fn scan_cloud_music_folder(
                 processed_track_ids.push(id);
             }
             None => {
-                // Create new track and map
-                let track = CloudTrack::from_track(local_track.clone())?;
+                // Create new track
+                let track = CloudTrack {
+                    id: Uuid::new_v4().to_string(),
+                    file_name: local_track.path.split('/').last().unwrap_or("").to_string(),
+                    updated_at: Utc::now(),
+                    tags: Some(CloudTrackTag::from_track(local_track.clone())),
+                };
                 let track_id = track.id.clone();
                 track.insert(&mut db.connection).await?;
-                result.tracks_created += 1;
 
+                // Create map
                 let map = CloudTrackMap {
                     id: Uuid::new_v4().to_string(),
                     cloud_track_id: track_id.clone(),
@@ -302,82 +232,50 @@ pub async fn scan_cloud_music_folder(
                 map.insert(&mut db.connection).await?;
 
                 processed_track_ids.push(track_id);
+                result.tracks_created += 1;
             }
         }
     }
 
-    // Process cloud-only files
+    // Process remaining cloud files
     for (rel_path, cloud_file) in cloud_files_map.iter() {
         if local_tracks_map.contains_key(rel_path) {
-            continue; // Already processed with local tracks
+            continue; // Already processed with local track
         }
 
-        // Try to find existing track
-        if let Some(id) = existing_by_cloud_id.get(&cloud_file.id) {
-            if !processed_track_ids.contains(id) {
-                // Update track map if needed
-                let track_map = CloudTrackMap::select()
-                    .where_("cloud_track_id = ? AND cloud_music_folder_id = ?")
-                    .bind(id)
-                    .bind(&folder_id)
-                    .fetch_optional(&mut db.connection)
-                    .await?;
+        // Try to find existing track by cloud_file_id
+        let existing_id = existing_by_cloud_id.get(&cloud_file.id).cloned();
 
-                match track_map {
-                    Some(mut map) => {
-                        if map.cloud_file_id.as_ref() != Some(&cloud_file.id) {
-                            map.cloud_file_id = Some(cloud_file.id.clone());
-                            map.update_all_fields(&mut db.connection).await?;
-                        }
-                    }
-                    None => {
-                        let map = CloudTrackMap {
-                            id: Uuid::new_v4().to_string(),
-                            cloud_track_id: id.clone(),
-                            cloud_music_folder_id: folder_id.clone(),
-                            relative_path: rel_path.clone(),
-                            cloud_file_id: Some(cloud_file.id.clone()),
-                        };
-                        map.insert(&mut db.connection).await?;
-                    }
-                }
-                processed_track_ids.push(id.clone());
+        match existing_id {
+            Some(id) if !processed_track_ids.contains(&id) => {
+                // Track exists but wasn't processed with local file
+                processed_track_ids.push(id);
             }
-        } else {
-            // Create new track and map
-            let track = CloudTrack::from_cloud_file(cloud_file.clone())?;
-            let track_id = track.id.clone();
-            track.insert(&mut db.connection).await?;
-            result.tracks_created += 1;
+            None => {
+                // Create new track from cloud file
+                let track = CloudTrack {
+                    id: Uuid::new_v4().to_string(),
+                    file_name: cloud_file.name.clone(),
+                    updated_at: cloud_file.modified_at,
+                    tags: None,
+                };
+                let track_id = track.id.clone();
+                track.insert(&mut db.connection).await?;
 
-            let map = CloudTrackMap {
-                id: Uuid::new_v4().to_string(),
-                cloud_track_id: track_id.clone(),
-                cloud_music_folder_id: folder_id.clone(),
-                relative_path: rel_path.clone(),
-                cloud_file_id: Some(cloud_file.id.clone()),
-            };
-            map.insert(&mut db.connection).await?;
+                // Create map
+                let map = CloudTrackMap {
+                    id: Uuid::new_v4().to_string(),
+                    cloud_track_id: track_id.clone(),
+                    cloud_music_folder_id: folder_id.clone(),
+                    relative_path: rel_path.clone(),
+                    cloud_file_id: Some(cloud_file.id.clone()),
+                };
+                map.insert(&mut db.connection).await?;
 
-            processed_track_ids.push(track_id);
-        }
-    }
-
-    // Clear cloud_file_id for any maps that reference files no longer in cloud storage
-    let mut orphaned_maps = CloudTrackMap::select()
-        .where_("cloud_music_folder_id = ? AND cloud_file_id IS NOT NULL")
-        .bind(&folder_id)
-        .fetch_all(&mut db.connection)
-        .await?;
-
-    for mut map in orphaned_maps {
-        if let Some(cloud_file_id) = &map.cloud_file_id {
-            if !cloud_files_map.values().any(|f| f.id == *cloud_file_id) {
-                info!("Clearing cloud_file_id for orphaned map {} as file no longer exists in cloud storage", map.id);
-                map.cloud_file_id = None;
-                map.update_all_fields(&mut db.connection).await?;
-                result.mappings_cleared += 1;
+                processed_track_ids.push(track_id);
+                result.tracks_created += 1;
             }
+            _ => {} // Already processed
         }
     }
 

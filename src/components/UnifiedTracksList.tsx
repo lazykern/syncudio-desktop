@@ -128,8 +128,7 @@ export default function UnifiedTracksList(props: Props) {
     track_no: t.track_no,
     track_of: t.track_of,
     disk_no: t.disk_no,
-    disk_of: t.disk_of,
-    blake3_hash: t.blake3_hash
+    disk_of: t.disk_of
   }));
 
   const {
@@ -229,8 +228,7 @@ export default function UnifiedTracksList(props: Props) {
         track_no: t.track_no,
         track_of: t.track_of,
         disk_no: t.disk_no,
-        disk_of: t.disk_of,
-        blake3_hash: t.blake3_hash
+        disk_of: t.disk_of
     }));
 
     if (track.location_type === 'cloud') {

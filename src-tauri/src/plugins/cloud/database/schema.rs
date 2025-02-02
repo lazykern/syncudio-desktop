@@ -19,7 +19,6 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
     ormlite::query(
         "CREATE TABLE IF NOT EXISTS cloud_tracks (
             id TEXT PRIMARY KEY NOT NULL,
-            blake3_hash TEXT UNIQUE,
             file_name TEXT NOT NULL,
             updated_at DATETIME NOT NULL,
             tags JSON -- JSON object of CloudTrackTag
@@ -118,26 +117,19 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
     ormlite::query(
         "CREATE VIEW IF NOT EXISTS unified_tracks AS
         WITH base_tracks AS (
-            -- Get all tracks that have blake3_hash
+            -- Get all tracks by path
             SELECT 
-                blake3_hash,
-                'hash' as join_type
+                relative_path,
+                'path' as join_type
             FROM (
-                SELECT blake3_hash 
-                FROM tracks 
-                WHERE blake3_hash IS NOT NULL
+                SELECT ctm.relative_path 
+                FROM cloud_maps ctm
                 UNION 
-                SELECT blake3_hash 
-                FROM cloud_tracks 
-                WHERE blake3_hash IS NOT NULL
+                SELECT SUBSTR(t.path, LENGTH(cmf.local_folder_path) + 1) as relative_path
+                FROM tracks t
+                JOIN cloud_music_folders cmf 
+                WHERE t.path LIKE cmf.local_folder_path || '%'
             )
-            UNION ALL
-            -- Get all cloud tracks without blake3_hash
-            SELECT 
-                id as blake3_hash,
-                'cloud_id' as join_type
-            FROM cloud_tracks 
-            WHERE blake3_hash IS NULL
         )
         SELECT 
             -- Track identifiers
@@ -145,7 +137,6 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
             ct.id as cloud_track_id,
             ctm.id as cloud_map_id,
             cmf.id as cloud_folder_id,
-            COALESCE(t.blake3_hash, ct.blake3_hash) as blake3_hash,
 
             -- Paths and locations
             t.path as local_path,
@@ -184,16 +175,15 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
             ct.updated_at as cloud_updated_at
 
         FROM base_tracks
-        -- Join with tracks based on blake3_hash
-        LEFT JOIN tracks t ON 
-            base_tracks.join_type = 'hash' AND
-            t.blake3_hash = base_tracks.blake3_hash
-        -- Join with cloud_tracks based on either blake3_hash or id
+        -- Join with tracks based on path
+        LEFT JOIN cloud_maps ctm ON 
+            base_tracks.relative_path = ctm.relative_path
         LEFT JOIN cloud_tracks ct ON 
-            (base_tracks.join_type = 'hash' AND ct.blake3_hash = base_tracks.blake3_hash) OR
-            (base_tracks.join_type = 'cloud_id' AND ct.id = base_tracks.blake3_hash)
-        LEFT JOIN cloud_maps ctm ON ct.id = ctm.cloud_track_id
-        LEFT JOIN cloud_music_folders cmf ON ctm.cloud_music_folder_id = cmf.id;"
+            ct.id = ctm.cloud_track_id
+        LEFT JOIN cloud_music_folders cmf ON 
+            ctm.cloud_music_folder_id = cmf.id
+        LEFT JOIN tracks t ON 
+            t.path = cmf.local_folder_path || base_tracks.relative_path;"
     )
     .execute(&mut *connection)
     .await?;

@@ -50,13 +50,11 @@ pub async fn sync_cloud_metadata(
     info!("Merging cloud metadata with database");
 
     // Create lookup maps for efficient matching
-    let mut db_tracks_by_hash: HashMap<String, CloudTrackFullDTO> = HashMap::new();
+    let mut db_tracks_by_path: HashMap<String, CloudTrackFullDTO> = HashMap::new();
     let mut db_tracks_by_cloud_id: HashMap<String, CloudTrackFullDTO> = HashMap::new();
 
     for track in &db_tracks {
-        if let Some(hash) = &track.blake3_hash {
-            db_tracks_by_hash.insert(hash.clone(), track.clone());
-        }
+        db_tracks_by_path.insert(track.relative_path.clone(), track.clone());
         if let Some(cloud_id) = &track.cloud_file_id {
             db_tracks_by_cloud_id.insert(cloud_id.clone(), track.clone());
         }
@@ -65,8 +63,8 @@ pub async fn sync_cloud_metadata(
     // Process cloud metadata tracks
     for cloud_track in &cloud_metadata.tracks {
         // Try to find matching track in database
-        let db_track = db_tracks_by_hash
-            .get(&cloud_track.blake3_hash)
+        let db_track = db_tracks_by_path
+            .get(&cloud_track.relative_path)
             .or_else(|| db_tracks_by_cloud_id.get(&cloud_track.cloud_file_id));
 
         match db_track {
@@ -105,7 +103,6 @@ pub async fn sync_cloud_metadata(
                 info!("Creating new track from cloud metadata");
                 let track = CloudTrack {
                     id: Uuid::new_v4().to_string(),
-                    blake3_hash: Some(cloud_track.blake3_hash.clone()),
                     file_name: Path::new(&cloud_track.cloud_path)
                         .file_name()
                         .unwrap_or_default()
@@ -155,11 +152,10 @@ pub async fn update_cloud_metadata(
             .into_iter()
             .filter_map(|t| {
                 let cloud_path = t.cloud_path();
-                // Only include tracks that have both hash and cloud_file_id
-                if let (Some(hash), Some(cloud_id)) = (t.blake3_hash, t.cloud_file_id) {
+                // Only include tracks that have cloud_file_id
+                if let Some(cloud_id) = t.cloud_file_id {
                     result.tracks_included += 1;
                     Some(CloudTrackMetadata {
-                        blake3_hash: hash,
                         cloud_file_id: cloud_id,
                         cloud_path: cloud_path,
                         relative_path: t.relative_path,

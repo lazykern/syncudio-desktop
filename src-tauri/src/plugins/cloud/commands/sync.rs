@@ -9,7 +9,6 @@ use tauri::AppHandle;
 use tauri::Error;
 
 use crate::libs::error::SyncudioError;
-use crate::libs::utils::blake3_hash;
 use crate::plugins::cloud;
 use crate::plugins::cloud::CloudProvider;
 use crate::plugins::cloud::CloudProviderType;
@@ -52,7 +51,7 @@ pub async fn get_cloud_folder_sync_details(
     // Get tracks with their maps in a single query
     let tracks_with_maps: Vec<TrackWithMapRow> = ormlite::query_as(r#"
         SELECT 
-            t.id, t.blake3_hash, t.file_name, t.updated_at, t.tags,
+            t.id, t.file_name, t.updated_at, t.tags,
             m.id as map_id, m.relative_path, m.cloud_music_folder_id, m.cloud_file_id
         FROM cloud_tracks t
         INNER JOIN cloud_maps m ON t.id = m.cloud_track_id
@@ -111,15 +110,14 @@ pub async fn get_cloud_folder_sync_details(
         // Calculate location state
         let location_state = match (
             local_exists,
-            track.cloud_file_id.is_some(),
-            track.blake3_hash.is_some(),
+            track.cloud_file_id.is_some()
         ) {
-            (true, true, true) => TrackLocationState::Complete,
-            (true, false, _) => {
+            (true, true) => TrackLocationState::Complete,
+            (true, false) => {
                 has_attention_needed = true;
                 TrackLocationState::LocalOnly
             }
-            (false, true, _) => {
+            (false, true) => {
                 has_attention_needed = true;
                 TrackLocationState::CloudOnly
             }
@@ -229,13 +227,12 @@ pub async fn get_track_sync_status(
     // Calculate location state
     let location_state = match (
         local_exists,
-        track_map.cloud_file_id.is_some(),
-        track.blake3_hash.is_some(),
+        track_map.cloud_file_id.is_some()
     ) {
-        (true, true, true) => TrackLocationState::Complete,
-        (true, false, true) => TrackLocationState::LocalOnly,
-        (false, true, _) => TrackLocationState::CloudOnly,
-        (false, false, _) => TrackLocationState::Missing,
+        (true, true) => TrackLocationState::Complete,
+        (true, false) => TrackLocationState::LocalOnly,
+        (false, true) => TrackLocationState::CloudOnly,
+        (false, false) => TrackLocationState::Missing,
         _ => TrackLocationState::NotMapped,
     };
 

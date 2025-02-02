@@ -9,7 +9,6 @@ use super::CloudTrackTag;
 #[ts(export, export_to = "../../src/generated/typings/index.ts")]
 pub struct CloudTrackMetadata {
     // Core identifiers
-    pub blake3_hash: String,
     pub cloud_file_id: String,
 
     // Paths
@@ -71,7 +70,7 @@ impl CloudMetadataSyncResult {
 #[ts(export, export_to = "../../src/generated/typings/index.ts")]
 pub struct CloudMetadataUpdateResult {
     pub tracks_included: u32,     // Number of tracks included in metadata
-    pub tracks_skipped: u32,      // Number of tracks skipped (missing hash/cloud_id)
+    pub tracks_skipped: u32,      // Number of tracks skipped (missing cloud_id)
     pub metadata_version: String,  // Version of the metadata schema
 }
 

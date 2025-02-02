@@ -8,8 +8,6 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
 
-use super::utils::blake3_hash;
-
 /**
  * Track
  * represent a single track, id and path should be unique
@@ -20,7 +18,6 @@ use super::utils::blake3_hash;
 pub struct Track {
     #[ormlite(primary_key)]
     pub id: String,
-    pub blake3_hash: Option<String>,
     pub path: String, // must be unique, ideally, a PathBuf
     pub title: String,
     pub album: String,
@@ -86,7 +83,6 @@ pub fn get_track_from_file(path: &PathBuf) -> Option<Track> {
 
             Some(Track {
                 id,
-                blake3_hash: blake3_hash(path).ok(),
                 path: path.to_string_lossy().into_owned(),
                 title: tag
                     .get_string(&ItemKey::TrackTitle)

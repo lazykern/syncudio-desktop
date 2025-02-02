@@ -11,7 +11,6 @@ pub struct UnifiedTrack {
     pub cloud_track_id: Option<String>,
     pub cloud_map_id: Option<String>,
     pub cloud_folder_id: Option<String>,
-    pub blake3_hash: Option<String>,
 
     // Paths and locations
     pub local_path: Option<String>,
