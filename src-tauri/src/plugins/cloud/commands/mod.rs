@@ -218,6 +218,7 @@ pub async fn scan_cloud_music_folder(
                 let track = CloudTrack {
                     id: Uuid::new_v4().to_string(),
                     file_name: local_track.path.split('/').last().unwrap_or("").to_string(),
+                    size: local_track.size,
                     updated_at: Utc::now(),
                     tags: Some(CloudTrackTag::from_track(local_track.clone())),
                 };
@@ -259,6 +260,7 @@ pub async fn scan_cloud_music_folder(
                 let track = CloudTrack {
                     id: Uuid::new_v4().to_string(),
                     file_name: cloud_file.name.clone(),
+                    size: cloud_file.size,
                     updated_at: cloud_file.modified_at,
                     tags: None,
                 };

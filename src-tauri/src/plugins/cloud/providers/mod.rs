@@ -38,7 +38,7 @@ impl CloudProviderType {
 pub struct CloudFile {
     pub id: String,
     pub name: String,
-    pub size: u64,
+    pub size: u32,
     pub is_folder: bool,
     pub modified_at: DateTime<Utc>,
     pub mime_type: Option<String>,

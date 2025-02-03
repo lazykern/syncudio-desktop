@@ -5,7 +5,7 @@
  */
 export type CleanupResult = { removed_tracks: number, removed_cloud_mappings: number, removed_cloud_tracks: number, };
 
-export type CloudFile = { id: string, name: string, size: bigint, is_folder: boolean, modified_at: string, mime_type: string | null, hash: FileHash | null, display_path: string | null, relative_path: string, };
+export type CloudFile = { id: string, name: string, size: number, is_folder: boolean, modified_at: string, mime_type: string | null, hash: FileHash | null, display_path: string | null, relative_path: string, };
 
 export type CloudFolderScanResult = { 
 /**
@@ -37,23 +37,23 @@ export type CloudFolderSyncDetailsDTO = { id: string, cloud_folder_path: string,
 /**
  * Collection of track metadata for cloud storage
  */
-export type CloudMetadataCollection = { tracks: Array<CloudTrackMetadata>, last_updated: string, version: string, };
+export type CloudMetadataCollection = { tracks: Array<CloudTrackMetadata>, };
 
 /**
  * Result of a metadata sync operation
  */
-export type CloudMetadataSyncResult = { tracks_updated: number, tracks_created: number, metadata_version: string, is_fresh_start: boolean, };
+export type CloudMetadataSyncResult = { tracks_updated: number, tracks_created: number, is_fresh_start: boolean, };
 
 /**
  * Result of a metadata update operation
  */
-export type CloudMetadataUpdateResult = { tracks_included: number, tracks_skipped: number, metadata_version: string, };
+export type CloudMetadataUpdateResult = { tracks_included: number, tracks_skipped: number, };
 
 export type CloudMusicFolder = { id: string, provider_type: string, cloud_folder_id: string, cloud_folder_path: string, local_folder_path: string, };
 
 export type CloudProviderType = "dropbox" | "gdrive";
 
-export type CloudTrack = { id: string, file_name: string, updated_at: string, tags: CloudTrackTag | null, };
+export type CloudTrack = { id: string, file_name: string, size: number, updated_at: string, tags: CloudTrackTag | null, };
 
 /**
  * Represents a track with its current sync and integrity status
@@ -64,16 +64,16 @@ export type CloudTrackDTO = { id: string, cloud_music_folder_id: string, cloud_m
  * Comprehensive DTO that combines CloudTrack, CloudTrackMap, and CloudMusicFolder
  * Used for efficient lookups and metadata operations
  */
-export type CloudTrackFullDTO = { track_id: string, file_name: string, track_updated_at: string, tags: CloudTrackTag | null, map_id: string, cloud_file_id: string | null, relative_path: string, folder_id: string, provider_type: string, cloud_folder_id: string, cloud_folder_path: string, local_folder_path: string, };
+export type CloudTrackFullDTO = { track_id: string, file_name: string, track_updated_at: string, tags: CloudTrackTag | null, map_id: string, cloud_file_id: string | null, relative_path: string, folder_id: string, provider_type: string, cloud_folder_id: string, cloud_folder_path: string, local_folder_path: string, size: number, };
 
 export type CloudTrackMap = { id: string, cloud_track_id: string, cloud_music_folder_id: string, cloud_file_id: string | null, relative_path: string, };
 
 /**
  * Represents track metadata stored in cloud storage
  */
-export type CloudTrackMetadata = { cloud_file_id: string, cloud_path: string, relative_path: string, tags: CloudTrackTag | null, last_modified: string, last_sync: string, provider: string, cloud_folder_id: string, };
+export type CloudTrackMetadata = { cloud_file_id: string, cloud_path: string, relative_path: string, size: number, tags: CloudTrackTag | null, last_modified: string, last_sync: string | null, provider: string, cloud_folder_id: string, };
 
-export type CloudTrackTag = { title: string, album: string, artists: Array<string>, composers: Array<string>, album_artists: Array<string>, genres: Array<string>, date: string | null, year: number | null, duration: number, track_no: number | null, track_of: number | null, disk_no: number | null, disk_of: number | null, bitrate: number | null, sampling_rate: number | null, channels: number | null, encoder: string | null, };
+export type CloudTrackTag = { title: string, album: string, artists: Array<string>, composers: Array<string>, album_artists: Array<string>, genres: Array<string>, date: string | null, year: number | null, duration: number, track_no: number | null, track_of: number | null, disk_no: number | null, disk_of: number | null, bitrate: number | null, sampling_rate: number | null, channels: number | null, encoder: string | null, size: number, };
 
 export type Config = { theme: string, audio_volume: number, audio_playback_rate: number | null, audio_output_device: string, audio_muted: boolean, audio_shuffle: boolean, audio_repeat: Repeat, default_view: DefaultView, library_sort_by: SortBy, library_sort_order: SortOrder, library_folders: Array<string>, library_autorefresh: boolean, sleepblocker: boolean, auto_update_checker: boolean, minimize_to_tray: boolean, notifications: boolean, track_view_density: string, sync_worker_enabled: boolean, sync_concurrent_uploads: number, sync_concurrent_downloads: number, sync_retry_limit: number, sync_retry_delay_seconds: number, lastfm_enabled: boolean, };
 
@@ -143,7 +143,7 @@ export type SyncStatus = "pending" | "in_progress" | "completed" | { "failed": {
  * Track
  * represent a single track, id and path should be unique
  */
-export type Track = { id: string, path: string, title: string, album: string, artists: Array<string>, composers: Array<string>, album_artists: Array<string>, genres: Array<string>, track_no: number | null, track_of: number | null, disk_no: number | null, disk_of: number | null, date: string | null, year: number | null, duration: number, bitrate: number | null, sampling_rate: number | null, channels: number | null, encoder: string | null, };
+export type Track = { id: string, path: string, title: string, album: string, artists: Array<string>, composers: Array<string>, album_artists: Array<string>, genres: Array<string>, track_no: number | null, track_of: number | null, disk_no: number | null, disk_of: number | null, date: string | null, year: number | null, duration: number, bitrate: number | null, sampling_rate: number | null, channels: number | null, encoder: string | null, size: number, };
 
 export type TrackDownloadedPayload = { track_id: string, location_type: string, local_track_id: string, cloud_track_id: string, sync_folder_id: string, relative_path: string, };
 

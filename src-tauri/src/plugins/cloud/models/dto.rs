@@ -164,6 +164,7 @@ pub struct CloudTrackFullDTO {
     pub cloud_folder_id: String,
     pub cloud_folder_path: String,
     pub local_folder_path: String,
+    pub size: u32,
 }
 
 impl CloudTrackFullDTO {

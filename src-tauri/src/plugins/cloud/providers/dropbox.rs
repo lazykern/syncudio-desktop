@@ -186,7 +186,7 @@ impl CloudProvider for Dropbox {
             files::Metadata::File(f) => Some(CloudFile {
                 id: f.id.clone(),
                 name: f.name.clone(),
-                size: f.size as u64,
+                size: f.size as u32,
                 is_folder: false,
                 modified_at: DateTime::parse_from_rfc3339(&f.server_modified).unwrap_or_default().into(),
                 mime_type: Some(from_path(&f.name).first_or_octet_stream().to_string()),
@@ -272,7 +272,7 @@ impl CloudProvider for Dropbox {
         Ok(CloudFile {
             id: result.id,
             name: result.name.clone(),
-            size: result.size as u64,
+            size: result.size as u32,
             is_folder: false,
             modified_at: modified_at.into(),
             mime_type: Some(from_path(&result.name).first_or_octet_stream().to_string()),

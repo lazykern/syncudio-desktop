@@ -48,7 +48,7 @@ impl CloudTrackTag {
             track_of: track.track_of,
             disk_no: track.disk_no,
             disk_of: track.disk_of,
-            bitrate: track.bitrate,
+            bitrate: track.bitrate.map(|b| b * 1000),
             sampling_rate: track.sampling_rate,
             channels: track.channels,
             encoder: track.encoder,
@@ -63,6 +63,7 @@ pub struct CloudTrack {
     #[ormlite(primary_key)]
     pub id: String,
     pub file_name: String,
+    pub size: u32,
     pub updated_at: DateTime<Utc>,
     #[ormlite(json)]
     pub tags: Option<CloudTrackTag>,
@@ -74,6 +75,7 @@ impl CloudTrack {
         Ok(Self {
             id: Uuid::new_v4().to_string(),
             file_name: track.path.split('/').last().unwrap_or("").to_string(),
+            size: track.size,
             updated_at: now,
             tags: Some(CloudTrackTag::from_track(track)),
         })
@@ -84,6 +86,7 @@ impl CloudTrack {
             id: Uuid::new_v4().to_string(),
             file_name: cloud_file.name,
             updated_at: cloud_file.modified_at,
+            size: cloud_file.size,
             tags: None,
         })
     }

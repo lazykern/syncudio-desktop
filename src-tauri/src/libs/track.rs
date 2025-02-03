@@ -1,3 +1,4 @@
+use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 
 use lofty::file::{AudioFile, TaggedFileExt};
@@ -40,6 +41,7 @@ pub struct Track {
     pub sampling_rate: Option<u32>,
     pub channels: Option<u32>,
     pub encoder: Option<String>,
+    pub size: u32,
 }
 
 /**
@@ -110,6 +112,7 @@ pub fn get_track_from_file(path: &PathBuf) -> Option<Track> {
                 sampling_rate: properties.sample_rate(),
                 channels: properties.channels().map(|c| c as u32),
                 encoder: tag.get_string(&ItemKey::EncodedBy).map(String::from),
+                size: metadata.size() as u32,
             })
         }
         Err(err) => {

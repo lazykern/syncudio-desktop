@@ -25,16 +25,27 @@ pub async fn pull_cloud_metadata(
 
     // 1. Download metadata from cloud - No DB lock needed
     let metadata_folder = provider.ensure_metadata_folder().await?;
+    info!("Ensured metadata folder exists");
+    
     let temp_path = temp_dir().join("syncudio_tracks.json.tmp");
+    info!("Using temp file: {}", temp_path.display());
     
     let (cloud_metadata, is_fresh_start) = match provider.download_file("/Syncudio/metadata/tracks.json", &temp_path).await {
         Ok(_) => {
-            let metadata: CloudMetadataCollection = serde_json::from_str(&std::fs::read_to_string(&temp_path)?)?;
+            info!("Successfully downloaded metadata file");
+            let content = std::fs::read_to_string(&temp_path)?;
+            info!("Read metadata file content: {} bytes", content.len());
+            
+            let metadata: CloudMetadataCollection = serde_json::from_str(&content)?;
+            info!("Parsed metadata with {} tracks", metadata.tracks.len());
+            
             std::fs::remove_file(&temp_path)?;
+            info!("Cleaned up temp file");
+            
             (metadata, false)
         }
-        Err(_) => {
-            info!("No existing metadata found, starting fresh");
+        Err(e) => {
+            info!("No existing metadata found, starting fresh: {}", e);
             (CloudMetadataCollection::new(), true)
         }
     };
@@ -42,9 +53,12 @@ pub async fn pull_cloud_metadata(
     let mut result = CloudMetadataSyncResult::new(is_fresh_start);
 
     // 2. Load database state with minimal lock time
+    info!("Loading database state");
     let db_tracks = {
         let mut db = db_state.get_lock().await;
-        db.get_cloud_tracks_full_by_provider(provider.provider_type().as_str()).await?
+        let tracks = db.get_cloud_tracks_full_by_provider(provider.provider_type().as_str()).await?;
+        info!("Loaded {} tracks from database", tracks.len());
+        tracks
     };
 
     // Create lookup maps - No DB lock needed
@@ -57,6 +71,9 @@ pub async fn pull_cloud_metadata(
             db_tracks_by_cloud_id.insert(cloud_id.clone(), track.clone());
         }
     }
+    info!("Created lookup maps: {} by path, {} by cloud ID", 
+          db_tracks_by_path.len(), 
+          db_tracks_by_cloud_id.len());
 
     // Process cloud metadata tracks in batches to minimize lock time
     for cloud_track in &cloud_metadata.tracks {
@@ -75,7 +92,10 @@ pub async fn pull_cloud_metadata(
                     // Update with minimal lock time
                     let mut db = db_state.get_lock().await;
                     
-                    info!("Updating track {} from cloud metadata", track.track_id);
+                    info!("Updating track {} from cloud metadata (path: {})", 
+                          track.track_id, 
+                          cloud_track.relative_path);
+                    
                     let mut updated_track = CloudTrack::select()
                         .where_("id = ?")
                         .bind(&track.track_id)
@@ -94,19 +114,28 @@ pub async fn pull_cloud_metadata(
                         .await?
                     {
                         if map.cloud_file_id.as_ref() != Some(&cloud_track.cloud_file_id) {
+                            info!("Updating cloud file ID for track {}: {} -> {}", 
+                                  track.track_id,
+                                  map.cloud_file_id.as_deref().unwrap_or("none"),
+                                  cloud_track.cloud_file_id);
+                                  
                             let mut updated_map = map;
                             updated_map.cloud_file_id = Some(cloud_track.cloud_file_id.clone());
                             updated_map.update_all_fields(&mut db.connection).await?;
                         }
                     }
                     result.tracks_updated += 1;
+                } else {
+                    info!("Skipping track {} (not modified)", track.track_id);
                 }
             }
             None => {
                 // Create new entry with minimal lock time
                 let mut db = db_state.get_lock().await;
                 
-                info!("Creating new track from cloud metadata");
+                info!("Creating new track from cloud metadata (path: {})", 
+                      cloud_track.relative_path);
+                
                 // Convert last_modified from string timestamp to DateTime
                 let cloud_modified = cloud_track.last_modified.parse::<i64>()
                     .map(|ts| DateTime::from_timestamp(ts / 1000, 0).unwrap_or_default())
@@ -119,6 +148,7 @@ pub async fn pull_cloud_metadata(
                         .unwrap_or_default()
                         .to_string_lossy()
                         .to_string(),
+                    size: cloud_track.size,
                     updated_at: cloud_modified,
                     tags: cloud_track.tags.clone(),
                 };
@@ -138,6 +168,10 @@ pub async fn pull_cloud_metadata(
             }
         }
     }
+
+    info!("Metadata sync completed: {} tracks updated, {} tracks created", 
+          result.tracks_updated, 
+          result.tracks_created);
 
     Ok(result)
 }
@@ -176,6 +210,7 @@ pub async fn push_cloud_metadata(
                             last_sync: Some(Utc::now()),
                             provider: t.provider_type,
                             cloud_folder_id: t.cloud_folder_id,
+                            size: t.size,
                         })
                     }
                     _ => {

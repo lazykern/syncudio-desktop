@@ -141,7 +141,8 @@ impl DB {
                 cmf.provider_type,
                 cmf.cloud_folder_id,
                 cmf.cloud_folder_path,
-                cmf.local_folder_path
+                cmf.local_folder_path,
+                ct.size
 
             FROM cloud_tracks ct
             INNER JOIN cloud_maps cm ON ct.id = cm.cloud_track_id
@@ -175,7 +176,8 @@ impl DB {
                 cmf.provider_type,
                 cmf.cloud_folder_id,
                 cmf.cloud_folder_path,
-                cmf.local_folder_path
+                cmf.local_folder_path,
+                ct.size
 
             FROM cloud_tracks ct
             INNER JOIN cloud_maps cm ON ct.id = cm.cloud_track_id
@@ -211,7 +213,8 @@ impl DB {
                 cmf.provider_type,
                 cmf.cloud_folder_id,
                 cmf.cloud_folder_path,
-                cmf.local_folder_path
+                cmf.local_folder_path,
+                ct.size
 
             FROM cloud_tracks ct
             INNER JOIN cloud_maps cm ON ct.id = cm.cloud_track_id

@@ -33,6 +33,7 @@ pub struct UnifiedTrack {
     pub track_of: Option<u32>,
     pub disk_no: Option<u32>,
     pub disk_of: Option<u32>,
+    pub size: u32,
 
     // Sync state
     pub cloud_updated_at: Option<DateTime<Utc>>,

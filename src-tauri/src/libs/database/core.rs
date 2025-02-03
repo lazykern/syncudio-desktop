@@ -31,7 +31,8 @@ impl DB {
                 bitrate INTEGER,
                 sampling_rate INTEGER,
                 channels INTEGER,
-                encoder TEXT
+                encoder TEXT,
+                size INTEGER NOT NULL
             );",
         )
         .execute(&mut self.connection)

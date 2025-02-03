@@ -14,6 +14,7 @@ pub struct CloudTrackMetadata {
     // Paths
     pub cloud_path: String,          // Absolute path in cloud storage
     pub relative_path: String,       // Path relative to cloud folder
+    pub size: u32,
 
     // Track metadata (reusing existing tag structure)
     pub tags: Option<CloudTrackTag>,

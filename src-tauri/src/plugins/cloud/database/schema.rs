@@ -21,6 +21,7 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
             id TEXT PRIMARY KEY NOT NULL,
             file_name TEXT NOT NULL,
             updated_at DATETIME NOT NULL,
+            size INTEGER NOT NULL,
             tags JSON -- JSON object of CloudTrackTag
         );",
     )
@@ -208,6 +209,7 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
             COALESCE(t.sampling_rate, CAST(ct.tags->>'$.sampling_rate' AS INTEGER)) as sampling_rate,
             COALESCE(t.channels, CAST(ct.tags->>'$.channels' AS INTEGER)) as channels,
             COALESCE(t.encoder, ct.tags->>'$.encoder') as encoder,
+            COALESCE(t.size, ct.size) as size,
 
             -- Sync state
             ct.updated_at as cloud_updated_at
