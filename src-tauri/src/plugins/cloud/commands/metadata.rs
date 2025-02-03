@@ -20,10 +20,9 @@ pub async fn sync_cloud_metadata(
     cloud_state: State<'_, CloudState>,
 ) -> AnyResult<CloudMetadataSyncResult> {
     info!("Starting cloud metadata sync");
-    let mut db = db_state.get_lock().await;
     let provider = &cloud_state.dropbox;
 
-    // 1. Download metadata from cloud
+    // 1. Download metadata from cloud - No DB lock needed
     let metadata_folder = provider.ensure_metadata_folder().await?;
     let temp_path = temp_dir().join("syncudio_tracks.json.tmp");
     
@@ -41,15 +40,13 @@ pub async fn sync_cloud_metadata(
 
     let mut result = CloudMetadataSyncResult::new(is_fresh_start);
 
-    // 2. Load and compare states
-    let db_tracks = db
-        .get_cloud_tracks_full_by_provider(provider.provider_type().as_str())
-        .await?;
+    // 2. Load database state with minimal lock time
+    let db_tracks = {
+        let mut db = db_state.get_lock().await;
+        db.get_cloud_tracks_full_by_provider(provider.provider_type().as_str()).await?
+    };
 
-    // 3. Update database where needed
-    info!("Merging cloud metadata with database");
-
-    // Create lookup maps for efficient matching
+    // Create lookup maps - No DB lock needed
     let mut db_tracks_by_path: HashMap<String, CloudTrackFullDTO> = HashMap::new();
     let mut db_tracks_by_cloud_id: HashMap<String, CloudTrackFullDTO> = HashMap::new();
 
@@ -60,17 +57,18 @@ pub async fn sync_cloud_metadata(
         }
     }
 
-    // Process cloud metadata tracks
+    // Process cloud metadata tracks in batches to minimize lock time
     for cloud_track in &cloud_metadata.tracks {
-        // Try to find matching track in database
         let db_track = db_tracks_by_path
             .get(&cloud_track.relative_path)
             .or_else(|| db_tracks_by_cloud_id.get(&cloud_track.cloud_file_id));
 
         match db_track {
             Some(track) => {
-                // Track exists, update if cloud version is newer
                 if cloud_track.last_modified > track.track_updated_at {
+                    // Update with minimal lock time
+                    let mut db = db_state.get_lock().await;
+                    
                     info!("Updating track {} from cloud metadata", track.track_id);
                     let mut updated_track = CloudTrack::select()
                         .where_("id = ?")
@@ -99,7 +97,9 @@ pub async fn sync_cloud_metadata(
                 }
             }
             None => {
-                // Track doesn't exist, create new entry
+                // Create new entry with minimal lock time
+                let mut db = db_state.get_lock().await;
+                
                 info!("Creating new track from cloud metadata");
                 let track = CloudTrack {
                     id: Uuid::new_v4().to_string(),
@@ -137,37 +137,40 @@ pub async fn update_cloud_metadata(
     cloud_state: State<'_, CloudState>,
 ) -> AnyResult<CloudMetadataUpdateResult> {
     info!("Updating cloud metadata");
-    let mut db = db_state.get_lock().await;
     let provider = &cloud_state.dropbox;
     let mut result = CloudMetadataUpdateResult::new();
 
-    // 1. Get current database state
-    let tracks = db
-        .get_cloud_tracks_full_by_provider(provider.provider_type().as_str())
-        .await?;
+    // 1. Get current database state with minimal lock time
+    let tracks = {
+        let mut db = db_state.get_lock().await;
+        db.get_cloud_tracks_full_by_provider(provider.provider_type().as_str()).await?
+    };
 
-    // 2. Convert to cloud metadata format
+    // 2. Convert to cloud metadata format - No DB lock needed
     let metadata = CloudMetadataCollection {
         tracks: tracks
             .into_iter()
             .filter_map(|t| {
                 let cloud_path = t.cloud_path();
-                // Only include tracks that have cloud_file_id
-                if let Some(cloud_id) = t.cloud_file_id {
-                    result.tracks_included += 1;
-                    Some(CloudTrackMetadata {
-                        cloud_file_id: cloud_id,
-                        cloud_path: cloud_path,
-                        relative_path: t.relative_path,
-                        tags: t.tags,
-                        last_modified: t.track_updated_at,
-                        last_sync: Utc::now(),
-                        provider: t.provider_type,
-                        cloud_folder_id: t.cloud_folder_id,
-                    })
-                } else {
-                    result.tracks_skipped += 1;
-                    None
+                // Only include tracks that have both cloud_file_id and valid tags
+                match (t.cloud_file_id, t.tags) {
+                    (Some(cloud_id), Some(tags)) => {
+                        result.tracks_included += 1;
+                        Some(CloudTrackMetadata {
+                            cloud_file_id: cloud_id,
+                            cloud_path: cloud_path,
+                            relative_path: t.relative_path,
+                            tags: Some(tags),
+                            last_modified: t.track_updated_at,
+                            last_sync: Utc::now(),
+                            provider: t.provider_type,
+                            cloud_folder_id: t.cloud_folder_id,
+                        })
+                    }
+                    _ => {
+                        result.tracks_skipped += 1;
+                        None
+                    }
                 }
             })
             .collect(),
@@ -175,7 +178,7 @@ pub async fn update_cloud_metadata(
         version: result.metadata_version.clone(),
     };
 
-    // 3. Upload to cloud
+    // 3. Upload to cloud - No DB lock needed
     let temp_path = temp_dir().join("syncudio_tracks.json.tmp");
     std::fs::write(&temp_path, serde_json::to_string_pretty(&metadata)?)?;
     provider

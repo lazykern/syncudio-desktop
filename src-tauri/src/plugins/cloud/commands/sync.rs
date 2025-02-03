@@ -1,5 +1,6 @@
 use chrono::Utc;
 use log::info;
+use log::warn;
 use ormlite::Model;
 use std::collections::HashMap;
 use std::path::Path;
@@ -15,8 +16,6 @@ use crate::plugins::cloud::CloudProviderType;
 use crate::plugins::cloud::CloudState;
 use crate::plugins::cloud::models::*;
 use crate::{libs::error::AnyResult, plugins::db::DBState};
-
-use super::cloud_list_files;
 
 impl SyncStatus {
     pub fn from_str(s: &str) -> AnyResult<Self> {

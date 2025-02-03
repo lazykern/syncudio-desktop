@@ -3,6 +3,39 @@ import type { UnifiedTrack, SortBy, SortOrder } from '../generated/typings';
 import { stripAccents } from './utils-library';
 import { parseDuration } from '../hooks/useFormattedDuration';
 import { plural } from './localization';
+import { invoke } from '@tauri-apps/api/core';
+
+/**
+ * Check if a file exists in the filesystem
+ */
+export async function checkFileExists(path: string): Promise<boolean> {
+  if (!path) return false;
+  
+  try {
+    return await invoke('plugin:cloud|check_file_exists', { path });
+  } catch (error) {
+    // Log the error for debugging
+    console.warn(`Failed to check file existence for path: ${path}`, error);
+    
+    // Return false for forbidden paths or any other errors
+    return false;
+  }
+}
+
+/**
+ * Get the location type for a unified track by checking actual file existence
+ */
+export async function getLocationTypeWithFileCheck(track: UnifiedTrack): Promise<'local' | 'cloud' | 'both'> {
+  if (track.local_track_id && track.cloud_track_id) {
+    return 'both';
+  } else if (track.local_track_id) {
+    return 'local';
+  } else if (track.cloud_track_id) {
+    return 'cloud';
+  }
+  // Fallback to cloud if no IDs are present (shouldn't happen)
+  return 'cloud';
+}
 
 /**
  * Filter an array of unified tracks by string
@@ -32,13 +65,20 @@ export function sortUnifiedTracks(
 }
 
 /**
- * Get status for unified tracks
+ * Get status for unified tracks with file existence check
  */
-export function getUnifiedStatus(tracks: UnifiedTrack[]): string {
-  const duration = parseDuration(
-    tracks.map((d) => d.duration).reduce((a, b) => a + b, 0),
+export async function getUnifiedStatusWithFileCheck(tracks: UnifiedTrack[]): Promise<string> {
+  const checkedTracks = await Promise.all(
+    tracks.map(async (track) => ({
+      ...track,
+      location_type: await getLocationTypeWithFileCheck(track)
+    }))
   );
-  return `${tracks.length} ${plural('track', tracks.length)}, ${duration}`;
+  
+  const duration = parseDuration(
+    checkedTracks.map((d) => d.duration).reduce((a, b) => a + b, 0),
+  );
+  return `${checkedTracks.length} ${plural('track', checkedTracks.length)}, ${duration}`;
 }
 
 // Sort utilities for UnifiedTracks

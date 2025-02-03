@@ -116,35 +116,63 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
     // Create unified tracks view
     ormlite::query(
         "CREATE VIEW IF NOT EXISTS unified_tracks AS
-        WITH base_tracks AS (
-            -- Get all tracks by path
-            SELECT 
-                relative_path,
-                'path' as join_type
-            FROM (
-                SELECT ctm.relative_path 
-                FROM cloud_maps ctm
-                UNION 
-                SELECT SUBSTR(t.path, LENGTH(cmf.local_folder_path) + 1) as relative_path
-                FROM tracks t
-                JOIN cloud_music_folders cmf 
-                WHERE t.path LIKE cmf.local_folder_path || '%'
+        WITH track_mappings AS (
+            -- Get all possible track mappings based on relative paths
+            SELECT DISTINCT
+                t.id as local_track_id,
+                t.path as local_path,
+                ctm.cloud_track_id,
+                ctm.id as cloud_map_id,
+                ctm.relative_path,
+                ctm.cloud_file_id,
+                ctm.cloud_music_folder_id,
+                cmf.local_folder_path,
+                cmf.cloud_folder_path,
+                cmf.provider_type
+            FROM tracks t
+            CROSS JOIN cloud_music_folders cmf
+            LEFT JOIN cloud_maps ctm ON 
+                SUBSTR(t.path, LENGTH(cmf.local_folder_path) + 2) = ctm.relative_path
+                AND ctm.cloud_music_folder_id = cmf.id
+            WHERE t.path LIKE cmf.local_folder_path || '/%'
+            
+            UNION
+            
+            -- Include cloud-only tracks
+            SELECT DISTINCT
+                NULL as local_track_id,
+                NULL as local_path,
+                ct.id as cloud_track_id,
+                ctm.id as cloud_map_id,
+                ctm.relative_path,
+                ctm.cloud_file_id,
+                ctm.cloud_music_folder_id,
+                cmf.local_folder_path,
+                cmf.cloud_folder_path,
+                cmf.provider_type
+            FROM cloud_tracks ct
+            JOIN cloud_maps ctm ON ct.id = ctm.cloud_track_id
+            JOIN cloud_music_folders cmf ON ctm.cloud_music_folder_id = cmf.id
+            WHERE NOT EXISTS (
+                SELECT 1 FROM tracks t
+                WHERE SUBSTR(t.path, LENGTH(cmf.local_folder_path) + 2) = ctm.relative_path
+                AND t.path LIKE cmf.local_folder_path || '/%'
             )
         )
         SELECT 
             -- Track identifiers
-            t.id as local_track_id,
-            ct.id as cloud_track_id,
-            ctm.id as cloud_map_id,
-            cmf.id as cloud_folder_id,
+            tm.local_track_id,
+            tm.cloud_track_id,
+            tm.cloud_map_id,
+            tm.cloud_music_folder_id as cloud_folder_id,
 
             -- Paths and locations
-            t.path as local_path,
-            ctm.relative_path as cloud_relative_path,
-            cmf.cloud_folder_path as cloud_folder_path,
-            cmf.local_folder_path as cloud_local_folder_path,
-            cmf.provider_type as cloud_provider_type,
-            ctm.cloud_file_id,
+            tm.local_path,
+            tm.relative_path as cloud_relative_path,
+            tm.cloud_folder_path,
+            tm.local_folder_path as cloud_local_folder_path,
+            tm.provider_type as cloud_provider_type,
+            tm.cloud_file_id,
 
             -- Metadata (preferring local over cloud)
             COALESCE(t.title, ct.tags->>'$.title', ct.file_name) as title,
@@ -155,35 +183,38 @@ pub async fn create_tables(connection: &mut SqliteConnection) -> AnyResult<()> {
                 json_array('Unknown Artist')
             ) as artists,
             COALESCE(
+                json(t.composers),
+                ct.tags->>'$.composers',
+                json_array()
+            ) as composers,
+            COALESCE(
+                json(t.album_artists),
+                ct.tags->>'$.album_artists',
+                json_array()
+            ) as album_artists,
+            COALESCE(
                 json(t.genres),
                 ct.tags->>'$.genres',
                 json_array()
             ) as genres,
-            COALESCE(t.year, CAST(ct.tags->>'$.year' AS INTEGER)) as year,
-            COALESCE(t.duration, CAST(ct.tags->>'$.duration' AS INTEGER), 0) as duration,
             COALESCE(t.track_no, CAST(ct.tags->>'$.track_no' AS INTEGER)) as track_no,
             COALESCE(t.track_of, CAST(ct.tags->>'$.track_of' AS INTEGER)) as track_of,
             COALESCE(t.disk_no, CAST(ct.tags->>'$.disk_no' AS INTEGER)) as disk_no,
             COALESCE(t.disk_of, CAST(ct.tags->>'$.disk_of' AS INTEGER)) as disk_of,
+            COALESCE(t.date, ct.tags->>'$.date') as date,
+            COALESCE(t.year, CAST(ct.tags->>'$.year' AS INTEGER)) as year,
+            COALESCE(t.duration, CAST(ct.tags->>'$.duration' AS INTEGER), 0) as duration,
+            COALESCE(t.bitrate, CAST(ct.tags->>'$.bitrate' AS INTEGER)) as bitrate,
+            COALESCE(t.sampling_rate, CAST(ct.tags->>'$.sampling_rate' AS INTEGER)) as sampling_rate,
+            COALESCE(t.channels, CAST(ct.tags->>'$.channels' AS INTEGER)) as channels,
+            COALESCE(t.encoder, ct.tags->>'$.encoder') as encoder,
 
-            -- Location and sync state
-            CASE 
-                WHEN t.id IS NOT NULL AND ct.id IS NOT NULL THEN 'both'
-                WHEN t.id IS NOT NULL THEN 'local'
-                ELSE 'cloud'
-            END as location_type,
+            -- Sync state
             ct.updated_at as cloud_updated_at
 
-        FROM base_tracks
-        -- Join with tracks based on path
-        LEFT JOIN cloud_maps ctm ON 
-            base_tracks.relative_path = ctm.relative_path
-        LEFT JOIN cloud_tracks ct ON 
-            ct.id = ctm.cloud_track_id
-        LEFT JOIN cloud_music_folders cmf ON 
-            ctm.cloud_music_folder_id = cmf.id
-        LEFT JOIN tracks t ON 
-            t.path = cmf.local_folder_path || base_tracks.relative_path;"
+        FROM track_mappings tm
+        LEFT JOIN tracks t ON tm.local_track_id = t.id
+        LEFT JOIN cloud_tracks ct ON tm.cloud_track_id = ct.id;"
     )
     .execute(&mut *connection)
     .await?;

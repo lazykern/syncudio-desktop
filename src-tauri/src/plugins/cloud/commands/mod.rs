@@ -4,6 +4,7 @@ mod sync;
 mod sync_queue;
 mod cleanup;
 mod metadata;
+mod fs;
 
 use chrono::{DateTime, Utc};
 use ormlite::Model;
@@ -16,11 +17,13 @@ use tauri::State;
 use uuid::Uuid;
 
 pub use database::*;
+pub use fs::*;
+pub use metadata::*;
 pub use provider::*;
 pub use sync::*;
 pub use sync_queue::*;
 pub use cleanup::*;
-pub use metadata::*;
+
 
 use crate::libs::constants::SUPPORTED_TRACKS_EXTENSIONS;
 use crate::libs::error::SyncudioError;

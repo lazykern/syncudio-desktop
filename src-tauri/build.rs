@@ -94,10 +94,10 @@ fn main() {
                     // Unified track commands
                     "get_unified_tracks",
                     "get_unified_tracks_by_ids",
-                    "get_unified_tracks_by_location",
                     "get_unified_tracks_by_folder",
                     "get_unified_tracks_by_provider",
                     "get_unified_track",
+                    "check_file_exists",
                     // Sync worker commands
                     "reset_in_progress_items",
                     "get_next_upload_item",

@@ -95,14 +95,6 @@ impl DB {
         Ok(tracks)
     }
 
-    pub async fn get_unified_tracks_by_location(&mut self, location_type: &str) -> AnyResult<Vec<UnifiedTrack>> {
-        let tracks = ormlite::query_as("SELECT * FROM unified_tracks WHERE location_type = ?")
-            .bind(location_type)
-            .fetch_all(&mut self.connection)
-            .await?;
-        Ok(tracks)
-    }
-
     pub async fn get_unified_tracks_by_folder(&mut self, folder_id: &str) -> AnyResult<Vec<UnifiedTrack>> {
         let tracks = ormlite::query_as("SELECT * FROM unified_tracks WHERE cloud_folder_id = ?")
             .bind(folder_id)

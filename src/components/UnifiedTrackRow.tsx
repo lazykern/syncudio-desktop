@@ -1,11 +1,13 @@
 import { useSortable } from '@dnd-kit/sortable';
 import cx from 'classnames';
 import type React from 'react';
+import { useEffect, useState } from 'react';
 
 import type { UnifiedTrack, TrackSyncStatusDTO } from '../generated/typings';
 import useFormattedDuration from '../hooks/useFormattedDuration';
 import PlayingIndicator from './PlayingIndicator';
 import { useTrackSyncStatus } from '../hooks/useCloudQueries';
+import { checkFileExists } from '../lib/utils-unified-tracks';
 import icons from '../lib/icons';
 
 import styles from './TrackRow.module.css';
@@ -73,12 +75,25 @@ export default function UnifiedTrackRow(props: Props) {
 
   const duration = useFormattedDuration(track.duration);
   const trackId = track.local_track_id || track.cloud_track_id || '';
-  const isCloudOnly = track.location_type === 'cloud';
+  const [isCloudOnly, setIsCloudOnly] = useState(true); // Default to cloud-only until we verify file exists
   
   const { data: syncStatus } = useTrackSyncStatus(track.cloud_track_id || '');
   const isDownloading = 
     syncStatus?.sync_operation === 'download' && 
     syncStatus?.sync_status === 'in_progress';
+
+  // Check actual file existence
+  useEffect(() => {
+    async function checkFile() {
+      if (track.local_path) {
+        const exists = await checkFileExists(track.local_path);
+        setIsCloudOnly(!exists);
+      } else {
+        setIsCloudOnly(true);
+      }
+    }
+    checkFile();
+  }, [track.local_path, syncStatus]); // Also recheck when sync status changes
 
   const syncDescription = getSyncDescription(syncStatus);
 

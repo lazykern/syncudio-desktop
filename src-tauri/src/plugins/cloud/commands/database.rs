@@ -66,16 +66,6 @@ pub async fn get_unified_tracks_by_ids(
 }
 
 #[tauri::command]
-pub async fn get_unified_tracks_by_location(
-    location_type: String,
-    db_state: State<'_, DBState>
-) -> AnyResult<Vec<UnifiedTrack>> {
-    info!("Getting unified tracks by location type: {}", location_type);
-    let mut db = db_state.get_lock().await;
-    db.get_unified_tracks_by_location(&location_type).await
-}
-
-#[tauri::command]
 pub async fn get_unified_track(
     id: String,
     db_state: State<'_, DBState>

@@ -32,13 +32,11 @@ export function useTrackSelection({ tracks, preventCloudOnlySelect }: UseTrackSe
       }
 
       // For unified tracks, prevent selecting cloud-only tracks if preventCloudOnlySelect is true
-      if (preventCloudOnlySelect && 'location_type' in tracks[0]) {
-        const track = tracks.find((t) => 
-          (t as UnifiedTrack).local_track_id === trackID || 
-          (t as UnifiedTrack).cloud_track_id === trackID
-        ) as UnifiedTrack;
-
-        if (track && track.location_type === 'cloud') {
+      if (preventCloudOnlySelect && 'cloud_track_id' in tracks[0]) {
+        const hasLocalTrack = tracks.some((track) => 
+          'local_track_id' in track && track.local_track_id !== null
+        );
+        if (!hasLocalTrack) {
           return;
         }
       }
@@ -65,13 +63,14 @@ export function useTrackSelection({ tracks, preventCloudOnlySelect }: UseTrackSe
         selectedTracks.has(trackID)
       ) {
         // For unified tracks, prevent selecting cloud-only tracks if preventCloudOnlySelect is true
-        if (preventCloudOnlySelect && 'location_type' in tracks[0]) {
+        if (preventCloudOnlySelect && 'cloud_track_id' in tracks[0]) {
           const track = tracks.find((t) => 
             (t as UnifiedTrack).local_track_id === trackID || 
             (t as UnifiedTrack).cloud_track_id === trackID
           ) as UnifiedTrack;
 
-          if (track && track.location_type === 'cloud') {
+          if (track && 'cloud_track_id' in track && 'local_track_id' in track && 
+              track.local_track_id === null && track.cloud_track_id !== null) {
             return;
           }
         }
@@ -83,23 +82,23 @@ export function useTrackSelection({ tracks, preventCloudOnlySelect }: UseTrackSe
   );
 
   const selectAllTracks = useCallback(() => {
-    if (preventCloudOnlySelect && 'location_type' in tracks[0]) {
+    if (preventCloudOnlySelect && 'cloud_track_id' in tracks[0]) {
       // Only select non-cloud tracks
-      const nonCloudTracks = tracks.filter((t) => 
-        (t as UnifiedTrack).location_type !== 'cloud'
-      );
+      const filteredTracks = tracks.filter((t: Track | UnifiedTrack) => 
+        'local_track_id' in t && t.local_track_id !== null
+      ) as UnifiedTrack[];
 
-      setSelectedTracks(new Set(nonCloudTracks.map((track) => 
-        (track as UnifiedTrack).local_track_id || 
-        (track as UnifiedTrack).cloud_track_id || ''
+      setSelectedTracks(new Set(filteredTracks.map((track) => 
+        track.local_track_id || track.cloud_track_id || ''
       )));
-    } else {
-      setSelectedTracks(new Set(tracks.map((track) => 
-        'local_track_id' in track ? 
-          (track.local_track_id || track.cloud_track_id || '') : 
-          track.id
-      )));
+      return;
     }
+
+    setSelectedTracks(new Set(tracks.map((track) => 
+      'local_track_id' in track ? 
+        (track.local_track_id || track.cloud_track_id || '') : 
+        track.id
+    )));
   }, [tracks, preventCloudOnlySelect]);
 
   return {

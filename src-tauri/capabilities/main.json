@@ -84,6 +84,7 @@
     "cloud:allow-get-unified-tracks-by-folder",
     "cloud:allow-get-unified-tracks-by-provider",
     "cloud:allow-get-unified-track",
+    "cloud:allow-check-file-exists",
     "cloud:allow-reset-in-progress-items",
     "cloud:allow-get-next-upload-item",
     "cloud:allow-get-next-download-item",
@@ -92,7 +93,8 @@
     "cloud:allow-fail-upload",
     "cloud:allow-fail-download",
     "cloud:allow-sync-cloud-metadata",
-    "cloud:allow-update-cloud-metadata"
+    "cloud:allow-update-cloud-metadata",
+    "fs:default"
   ],
   "platforms": [
     "linux",

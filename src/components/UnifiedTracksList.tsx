@@ -6,7 +6,7 @@ import {
 } from '@dnd-kit/sortable';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type React from 'react';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import Keybinding from 'react-keybinding-component';
 import { useSearchParams } from 'react-router';
@@ -22,6 +22,7 @@ import { useScrollRestoration } from '../hooks/useScrollRestoration';
 import useDndSensors from '../hooks/useDnDSensors';
 import useInvalidate from '../hooks/useInvalidate';
 import { useSyncMutations } from '../hooks/useCloudQueries';
+import { checkFileExists } from '../lib/utils-unified-tracks';
 import UnifiedTrackRow from './UnifiedTrackRow';
 import TracksListHeader from './TracksListHeader';
 import styles from './TracksList.module.css';
@@ -66,6 +67,31 @@ export default function UnifiedTracksList(props: Props) {
   const queryClient = useQueryClient();
   const sensors = useDndSensors();
   
+  const [checkedTracks, setCheckedTracks] = useState<UnifiedTrack[]>([]);
+  const [localTracks, setLocalTracks] = useState<UnifiedTrack[]>([]);
+  
+  // Check file existence for all tracks
+  useEffect(() => {
+    async function checkTracks() {
+      const checked = await Promise.all(
+        tracks.map(async (track) => {
+          const exists = track.local_path ? await checkFileExists(track.local_path) : false;
+          return {
+            ...track,
+            _exists: exists // Add internal flag for existence
+          };
+        })
+      );
+      setCheckedTracks(checked);
+      
+      // Filter tracks that exist locally
+      const local = checked.filter(t => t._exists);
+      setLocalTracks(local);
+    }
+    
+    checkTracks();
+  }, [tracks]);
+
   // Listen for track-downloaded events to update tracks
   useEffect(() => {
     const unlisten = listen<TrackDownloadedPayload>('track-downloaded', async (event) => {
@@ -78,7 +104,6 @@ export default function UnifiedTracksList(props: Props) {
             return {
               ...track,
               local_track_id: event.payload.local_track_id,
-              location_type: event.payload.location_type,
               local_path: `${event.payload.sync_folder_id}/${event.payload.relative_path}`
             };
           }
@@ -98,7 +123,7 @@ export default function UnifiedTracksList(props: Props) {
 
   const scrollableRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
-    count: tracks.length,
+    count: checkedTracks.length,
     overscan: 20,
     scrollPaddingEnd: 22,
     getScrollElement: () => scrollableRef.current,
@@ -110,25 +135,32 @@ export default function UnifiedTracksList(props: Props) {
           return ROW_HEIGHT;
       }
     },
-    getItemKey: (index) => tracks[index].local_track_id || tracks[index].cloud_track_id || index.toString(),
+    getItemKey: (index) => checkedTracks[index].local_track_id || checkedTracks[index].cloud_track_id || index.toString(),
   });
 
   useScrollRestoration(scrollableRef);
 
-  // Only non-cloud tracks can be selected
-  const nonCloudTracks = tracks.filter(t => t.location_type !== 'cloud').map(t => ({
+  // Only tracks that exist locally can be selected
+  const nonCloudTracks = localTracks.map(t => ({
     id: t.local_track_id || t.cloud_track_id || '',
     path: t.local_path || '',
     title: t.title,
     album: t.album,
     artists: t.artists || [],
+    composers: [], // Default empty array
+    album_artists: [], // Default empty array
     genres: t.genres || [],
     duration: t.duration,
     year: t.year,
+    date: null, // Default null
     track_no: t.track_no,
     track_of: t.track_of,
     disk_no: t.disk_no,
-    disk_of: t.disk_of
+    disk_of: t.disk_of,
+    bitrate: null, // Default null
+    sampling_rate: null, // Default null
+    channels: null, // Default null
+    encoder: null, // Default null
   }));
 
   const {
@@ -166,7 +198,7 @@ export default function UnifiedTracksList(props: Props) {
       setSearchParams(undefined);
       setSelectedTracks(new Set([trackPlayingID]));
 
-      const playingTrackIndex = tracks.findIndex(
+      const playingTrackIndex = checkedTracks.findIndex(
         (track) => (track.local_track_id || track.cloud_track_id) === trackPlayingID,
       );
 
@@ -180,7 +212,7 @@ export default function UnifiedTracksList(props: Props) {
     shouldJumpToPlayingTrack,
     setSearchParams,
     trackPlayingID,
-    tracks,
+    checkedTracks,
     virtualizer,
     setSelectedTracks,
   ]);
@@ -193,45 +225,51 @@ export default function UnifiedTracksList(props: Props) {
         return;
       }
 
-      const activeIndex = tracks.findIndex((track) => 
+      const activeIndex = checkedTracks.findIndex((track) => 
         (track.local_track_id || track.cloud_track_id) === active.id
       );
-      const overIndex = tracks.findIndex((track) => 
+      const overIndex = checkedTracks.findIndex((track) => 
         (track.local_track_id || track.cloud_track_id) === over.id
       );
 
-      const newTracks = [...tracks];
+      const newTracks = [...checkedTracks];
       const movedTrack = newTracks.splice(activeIndex, 1)[0];
       newTracks.splice(overIndex, 0, movedTrack);
 
       onReorder(newTracks);
     },
-    [onReorder, tracks],
+    [onReorder, checkedTracks],
   );
 
   async function handleTrackPlay(trackId: string) {
-    const track = tracks.find(t => (t.local_track_id || t.cloud_track_id) === trackId);
+    const track = checkedTracks.find(t => (t.local_track_id || t.cloud_track_id) === trackId);
     if (!track) return;
 
-    // Create local tracks list excluding cloud-only tracks
-    const playableTracks = tracks
-      .filter(t => t.location_type !== 'cloud')
-      .map(t => ({
-        id: t.local_track_id || t.cloud_track_id || '',
-        path: t.local_path || '',
-        title: t.title,
-        album: t.album,
-        artists: t.artists || [],
-        genres: t.genres || [],
-        duration: t.duration,
-        year: t.year,
-        track_no: t.track_no,
-        track_of: t.track_of,
-        disk_no: t.disk_no,
-        disk_of: t.disk_of
+    // Create local tracks list excluding non-existent tracks
+    const playableTracks = localTracks.map(t => ({
+      id: t.local_track_id || t.cloud_track_id || '',
+      path: t.local_path || '',
+      title: t.title,
+      album: t.album,
+      artists: t.artists || [],
+      composers: [], // Default empty array
+      album_artists: [], // Default empty array
+      genres: t.genres || [],
+      duration: t.duration,
+      year: t.year,
+      date: null, // Default null
+      track_no: t.track_no,
+      track_of: t.track_of,
+      disk_no: t.disk_no,
+      disk_of: t.disk_of,
+      bitrate: null, // Default null
+      sampling_rate: null, // Default null
+      channels: null, // Default null
+      encoder: null, // Default null
     }));
 
-    if (track.location_type === 'cloud') {
+    const exists = track.local_path ? await checkFileExists(track.local_path) : false;
+    if (!exists) {
       if (track.cloud_track_id && track.cloud_folder_id) {
         try {
           await downloadMutation.mutateAsync({
@@ -239,8 +277,6 @@ export default function UnifiedTracksList(props: Props) {
             folderId: track.cloud_folder_id,
           });
           toastsAPI.add('success', `Downloading "${track.title}"`);
-          // Don't start playing yet - wait for download to complete
-          // The cloud sync worker will emit track-downloaded event which will update the UI
         } catch (error) {
           console.error('Failed to download track:', error);
           toastsAPI.add('danger', `Failed to download "${track.title}"`);
@@ -272,11 +308,11 @@ export default function UnifiedTracksList(props: Props) {
             }}
           >
             <SortableContext
-              items={tracks.map(t => t.local_track_id || t.cloud_track_id || '')}
+              items={checkedTracks.map(t => t.local_track_id || t.cloud_track_id || '')}
               strategy={verticalListSortingStrategy}
             >
               {virtualizer.getVirtualItems().map((virtualItem) => {
-                const track = tracks[virtualItem.index];
+                const track = checkedTracks[virtualItem.index];
                 const trackId = track.local_track_id || track.cloud_track_id || '';
                 return (
                   <UnifiedTrackRow
@@ -289,7 +325,7 @@ export default function UnifiedTracksList(props: Props) {
                     onClick={selectTrackClick}
                     onContextMenu={showContextMenu}
                     onDoubleClick={handleTrackPlay}
-                    draggable={reorderable && track.location_type !== 'cloud'}
+                    draggable={reorderable && (track.local_track_id !== null)}
                     style={{
                       position: 'absolute',
                       left: 0,

@@ -573,34 +573,39 @@ pub async fn start_download<R: Runtime>(
     db_state: State<'_, DBState>,
     cloud_state: State<'_, CloudState>,
 ) -> AnyResult<()> {
-    let mut db = db_state.get_lock().await;
+    // First database operation block - get required info
+    let (track_map, track, folder, mut item) = {
+        let mut db = db_state.get_lock().await;
+        
+        // Get queue item
+        let item = DownloadQueueItem::select()
+            .where_("id = ?")
+            .bind(&item_id)
+            .fetch_one(&mut db.connection)
+            .await?;
 
-    // Get queue item
-    let mut item = DownloadQueueItem::select()
-        .where_("id = ?")
-        .bind(&item_id)
-        .fetch_one(&mut db.connection)
-        .await?;
+        // Get track info
+        let track_map = CloudTrackMap::select()
+            .where_("id = ?")
+            .bind(&item.cloud_map_id)
+            .fetch_one(&mut db.connection)
+            .await?;
 
-    // Get track info
-    let track_map = CloudTrackMap::select()
-        .where_("id = ?")
-        .bind(&item.cloud_map_id)
-        .fetch_one(&mut db.connection)
-        .await?;
+        let track = CloudTrack::select()
+            .where_("id = ?")
+            .bind(&track_map.cloud_track_id)
+            .fetch_one(&mut db.connection)
+            .await?;
 
-    let mut track = CloudTrack::select()
-        .where_("id = ?")
-        .bind(&track_map.cloud_track_id)
-        .fetch_one(&mut db.connection)
-        .await?;
+        // Get folder info
+        let folder = CloudMusicFolder::select()
+            .where_("id = ?")
+            .bind(&track_map.cloud_music_folder_id)
+            .fetch_one(&mut db.connection)
+            .await?;
 
-    // Get folder info
-    let folder = CloudMusicFolder::select()
-        .where_("id = ?")
-        .bind(&track_map.cloud_music_folder_id)
-        .fetch_one(&mut db.connection)
-        .await?;
+        (track_map, track, folder, item)
+    };
 
     // Get local file path
     let local_path = Path::new(&folder.local_folder_path)
@@ -613,10 +618,13 @@ pub async fn start_download<R: Runtime>(
         std::fs::create_dir_all(parent)?;
     }
 
-    // Update item status
-    item.status = "in_progress".to_string();
-    item.updated_at = Utc::now();
-    item = item.update_all_fields(&mut db.connection).await?;
+    // Update item status to in_progress
+    {
+        let mut db = db_state.get_lock().await;
+        item.status = "in_progress".to_string();
+        item.updated_at = Utc::now();
+        item = item.update_all_fields(&mut db.connection).await?;
+    }
 
     // Get cloud provider
     let provider = match folder.provider_type.as_str() {
@@ -624,28 +632,50 @@ pub async fn start_download<R: Runtime>(
         _ => return Err(SyncudioError::UnsupportedProvider(folder.provider_type)),
     };
 
-    // Download file
+    // Download file - No database lock needed here
     provider
         .download_file(&track_map.cloud_file_id.clone().unwrap(), &PathBuf::from(&local_path))
         .await?;
 
-    // Parse local track metadata
+    // Parse local track metadata - No database lock needed
     let mut local_track = track::get_track_from_file(&PathBuf::from(&local_path))
         .ok_or_else(|| SyncudioError::InvalidTrackMetadata(local_path.clone()))?;
 
-    // Insert local track
-    local_track = local_track.insert(&mut db.connection).await?;
+    // Final database operation block - update track and complete the operation
+    let (local_track, track) = {
+        let mut db = db_state.get_lock().await;
 
-    // Update track metadata
-    track.updated_at = Utc::now();
-    track = track.update_all_fields(&mut db.connection).await?;
+        // Check if track already exists and update it instead of inserting
+        let existing_track = Track::select()
+            .where_("path = ?")
+            .bind(&local_track.path)
+            .fetch_optional(&mut db.connection)
+            .await?;
 
-    // Mark item as completed
-    item.status = "completed".to_string();
-    item.updated_at = Utc::now();
-    item = item.update_all_fields(&mut db.connection).await?;
+        let local_track = if let Some(existing) = existing_track {
+            // Update existing track with new metadata
+            local_track.id = existing.id; // Keep the same ID
+            local_track.update_all_fields(&mut db.connection).await?
+        } else {
+            // Insert as new track if it doesn't exist
+            local_track.insert(&mut db.connection).await?
+        };
 
-    // Emit track downloaded event
+        // Update cloud track metadata
+        let mut track = track;
+        track.updated_at = Utc::now();
+        track.tags = Some(CloudTrackTag::from_track(local_track.clone()));
+        let track = track.update_all_fields(&mut db.connection).await?;
+
+        // Mark item as completed
+        item.status = "completed".to_string();
+        item.updated_at = Utc::now();
+        item.update_all_fields(&mut db.connection).await?;
+
+        (local_track, track)
+    };
+
+    // Emit track downloaded event - No database lock needed
     app.emit(
         "track-downloaded",
         TrackDownloadedPayload {

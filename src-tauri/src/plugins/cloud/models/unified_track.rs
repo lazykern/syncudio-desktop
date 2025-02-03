@@ -34,7 +34,6 @@ pub struct UnifiedTrack {
     pub disk_no: Option<u32>,
     pub disk_of: Option<u32>,
 
-    // Location and sync state
-    pub location_type: String,  // 'local', 'cloud', or 'both'
+    // Sync state
     pub cloud_updated_at: Option<DateTime<Utc>>,
 } 

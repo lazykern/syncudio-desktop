@@ -4,7 +4,7 @@ mod providers;
 mod database;
 
 use tauri::plugin::{Builder, TauriPlugin};
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{Manager, Runtime};
 
 use crate::plugins::cloud::providers::*;
 
@@ -56,7 +56,6 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             // Unified track commands
             get_unified_tracks,
             get_unified_tracks_by_ids,
-            get_unified_tracks_by_location,
             get_unified_tracks_by_folder,
             get_unified_tracks_by_provider,
             get_unified_track,
@@ -68,6 +67,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             start_download,
             fail_upload,
             fail_download,
+            check_file_exists,
         ])
         .setup(move |app_handle, _api| {
             let dropbox = Dropbox::new();

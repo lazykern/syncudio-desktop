@@ -35,7 +35,6 @@ import { cloudSync } from '../lib/cloud-sync';
 import { useCloudFolders, useCloudFolderDetails, useQueueItems, useQueueStats, useSyncMutations, type FolderWithDetails } from '../hooks/useCloudQueries';
 import styles from './cloud.module.css';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useCloudSyncWorker } from '../hooks/useCloudSyncWorker';
 import { useToastsAPI } from '../stores/useToastsStore';
 import useCloudLibraryStore, { useCloudAPI } from '../stores/useCloudLibraryStore';
 
@@ -186,9 +185,6 @@ export default function ViewCloud() {
     failed_count: 0,
   } } = useQueueStats(selectedFolder || undefined);
   const { uploadMutation, downloadMutation, isLoading: isSyncing } = useSyncMutations(selectedFolder || undefined);
-
-  // Use cloud sync worker
-  const { state: workerState, pauseWorker, resumeWorker } = useCloudSyncWorker();
 
   // Get current folder's selected tracks
   const currentSelectedTracks = useMemo(() => 
@@ -454,20 +450,6 @@ export default function ViewCloud() {
               {isSyncing ? 'Syncing...' : `Sync Selected (${currentSelectedTracks.size})`}
             </button>
           )}
-          <button 
-            onClick={handleForceSyncAll}
-            disabled={!selectedFolder || isSyncing}
-            className={styles.syncButton}
-          >
-            {isSyncing ? 'Syncing...' : 'Sync All'}
-          </button>
-          <button
-            onClick={() => workerState.isPaused ? resumeWorker() : pauseWorker()}
-            className={styles.syncButton}
-            title={workerState.isPaused ? 'Resume sync worker' : 'Pause sync worker'}
-          >
-            {workerState.isPaused ? 'Resume Sync' : 'Pause Sync'}
-          </button>
         </div>
       </div>
 
