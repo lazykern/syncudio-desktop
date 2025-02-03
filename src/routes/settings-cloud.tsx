@@ -125,8 +125,8 @@ export default function SettingsCloud() {
 
   const handleMetadataSync = async () => {
     try {
-      const syncResult = await cloudMetadata.syncCloudMetadata();
-      const updateResult = await cloudMetadata.updateCloudMetadata();
+      const syncResult = await cloudMetadata.pullCloudMetadata();
+      const updateResult = await cloudMetadata.pushCloudMetadata();
       
       let message = '';
       if (syncResult.is_fresh_start) {

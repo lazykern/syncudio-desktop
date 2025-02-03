@@ -3,17 +3,18 @@ import type { CloudMetadataSyncResult, CloudMetadataUpdateResult } from '../gene
 
 export const cloudMetadata = {
   /**
-   * Sync metadata from cloud to local database
-   * @returns Details about the sync operation
+   * Pull metadata from cloud to local database
+   * @returns Details about the pull operation
    */
-  async syncCloudMetadata(): Promise<CloudMetadataSyncResult> {
-    return invoke('plugin:cloud|sync_cloud_metadata');
+  async pullCloudMetadata(): Promise<CloudMetadataSyncResult> {
+    return invoke('plugin:cloud|pull_cloud_metadata');
   },
 
   /**
-   * Update cloud metadata with current database state
+   * Push local metadata to cloud
+   * @returns Details about the push operation
    */
-  async updateCloudMetadata(): Promise<CloudMetadataUpdateResult> {
-    return invoke('plugin:cloud|update_cloud_metadata');
+  async pushCloudMetadata(): Promise<CloudMetadataUpdateResult> {
+    return invoke('plugin:cloud|push_cloud_metadata');
   },
-}; 
+};

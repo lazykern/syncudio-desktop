@@ -15,7 +15,7 @@ use uuid::Uuid;
 use std::env::temp_dir;
 
 #[tauri::command]
-pub async fn sync_cloud_metadata(
+pub async fn pull_cloud_metadata(
     db_state: State<'_, DBState>,
     cloud_state: State<'_, CloudState>,
 ) -> AnyResult<CloudMetadataSyncResult> {
@@ -132,7 +132,7 @@ pub async fn sync_cloud_metadata(
 }
 
 #[tauri::command]
-pub async fn update_cloud_metadata(
+pub async fn push_cloud_metadata(
     db_state: State<'_, DBState>,
     cloud_state: State<'_, CloudState>,
 ) -> AnyResult<CloudMetadataUpdateResult> {

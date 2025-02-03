@@ -92,8 +92,8 @@
     "cloud:allow-start-download",
     "cloud:allow-fail-upload",
     "cloud:allow-fail-download",
-    "cloud:allow-sync-cloud-metadata",
-    "cloud:allow-update-cloud-metadata",
+    "cloud:allow-pull-cloud-metadata",
+    "cloud:allow-push-cloud-metadata",
     "fs:default"
   ],
   "platforms": [
