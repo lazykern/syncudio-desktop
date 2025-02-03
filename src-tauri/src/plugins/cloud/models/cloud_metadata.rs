@@ -19,8 +19,10 @@ pub struct CloudTrackMetadata {
     pub tags: Option<CloudTrackTag>,
 
     // Cloud sync metadata
-    pub last_modified: DateTime<Utc>,
-    pub last_sync: DateTime<Utc>,
+    #[serde(rename = "last_modified")]
+    pub last_modified: String,       // Timestamp in milliseconds as string
+    #[serde(rename = "last_sync")]
+    pub last_sync: Option<DateTime<Utc>>,
     pub provider: String,            // e.g. "dropbox"
     pub cloud_folder_id: String,     // Reference to parent cloud folder
 }
@@ -30,16 +32,12 @@ pub struct CloudTrackMetadata {
 #[ts(export, export_to = "../../src/generated/typings/index.ts")]
 pub struct CloudMetadataCollection {
     pub tracks: Vec<CloudTrackMetadata>,
-    pub last_updated: DateTime<Utc>,
-    pub version: String,             // Schema version for future compatibility
 }
 
 impl CloudMetadataCollection {
     pub fn new() -> Self {
         Self {
             tracks: Vec::new(),
-            last_updated: Utc::now(),
-            version: "1.0.0".to_string(),
         }
     }
 }
@@ -50,7 +48,6 @@ impl CloudMetadataCollection {
 pub struct CloudMetadataSyncResult {
     pub tracks_updated: u32,      // Number of tracks updated from cloud
     pub tracks_created: u32,      // Number of new tracks created from cloud
-    pub metadata_version: String,  // Version of the metadata schema
     pub is_fresh_start: bool,     // Whether this was the first sync
 }
 
@@ -59,7 +56,6 @@ impl CloudMetadataSyncResult {
         Self {
             tracks_updated: 0,
             tracks_created: 0,
-            metadata_version: "1.0.0".to_string(),
             is_fresh_start,
         }
     }
@@ -71,7 +67,6 @@ impl CloudMetadataSyncResult {
 pub struct CloudMetadataUpdateResult {
     pub tracks_included: u32,     // Number of tracks included in metadata
     pub tracks_skipped: u32,      // Number of tracks skipped (missing cloud_id)
-    pub metadata_version: String,  // Version of the metadata schema
 }
 
 impl CloudMetadataUpdateResult {
@@ -79,7 +74,6 @@ impl CloudMetadataUpdateResult {
         Self {
             tracks_included: 0,
             tracks_skipped: 0,
-            metadata_version: "1.0.0".to_string(),
         }
     }
 } 

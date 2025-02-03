@@ -13,6 +13,7 @@ use std::path::PathBuf;
 use tauri::State;
 use uuid::Uuid;
 use std::env::temp_dir;
+use chrono::DateTime;
 
 #[tauri::command]
 pub async fn pull_cloud_metadata(
@@ -65,7 +66,12 @@ pub async fn pull_cloud_metadata(
 
         match db_track {
             Some(track) => {
-                if cloud_track.last_modified > track.track_updated_at {
+                // Convert last_modified from string timestamp to DateTime
+                let cloud_modified = cloud_track.last_modified.parse::<i64>()
+                    .map(|ts| DateTime::from_timestamp(ts / 1000, 0).unwrap_or_default())
+                    .unwrap_or_default();
+
+                if cloud_modified > track.track_updated_at {
                     // Update with minimal lock time
                     let mut db = db_state.get_lock().await;
                     
@@ -77,7 +83,7 @@ pub async fn pull_cloud_metadata(
                         .await?;
 
                     updated_track.tags = cloud_track.tags.clone();
-                    updated_track.updated_at = cloud_track.last_modified;
+                    updated_track.updated_at = cloud_modified;
                     updated_track.update_all_fields(&mut db.connection).await?;
 
                     // Update map if cloud_file_id changed
@@ -101,6 +107,11 @@ pub async fn pull_cloud_metadata(
                 let mut db = db_state.get_lock().await;
                 
                 info!("Creating new track from cloud metadata");
+                // Convert last_modified from string timestamp to DateTime
+                let cloud_modified = cloud_track.last_modified.parse::<i64>()
+                    .map(|ts| DateTime::from_timestamp(ts / 1000, 0).unwrap_or_default())
+                    .unwrap_or_default();
+
                 let track = CloudTrack {
                     id: Uuid::new_v4().to_string(),
                     file_name: Path::new(&cloud_track.cloud_path)
@@ -108,7 +119,7 @@ pub async fn pull_cloud_metadata(
                         .unwrap_or_default()
                         .to_string_lossy()
                         .to_string(),
-                    updated_at: cloud_track.last_modified,
+                    updated_at: cloud_modified,
                     tags: cloud_track.tags.clone(),
                 };
                 let track_id = track.id.clone();
@@ -117,7 +128,7 @@ pub async fn pull_cloud_metadata(
                 // Create map
                 let map = CloudTrackMap {
                     id: Uuid::new_v4().to_string(),
-                    cloud_track_id: track_id,
+                    cloud_track_id: track_id.clone(),
                     cloud_music_folder_id: cloud_track.cloud_folder_id.clone(),
                     relative_path: cloud_track.relative_path.clone(),
                     cloud_file_id: Some(cloud_track.cloud_file_id.clone()),
@@ -161,8 +172,8 @@ pub async fn push_cloud_metadata(
                             cloud_path: cloud_path,
                             relative_path: t.relative_path,
                             tags: Some(tags),
-                            last_modified: t.track_updated_at,
-                            last_sync: Utc::now(),
+                            last_modified: t.track_updated_at.timestamp_millis().to_string(),
+                            last_sync: Some(Utc::now()),
                             provider: t.provider_type,
                             cloud_folder_id: t.cloud_folder_id,
                         })
@@ -174,8 +185,6 @@ pub async fn push_cloud_metadata(
                 }
             })
             .collect(),
-        last_updated: Utc::now(),
-        version: result.metadata_version.clone(),
     };
 
     // 3. Upload to cloud - No DB lock needed
