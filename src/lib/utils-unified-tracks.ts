@@ -5,14 +5,27 @@ import { parseDuration } from '../hooks/useFormattedDuration';
 import { plural } from './localization';
 import { invoke } from '@tauri-apps/api/core';
 
+// Cache for file existence checks
+const fileExistsCache = new Map<string, { exists: boolean; timestamp: number }>();
+const CACHE_TTL = 5000; // Cache results for 5 seconds
+
 /**
- * Check if a file exists in the filesystem
+ * Check if a file exists in the filesystem with caching
  */
 export async function checkFileExists(path: string): Promise<boolean> {
   if (!path) return false;
   
+  const now = Date.now();
+  const cached = fileExistsCache.get(path);
+  
+  if (cached && (now - cached.timestamp) < CACHE_TTL) {
+    return cached.exists;
+  }
+  
   try {
-    return await invoke('plugin:cloud|check_file_exists', { path });
+    const exists = await invoke<boolean>('plugin:cloud|check_file_exists', { path });
+    fileExistsCache.set(path, { exists, timestamp: now });
+    return exists;
   } catch (error) {
     // Log the error for debugging
     console.warn(`Failed to check file existence for path: ${path}`, error);
@@ -26,14 +39,20 @@ export async function checkFileExists(path: string): Promise<boolean> {
  * Get the location type for a unified track by checking actual file existence
  */
 export async function getLocationTypeWithFileCheck(track: UnifiedTrack): Promise<'local' | 'cloud' | 'both'> {
+  if (!track.local_track_id && !track.cloud_track_id) {
+    return 'cloud'; // Fallback to cloud if no IDs are present (shouldn't happen)
+  }
+  
+  // If we have both IDs, we don't need to check file existence
   if (track.local_track_id && track.cloud_track_id) {
     return 'both';
-  } else if (track.local_track_id) {
-    return 'local';
-  } else if (track.cloud_track_id) {
-    return 'cloud';
   }
-  // Fallback to cloud if no IDs are present (shouldn't happen)
+  
+  // Only check file existence when we have a local path
+  if (track.local_track_id) {
+    return 'local';
+  }
+  
   return 'cloud';
 }
 
@@ -68,17 +87,9 @@ export function sortUnifiedTracks(
  * Get status for unified tracks with file existence check
  */
 export async function getUnifiedStatusWithFileCheck(tracks: UnifiedTrack[]): Promise<string> {
-  const checkedTracks = await Promise.all(
-    tracks.map(async (track) => ({
-      ...track,
-      location_type: await getLocationTypeWithFileCheck(track)
-    }))
-  );
-  
-  const duration = parseDuration(
-    checkedTracks.map((d) => d.duration).reduce((a, b) => a + b, 0),
-  );
-  return `${checkedTracks.length} ${plural('track', checkedTracks.length)}, ${duration}`;
+  // Don't check file existence for status - just use the track IDs
+  const duration = tracks.map((d) => d.duration).reduce((a, b) => a + b, 0);
+  return `${tracks.length} ${plural('track', tracks.length)}, ${parseDuration(duration)}`;
 }
 
 // Sort utilities for UnifiedTracks

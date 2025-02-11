@@ -80,7 +80,6 @@
     "cloud:allow-get-track-sync-status",
     "cloud:allow-get-unified-tracks",
     "cloud:allow-get-unified-tracks-by-ids",
-    "cloud:allow-get-unified-tracks-by-location",
     "cloud:allow-get-unified-tracks-by-folder",
     "cloud:allow-get-unified-tracks-by-provider",
     "cloud:allow-get-unified-track",

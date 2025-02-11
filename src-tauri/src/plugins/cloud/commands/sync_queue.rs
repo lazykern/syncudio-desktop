@@ -490,36 +490,41 @@ pub async fn start_upload(
     db_state: State<'_, DBState>,
     cloud_state: State<'_, CloudState>,
 ) -> AnyResult<()> {
-    let mut db = db_state.get_lock().await;
+    // First database operation block - get required info
+    let (track_map, track, folder, mut item) = {
+        let mut db = db_state.get_lock().await;
+        
+        // Get queue item
+        let item = UploadQueueItem::select()
+            .where_("id = ?")
+            .bind(&item_id)
+            .fetch_one(&mut db.connection)
+            .await?;
 
-    // Get queue item
-    let mut item = UploadQueueItem::select()
-        .where_("id = ?")
-        .bind(&item_id)
-        .fetch_one(&mut db.connection)
-        .await?;
+        // Get track info
+        let track_map = CloudTrackMap::select()
+            .where_("id = ?")
+            .bind(&item.cloud_map_id)
+            .fetch_one(&mut db.connection)
+            .await?;
 
-    // Get track info
-    let track_map = CloudTrackMap::select()
-        .where_("id = ?")
-        .bind(&item.cloud_map_id)
-        .fetch_one(&mut db.connection)
-        .await?;
+        let track = CloudTrack::select()
+            .where_("id = ?")
+            .bind(&track_map.cloud_track_id)
+            .fetch_one(&mut db.connection)
+            .await?;
 
-    let mut track = CloudTrack::select()
-        .where_("id = ?")
-        .bind(&track_map.cloud_track_id)
-        .fetch_one(&mut db.connection)
-        .await?;
+        // Get folder info
+        let folder = CloudMusicFolder::select()
+            .where_("id = ?")
+            .bind(&track_map.cloud_music_folder_id)
+            .fetch_one(&mut db.connection)
+            .await?;
 
-    // Get folder info
-    let folder = CloudMusicFolder::select()
-        .where_("id = ?")
-        .bind(&track_map.cloud_music_folder_id)
-        .fetch_one(&mut db.connection)
-        .await?;
+        (track_map, track, folder, item)
+    };
 
-    // Get local file path
+    // Get local file path - No database lock needed
     let local_path = Path::new(&folder.local_folder_path)
         .join(&track_map.relative_path)
         .to_string_lossy()
@@ -529,18 +534,21 @@ pub async fn start_upload(
         return Err(SyncudioError::FileNotFound(local_path));
     }
 
-    // Update item status
-    item.status = "in_progress".to_string();
-    item.updated_at = Utc::now();
-    item = item.update_all_fields(&mut db.connection).await?;
+    // Update item status to in_progress
+    {
+        let mut db = db_state.get_lock().await;
+        item.status = "in_progress".to_string();
+        item.updated_at = Utc::now();
+        item = item.update_all_fields(&mut db.connection).await?;
+    }
 
-    // Get cloud provider
+    // Get cloud provider - No database lock needed
     let provider = match folder.provider_type.as_str() {
         "dropbox" => &cloud_state.dropbox,
         _ => return Err(SyncudioError::UnsupportedProvider(folder.provider_type)),
     };
 
-    // Upload file
+    // Upload file - No database lock needed
     let cloud_file = provider
         .upload_file(
             &PathBuf::from(&local_path),
@@ -549,19 +557,25 @@ pub async fn start_upload(
         )
         .await?;
 
-    // Update track map with cloud file ID
-    let mut updated_map = track_map;
-    updated_map.cloud_file_id = Some(cloud_file.id.clone());
-    updated_map.update_all_fields(&mut db.connection).await?;
+    // Final database operation block - update track map and complete the operation
+    {
+        let mut db = db_state.get_lock().await;
 
-    // Update track metadata
-    track.updated_at = Utc::now();
-    track.update_all_fields(&mut db.connection).await?;
+        // Update track map with cloud file ID
+        let mut updated_map = track_map;
+        updated_map.cloud_file_id = Some(cloud_file.id.clone());
+        updated_map.update_all_fields(&mut db.connection).await?;
 
-    // Mark item as completed
-    item.status = "completed".to_string();
-    item.updated_at = Utc::now();
-    item.update_all_fields(&mut db.connection).await?;
+        // Update track metadata
+        let mut updated_track = track;
+        updated_track.updated_at = Utc::now();
+        updated_track.update_all_fields(&mut db.connection).await?;
+
+        // Mark item as completed
+        item.status = "completed".to_string();
+        item.updated_at = Utc::now();
+        item.update_all_fields(&mut db.connection).await?;
+    }
 
     Ok(())
 }
